@@ -59,7 +59,8 @@ arr complete --with drums,guitar -p "funk rock band, tight groove"
 | `arr analyze` | tempo, mesures, tonalité |
 | `arr sections set "nom:1-8 nom:9-16"` | sections en numéros de mesure, inclusifs |
 | `arr sections list` | affiche les sections |
-| `arr tracks` | pistes, versions, version active (`*`) |
+| `arr tracks` | ce qui joue dans le mix (●), les pistes muettes (○), la version active de chacune |
+| `arr tracks -v`, `arr tracks PISTE` | historique des versions, la version active marquée `▸` |
 | `arr pick PISTE VERSION` | choisit la version active |
 | `arr gain PISTE DB` | volume dans le mix |
 | `arr mute PISTE [--off]` | sort une piste du mix, ou la remet |
@@ -117,8 +118,8 @@ arr split renders/add-brass-001.flac
 ### Versions
 
 Rien n'est jamais écrasé. Chaque génération crée `tracks/<piste>/vNNN.flac` et un
-`vNNN.json` qui garde le modèle, la graine, le prompt et la version d'origine. `arr tracks`
-montre l'historique, `arr pick` revient en arrière.
+`vNNN.json` qui garde le modèle, la graine, le prompt et la version d'origine. `arr tracks -v`
+-v` montre l'historique, `arr pick` revient en arrière.
 
 ## Instruments du groupe
 

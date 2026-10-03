@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -166,18 +167,71 @@ def analyze() -> None:
     typer.echo(f"bpm {p.song['bpm']}  tonalité {p.song['key']}  {len(downbeats)} mesures")
 
 
+def describe(meta: dict) -> str:
+    """Origine d'une version, en quelques mots."""
+    op = meta["op"]
+    if op == "split":
+        detail = meta.get("model", "")
+    elif op in ("merge", "import"):
+        detail = meta.get("source", "")
+    else:
+        detail = meta.get("prompt", "")
+        if meta.get("section"):
+            detail += f" [{meta['section']}]"
+        elif "start" in meta:
+            detail += f" [{meta['start']:.0f}-{meta['end']:.0f} s]"
+    return f"{op:<7} {detail}".rstrip()
+
+
+def created(meta: dict) -> str:
+    return datetime.fromisoformat(meta["created"]).strftime("%d/%m %H:%M")
+
+
 @app.command()
-def tracks() -> None:
-    """Liste les pistes et leurs versions."""
+def tracks(
+    track: Optional[str] = typer.Argument(None, help="N'afficher que cette piste, avec son historique."),
+    versions: bool = typer.Option(False, "--versions", "-v", help="Afficher l'historique de chaque piste."),
+) -> None:
+    """Montre ce qui joue dans le mix : pistes actives d'abord, muettes ensuite."""
+    from rich.console import Console
+    from rich.table import Table
+
     p = Project.find()
-    for name, t in p.tracks.items():
-        muted = "  [muette]" if t.get("mute") else ""
-        typer.echo(f"{name}  (gain {t.get('gain', 0.0):+.1f} dB){muted}")
-        for v in p.versions(name):
-            m = p.meta(name, v)
-            mark = "*" if v == t["active"] else " "
-            detail = m.get("prompt") or " ".join(filter(None, (m.get("model"), m.get("source"))))
-            typer.echo(f"  {mark} {v}  {m['op']:<8} {detail}")
+    if track:
+        p.version_path(track)
+    names = [track] if track else sorted(p.tracks, key=lambda n: bool(p.tracks[n].get("mute")))
+    history = versions or bool(track)
+
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    for column in ("", "Piste", "Version", "Gain", "Origine", "Créée"):
+        table.add_column(column, no_wrap=column != "Origine")
+    for name in names:
+        t = p.tracks[name]
+        muted = bool(t.get("mute"))
+        all_versions = p.versions(name)
+        mark = "[dim]○[/]" if muted else "[green]●[/]"
+        level = "muette" if muted else f"{t.get('gain', 0.0):+.1f} dB"
+        style = "dim" if muted else None
+        if not history:
+            meta = p.meta(name, t["active"])
+            count = f" [dim]sur {len(all_versions)}[/]" if len(all_versions) > 1 else ""
+            table.add_row(mark, name, t["active"] + count, level, describe(meta), created(meta), style=style)
+            continue
+        table.add_row(mark, f"[bold]{name}[/]", "", level, "", "", style=style)
+        for v in all_versions:
+            meta = p.meta(name, v)
+            active = v == t["active"]
+            table.add_row("", "", f"▸ {v}" if active else f"  {v}", "", describe(meta), created(meta),
+                          style=style or (None if active else "dim"))
+    Console().print(table)
+
+    if not track:
+        audible = [n for n in names if not p.tracks[n].get("mute")]
+        summary = f"Dans le mix : {', '.join(audible) or 'rien'}"
+        if len(audible) < len(names):
+            n = len(names) - len(audible)
+            summary += f"  ·  {n} muette{'s' if n > 1 else ''}"
+        typer.echo(f"\n{summary}")
 
 
 @app.command()
