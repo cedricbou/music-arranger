@@ -60,3 +60,37 @@ def test_new_split_replaces_previous_stems_and_merges(tmp_path, monkeypatch):
     assert audible == {"drums", "bass", "other", "vocals"}
     assert p.tracks["other"]["active"] == "v002"
     assert runner.invoke(app, ["split", "--model", "nope"]).exit_code != 0
+
+
+def mixed_project(tmp_path, monkeypatch):
+    p = Project.create(tmp_path / "song", "song")
+    a = tone(220, 0.2)
+    add_track(p, "guitar", a, {"op": "split", "model": "htdemucs_6s", "source": "source/original.flac"})
+    add_track(p, "bass", a, {"op": "split", "model": "htdemucs_6s", "source": "source/original.flac"})
+    add_track(p, "bass", a, {"op": "fix", "prompt": "walking fill", "start": 5.0, "end": 10.0})
+    p.tracks["guitar"]["mute"] = True
+    p.tracks["bass"]["gain"] = -3.0
+    p.save()
+    monkeypatch.chdir(p.root)
+
+
+def test_tracks_shows_mix_first_then_muted(tmp_path, monkeypatch):
+    mixed_project(tmp_path, monkeypatch)
+    out = runner.invoke(app, ["tracks"]).output
+    lines = out.splitlines()
+    bass = next(l for l in lines if "bass" in l and "v002" in l)
+    guitar = next(l for l in lines if "guitar" in l and "v001" in l)
+    assert lines.index(bass) < lines.index(guitar)
+    assert "sur 2" in bass and "-3.0 dB" in bass and "walking fill [5-10 s]" in bass
+    assert "muette" in guitar and "htdemucs_6s" in guitar
+    assert "v001" not in bass  # l'historique n'apparaît pas par défaut
+    assert "Dans le mix : bass" in out and "1 muette" in out
+
+
+def test_tracks_history_marks_the_active_version(tmp_path, monkeypatch):
+    mixed_project(tmp_path, monkeypatch)
+    for args in (["tracks", "-v"], ["tracks", "bass"]):
+        out = runner.invoke(app, args).output
+        assert "▸ v002" in out and "  v001" in out and "▸ v001" not in out.split("guitar")[0]
+    assert "guitar" not in runner.invoke(app, ["tracks", "bass"]).output
+    assert runner.invoke(app, ["tracks", "nope"]).exit_code != 0
