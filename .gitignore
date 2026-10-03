@@ -1,0 +1,12 @@
+.venv/
+.cache/
+.pytest_cache/
+__pycache__/
+*.egg-info/
+
+# Projets de morceaux et audio généré : ne se versionnent pas
+demo/
+*.flac
+*.wav
+*.ogg
+*.mp3
