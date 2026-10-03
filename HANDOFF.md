@@ -100,7 +100,7 @@ Rien n'a été mesuré sur un morceau entier (3 à 5 min) : temps et VRAM inconn
 
 ### Hygiène du dépôt
 
-- Pas de dépôt git. À l'initialisation, ignorer `.venv/`, `demo/` et les dossiers de projet.
+- Dépôt privé : https://github.com/cedricbou/music-arranger (branche `main`). Les fichiers audio et `demo/` sont ignorés ; les fonctionnalités et bugs se suivent dans les issues GitHub.
 - ACE-Step est suivi sur sa branche principale ; seul `uv.lock` fige la révision. Épingler
   un `rev` dans `pyproject.toml`.
 - Le patch float64 mériterait un correctif proposé à ACE-Step (le cas MPS y est déjà traité).
