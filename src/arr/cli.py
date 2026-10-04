@@ -19,6 +19,8 @@ app.add_typer(sections_app, name="sections")
 app.add_typer(models_app, name="models")
 
 ORIGINAL = "source/original.flac"
+CAPTION_MAX = 512  # limite d'ACE-Step
+STEM = "isolated instrument stem"
 ANALYSIS = "analysis.json"
 
 
@@ -175,7 +177,9 @@ def describe(meta: dict) -> str:
     elif op in ("merge", "import"):
         detail = meta.get("source", "")
     else:
-        detail = meta.get("prompt", "")
+        detail = meta.get("prompt") or meta.get("caption", "")
+        if "fidelity" in meta:
+            detail = f"{meta['fidelity']:g} {detail}"
         if meta.get("section"):
             detail += f" [{meta['section']}]"
         elif "start" in meta:
@@ -272,10 +276,13 @@ def mix(
 
 
 @app.command()
-def play(track: Optional[str] = typer.Argument(None, help="Piste seule ; sinon le mix.")) -> None:
-    """Écoute une piste ou le mix."""
+def play(
+    track: Optional[str] = typer.Argument(None, help="Piste seule ; sinon le mix."),
+    version: Optional[str] = typer.Argument(None, help="Version à écouter ; sinon la version active."),
+) -> None:
+    """Écoute le mix, une piste, ou une version précise d'une piste."""
     p = Project.find()
-    path = p.version_path(track) if track else render_mix(p)
+    path = p.version_path(track, version) if track else render_mix(p)
     subprocess.run(["ffplay", "-v", "error", "-nodisp", "-autoexit", str(path)])
 
 
@@ -302,64 +309,135 @@ SEED = typer.Option(-1, help="Graine ; -1 pour aléatoire.")
 COUNT = typer.Option(1, "-n", help="Nombre de variantes à générer.")
 
 
-def cover_track(p, source: str, target: str, caption: str, fidelity: float, section, seed: int, n: int, op: str):
-    """Rejoue la piste SOURCE selon CAPTION.
+def fidelities(spec: str) -> list[float]:
+    try:
+        values = [float(x) for x in spec.split(",")]
+    except ValueError:
+        raise ProjectError(f"--fidelity attend un nombre ou une liste (0.2,0.35,0.5), reçu : {spec}")
+    if not all(0.0 <= v <= 1.0 for v in values):
+        raise ProjectError("--fidelity doit être entre 0 et 1")
+    return values
 
-    Avec une section, seule cette plage change : sur place si la cible est la source,
-    sinon la cible ne joue que la section et la source s'y tait.
+
+def compose_caption(base: str, prompt: Optional[str], styles: list[str] = (), tail: str = "") -> str:
+    """Texte envoyé au modèle : son de base, styles du groupe, texte libre, puis `tail`."""
+    from arr import band
+
+    caption = ", ".join(filter(None, [base, *(band.style(s) for s in styles), prompt, tail]))
+    if len(caption) > CAPTION_MAX:
+        typer.secho(f"attention : description tronquée à {CAPTION_MAX} caractères", fg="yellow", err=True)
+    return caption[:CAPTION_MAX]
+
+
+def derive_track(
+    p: Project, sources: list[str], target: str, caption: str, levels: list[float], op: str, *,
+    prompt: Optional[str] = None, replace: bool = False, section: Optional[str] = None,
+    guidance: float = 7.0, seed: int = -1, n: int = 1,
+) -> None:
+    """Génère TARGET à partir de la somme des pistes SOURCES, selon CAPTION.
+
+    La source n'agit que comme point de départ (fidelity) : son conditionnement est coupé
+    (strength=0), sans quoi ACE-Step ignore le texte. Mesures dans HANDOFF.md.
+
+    Avec une section, seule cette plage est générée : sur place si la cible est l'unique
+    source, sinon la cible ne joue que la section. Avec `replace`, les sources se taisent
+    là où la cible joue.
     """
     from arr.engines.acestep import Engine
 
-    src = p.version_path(source)
-    base = audio.load(src)
+    paths = [p.version_path(s) for s in sources]
+    if len(sources) == 1:
+        src, base = paths[0], audio.load(paths[0])
+    else:
+        base = audio.mix([(audio.load(path), p.tracks[s].get("gain", 0.0)) for s, path in zip(sources, paths)])
+        src = p.root / "mix" / "sources.flac"
+        audio.save(src, base)
     rng = span(p, section, None, None)
+    in_place = sources == [target]
     engine = Engine()
-    for i in range(n):
-        out, meta = engine.generate("cover", caption, src, fidelity=fidelity,
-                                    seed=seed if seed < 0 else seed + i, **song_kw(p))
-        out = audio.scale_to(audio.fit(out, len(base)), base)
+    for level in levels:
+        for i in range(n):
+            out, meta = engine.generate("cover", caption, src, fidelity=level, strength=0.0, guidance=guidance,
+                                        seed=seed if seed < 0 else seed + i, **song_kw(p))
+            out = audio.scale_to(audio.fit(out, len(base)), base)
+            if rng:
+                out = audio.splice(base if in_place else np.zeros_like(base), out, *rng)
+                meta["section"] = section
+            meta.update(op=op, caption=caption, prompt=prompt or "",
+                        parents=[f"{s}/{path.stem}" for s, path in zip(sources, paths)])
+            typer.echo(f"{target} {add_track(p, target, out, meta)}  (fidélité {level})")
+    if not replace:
+        return
+    for s, path in zip(sources, paths):
+        if s == target:
+            continue
         if rng:
-            under = base if target == source else np.zeros_like(base)
-            out = audio.splice(under, out, *rng)
-            meta["section"] = section
-        meta.update(op=op, parent=f"{source}/{src.stem}")
-        typer.echo(f"{target} {add_track(p, target, out, meta)}")
-    if rng and target != source:
-        cut = audio.splice(base, np.zeros_like(base), *rng)
-        meta = {"op": "cut", "section": section, "parent": f"{source}/{src.stem}"}
-        typer.echo(f"{source} {add_track(p, source, cut, meta)}  (se tait pendant {section})")
+            data = audio.load(path)
+            cut = audio.splice(data, np.zeros_like(data), *rng)
+            meta = {"op": "cut", "section": section, "parents": [f"{s}/{path.stem}"]}
+            typer.echo(f"{s} {add_track(p, s, cut, meta)}  (se tait pendant {section})")
+        else:
+            p.tracks[s]["mute"] = True
+            typer.echo(f"{s} rendue muette (arr mute {s} --off pour la réactiver)")
+    p.save()
+
+
+FIDELITY_HELP = (
+    "0 : ne suit plus la source ; 0.2 : garde harmonie et pulsation, le texte agit encore ; "
+    "0.35 et plus : suit la ligne, le texte n'agit presque plus ; 0.7 : retouche légère."
+)
+
+
+@app.command()
+def derive(
+    sources: list[str] = typer.Argument(..., help="Piste(s) dont on part ; plusieurs pistes sont sommées."),
+    as_: str = typer.Option(..., "--as", help="Instrument cible (profil du groupe ou famille ACE-Step)."),
+    to: Optional[str] = typer.Option(None, "--to", help="Nom de la piste créée ; par défaut, celui de l'instrument."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Style, jeu, dynamique, densité (en anglais de préférence)."),
+    fidelity: str = typer.Option("0.2", help=FIDELITY_HELP + " Une liste (0.15,0.2,0.3) crée une version par valeur."),
+    guidance: float = typer.Option(7.0, help="Poids du texte : 10 à 12 pour qu'il pèse davantage."),
+    style: list[str] = typer.Option([], "--style", help="Formule du groupe définie dans band.toml ([styles])."),
+    replace: bool = typer.Option(False, "--replace", help="Rend les pistes sources muettes."),
+    section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
+) -> None:
+    """Crée une piste à partir d'une ou plusieurs autres, guidée par un texte."""
+    from arr import band
+
+    p = Project.find()
+    inst = band.instrument(as_)
+    caption = compose_caption(f"solo {inst.sound}", prompt, style, STEM)
+    derive_track(p, sources, to or inst.name, caption, fidelities(fidelity), "derive", prompt=prompt,
+                 replace=replace, section=section, guidance=guidance, seed=seed, n=n)
 
 
 @app.command()
 def restem(
     track: str,
     as_: str = typer.Option(..., "--as", help="Instrument cible (profil du groupe ou famille ACE-Step)."),
-    fidelity: float = typer.Option(0.35, help="0 : partie réinventée ; 0.3 : garde le rythme ; 0.7 : très proche de l'original."),
+    fidelity: str = typer.Option("0.35", help=FIDELITY_HELP),
     prompt: Optional[str] = PROMPT, section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
 ) -> None:
-    """Rejoue un stem avec un autre instrument en gardant sa ligne."""
+    """Rejoue un stem avec un autre instrument en gardant sa ligne ; l'ancien devient muet."""
     from arr import band
 
     p = Project.find()
     inst = band.instrument(as_)
-    cover_track(p, track, inst.name, prompt or f"solo {inst.sound}, isolated instrument stem",
-                fidelity, section, seed, n, "restem")
-    if inst.name != track and not section:
-        p.tracks[track]["mute"] = True
-        p.save()
-        typer.echo(f"{track} rendue muette (arr mute {track} --off pour la réactiver)")
+    caption = compose_caption(f"solo {inst.sound}", prompt, tail=STEM)
+    derive_track(p, [track], inst.name, caption, fidelities(fidelity), "restem", prompt=prompt,
+                 replace=True, section=section, seed=seed, n=n)
 
 
 @app.command()
 def polish(
     track: str,
-    fidelity: float = typer.Option(0.5, help="0.3 : rejoué librement ; 0.5 : même ligne, nettoyée ; 0.7 : retouche légère."),
+    fidelity: str = typer.Option("0.5", help=FIDELITY_HELP),
     prompt: Optional[str] = PROMPT, section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
 ) -> None:
     """Rejoue proprement une idée mal jouée, même instrument, même ligne."""
     p = Project.find()
-    caption = prompt or f"clean, tight, well played {track.replace('_', ' ')}, studio recording"
-    cover_track(p, track, track, caption, fidelity, section, seed, n, "polish")
+    caption = compose_caption(f"clean, tight, well played {track.replace('_', ' ')}, studio recording", prompt)
+    derive_track(p, [track], track, caption, fidelities(fidelity), "polish", prompt=prompt,
+                 section=section, seed=seed, n=n)
 
 
 @app.command()
@@ -390,7 +468,7 @@ def fix(
         # Le passage refait est ramené au niveau moyen de la piste ; hors plage, l'original reste au bit près.
         out = audio.fit(out, len(base))
         out = audio.scale_to(out, base, inside)
-        meta.update(op="fix", parent=f"{track}/{src.stem}")
+        meta.update(op="fix", parents=[f"{track}/{src.stem}"])
         typer.echo(f"{track} {add_track(p, track, audio.splice(base, out, start, end), meta)}")
 
 

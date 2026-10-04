@@ -65,7 +65,7 @@ arr complete --with drums,guitar -p "funk rock band, tight groove"
 | `arr gain PISTE DB` | volume dans le mix |
 | `arr mute PISTE [--off]` | sort une piste du mix, ou la remet |
 | `arr mix [-w PISTE] [-o PISTE]` | écrit `mix/mix.flac` |
-| `arr play [PISTE]` | écoute une piste ou le mix |
+| `arr play [PISTE] [VERSION]` | écoute le mix, une piste, ou une version précise |
 
 ### Améliorer la séparation
 
@@ -86,6 +86,7 @@ arr complete --with drums,guitar -p "funk rock band, tight groove"
 
 | Commande | Effet | Résultat |
 |---|---|---|
+| `arr derive PISTE... --as INSTRUMENT` | crée une piste à partir d'une ou plusieurs autres, guidée par un texte | nouvelle piste ; les sources restent, sauf `--replace` |
 | `arr restem PISTE --as INSTRUMENT` | rejoue le stem avec un autre instrument | nouvelle piste ; l'ancienne devient muette |
 | `arr polish PISTE` | rejoue proprement, même instrument | nouvelle version de la piste |
 | `arr fix PISTE --from S --to S -p "..."` | refait un passage | nouvelle version ; le reste est intact |
@@ -94,18 +95,44 @@ arr complete --with drums,guitar -p "funk rock band, tight groove"
 
 Options communes :
 
-- `--section NOM` (`-s`) : ne traite que cette partie. Pour `restem`, la nouvelle piste ne
-  joue que pendant la section et l'ancienne s'y tait.
-- `--prompt "..."` (`-p`) : description du son, de préférence en anglais.
+- `--section NOM` (`-s`) : ne traite que cette partie. La nouvelle piste ne joue que pendant
+  la section ; avec `restem` ou `--replace`, les sources s'y taisent.
+- `--prompt "..."` (`-p`) : texte ajouté au son de l'instrument (en anglais).
 - `--seed N` : pour reproduire un résultat ; `-n 3` : trois variantes d'un coup.
-- `--fidelity X` (`restem`, `polish`) : à quel point on colle à la prise d'origine.
+- `--fidelity X` (`derive`, `restem`, `polish`) : à quel point on colle à la source. Une
+  liste (`0.15,0.2,0.3`) crée une version par valeur, à comparer avec `arr play PISTE VERSION`.
 
-| `--fidelity` | Résultat |
-|---|---|
-| 0 | partie réinventée, sans lien avec la source |
-| 0.3 | garde le rythme, timbre nettement nouveau |
-| 0.5 | même ligne, nettoyée |
-| 0.7 | très proche de l'original, retouche légère |
+| `--fidelity` | La source | Le texte |
+|---|---|---|
+| 0 | n'est plus suivie | agit sur le timbre |
+| 0.15 à 0.25 | harmonie et pulsation gardées | agit encore, modestement |
+| 0.35 | rythme et ligne gardés | n'agit presque plus |
+| 0.5 à 0.7 | très proche de l'original | n'agit plus |
+
+### Dériver une piste : `arr derive`
+
+```
+arr derive synth piano --as guitar --to funk-guitar \
+    --fidelity 0.15,0.2,0.3 --guidance 10 \
+    -p "light funk rhythm guitar, clean tone, syncopated 16th notes, warm"
+arr tracks funk-guitar           # les versions, avec leur fidélité et leur texte
+arr play funk-guitar v002
+arr pick funk-guitar v002
+
+arr derive synth piano --as synth --to synth-light --replace --fidelity 0.5 \
+    -p "sparse minimal synth, only the main hook"
+```
+
+- Plusieurs sources sont sommées (avec leur gain) avant génération.
+- `--to` nomme la piste créée ; sans lui, elle porte le nom de l'instrument.
+- `--replace` rend les sources muettes ; sinon la nouvelle piste s'ajoute au mix.
+- `--guidance` (7 par défaut) : poids du texte ; 10 à 12 pour qu'il pèse davantage.
+- `--style NOM` : formule réutilisable définie dans `band.toml` (voir plus bas).
+
+**Limite à connaître.** Avec ce modèle, le texte pilote surtout le **timbre**, et seulement
+à fidélité basse. Il ne permet pas de dire « moins de notes » ou « plus dense » de façon
+fiable : la densité et la ligne viennent de la source. Pour une partie vraiment allégée,
+partez d'une source plus dépouillée (une seule piste plutôt que la somme) et baissez la fidélité.
 
 `add` et `complete` rendent un **mix complet** (l'existant plus les nouveaux instruments),
 pas une piste isolée. Pour retravailler le résultat stem par stem :
@@ -137,9 +164,12 @@ sound = "bright trumpet, tight stabs"
 [rhodes]
 track = "keyboard"
 sound = "warm rhodes electric piano"
+
+[styles]
+funk = "light funk, syncopated 16th notes, clean tone, tight"
 ```
 
-Puis `arr restem guitar --as trompette`.
+Puis `arr restem guitar --as trompette` ou `arr derive synth --as rhodes --style funk`.
 
 ## Dossier d'un projet
 

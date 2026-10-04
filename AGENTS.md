@@ -76,8 +76,11 @@ Vérifié sur cette machine avec `acestep-v15-base` (50 pas, ~0,46 s par pas pou
 
 | Tâche | Comportement réel | Usage dans `arr` |
 |---|---|---|
-| `cover` + `cover_noise_strength` (notre `fidelity`) | suit la source de façon réglable | `restem`, `polish` |
-| `cover` avec `audio_cover_strength` seul | ne suit pas le rythme de la source | non utilisé |
+| `cover` + `cover_noise_strength` (notre `fidelity`) + `audio_cover_strength=0` | suit la source de façon réglable ; le texte agit seulement à fidélité ≤ 0,25 | `derive`, `restem`, `polish` |
+| `cover` avec `audio_cover_strength` > 0 et fidélité > 0 | le texte est ignoré (sorties identiques pour deux textes opposés) | non utilisé |
+| `cover` à fidélité 0 | ne suit pas la source ; le texte agit sur le timbre | non utilisé |
+| `flow_edit_morph` | colle à la source à 99 %, léger décalage de timbre, 4 fois plus lent | non utilisé |
+| `reference_audio` | aucun effet mesuré en mode cover | non utilisé |
 | `repaint` | hors plage identique à la source | `fix` |
 | `lego` | régénère la plage masquée, rend un **mix complet** | `add` |
 | `complete` | rend un mix complet | `complete` |
@@ -93,6 +96,8 @@ Pièges :
   `acestep.constants.TASK_INSTRUCTIONS`. Passer par `engines.acestep.instruction()`.
 - **Masque.** Une plage (`start`/`end`) impose `chunk_mask_mode="explicit"` ; `lego` sans
   plage explicite ne génère rien d'utile.
+- **Texte.** Il pilote le timbre, pas la densité ni la ligne. Ne pas promettre de contrôle
+  fin par le texte ; les mesures sont dans `HANDOFF.md`. Le français n'a pas d'effet propre.
 - **Modèle de langage.** Il n'est pas chargé (`llm_handler=None`, `thinking=False`).
 - **Journaux.** `Engine` remonte le niveau loguru à WARNING.
 

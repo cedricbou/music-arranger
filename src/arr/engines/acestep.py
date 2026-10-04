@@ -96,6 +96,7 @@ class Engine:
             kw.update(repainting_start=start, repainting_end=end if end is not None else -1,
                       chunk_mask_mode="explicit")
         if strength is not None:
+            # Part des pas conditionnés par le contenu de la source ; à 0, seul le texte guide.
             kw["audio_cover_strength"] = strength
         if fidelity is not None:
             # 0 : part d'un bruit pur ; 1 : part de l'audio source lui-même
@@ -107,7 +108,8 @@ class Engine:
                 raise RuntimeError(res.error)
             out = audio.load(Path(res.audios[0]["path"]))
         used = res.audios[0].get("params", {}).get("seed", seed)
-        meta = {"model": self.model, "task": task, "prompt": caption, "seed": used, "steps": steps}
+        meta = {"model": self.model, "task": task, "prompt": caption, "seed": used, "steps": steps,
+                "guidance": guidance}
         meta.update({k: v for k, v in (("instruction", instr), ("start", start), ("end", end),
                                        ("strength", strength), ("fidelity", fidelity)) if v is not None})
         return out, meta

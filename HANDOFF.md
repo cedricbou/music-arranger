@@ -13,9 +13,10 @@ génératives. La phase 3 (adaptation à la scène) n'est pas commencée.
 | ACE-Step 1.5 `base` sur XPU | fonctionne, avec un patch float64 |
 | `init`, `import`, `split`, `analyze`, `sections`, `tracks`, `pick`, `gain`, `mute`, `mix`, `play`, `doctor`, `models pull` | faits, testés de bout en bout |
 | `restem`, `polish`, `fix` | faits, vérifiés par la mesure |
+| `derive` (plusieurs sources, texte, liste de fidélités, styles) | fait ; le texte n'agit que modestement, voir les mesures |
 | `add` | fait, s'exécute ; qualité non vérifiée |
 | `complete` | fait ; exécuté une seule fois, avant les dernières corrections |
-| Tests | 10 tests : `project.py`, `audio.py`, et `merge`/`split` du CLI avec un moteur factice |
+| Tests | 17 tests : `project.py`, `audio.py`, et les commandes du CLI (`tracks`, `merge`, `split`, `derive`, `restem`, `polish`) avec des moteurs factices |
 | `structure`, transposition, tempo, `export` | à faire |
 | MIDI, partitions | à faire, prévu en dernier |
 
@@ -60,7 +61,39 @@ Effet de `fidelity` (corrélation d'enveloppe / de forme d'onde avec la source) 
 | 0,5 | +0,90 / +0,85 | +0,81 / +0,54 |
 | 0,7 | +0,96 / +0,95 | +0,94 / +0,79 |
 
-Rien n'a été mesuré sur un morceau entier (3 à 5 min) : temps et VRAM inconnus à cette durée.
+### Ce que le texte pilote (4 octobre, issue #3)
+
+Extrait de 40 s de Gala (synthés fusionnés), graine fixe, deux textes opposés : A « sparse,
+slow, dark, mellow » et B « busy, fast, bright, aggressive ». « A/B » est la corrélation de
+forme d'onde entre les deux sorties : 1,00 signifie que le texte n'a rien changé.
+
+| Réglage | A/B | Suit la source (enveloppe, harmonie / témoin) | Lecture |
+|---|---|---|---|
+| strength 1, fidélité 0,2 à 0,5 | 0,99 à 1,00 | oui | texte ignoré |
+| strength 1, fidélité 0 | 0,96 | non (0,0 ; 0,77 / 0,76) | timbre seul : centroïde 1686 contre 2173 Hz |
+| strength 0,3, fidélité 0 | 0,87 | non | timbre : 1859 contre 2591 Hz |
+| **strength 0, fidélité 0,2** | **0,90** | **oui (0,6 ; 0,89 / 0,77)** | seul réglage qui suit la source et réagit au texte |
+| strength 0, fidélité 0,35 | 0,99 | oui (0,83 ; 0,95 / 0,75) | texte presque sans effet |
+| strength 0, fidélité 0,35, guidance 12 | 0,96 | oui | léger effet dans le bon sens |
+| flow edit | 0,99 | oui (0,99 ; 0,99 / 0,71) | léger décalage de timbre, ~95 s par génération |
+| texte en français au lieu d'anglais | 1,00 | | sans effet propre |
+| avec `reference_audio` | 0,99 | | sans effet |
+
+Conséquences : `derive` utilise strength 0 et une fidélité par défaut de 0,2 ; `--ref` et
+l'enrichissement par le modèle de langage ont été abandonnés. Dans aucun réglage la densité
+de notes (attaques par seconde) ne suit le texte : « sparse » et « busy » donnent la même.
+
+Sur le morceau entier (220 s) : ~42 s par génération, niveaux recalés, enveloppe 0,56 à
+fidélité 0,15, 0,78 à 0,25, 0,93 à 0,5.
+
+À écouter : `demo/gala` (`funk-guitar` v001 et v002, `synth-light`) et `demo/mesures-texte`
+(paires A/B des réglages marquants).
+
+Pistes pour un vrai contrôle par le texte, non essayées : `lego` avec description locale
+(génère dans le contexte du mix, rend un mix complet à re-séparer), le modèle XL
+(`acestep-v15-xl-base`), ou un LoRA entraîné sur le son du groupe.
+
+La VRAM sur un morceau entier n'a pas été mesurée. (3 à 5 min) : temps et VRAM inconnus à cette durée.
 
 ## Reste à faire
 
