@@ -1,0 +1,215 @@
+"""Entrées et sorties audio en direct : capturer ce que joue l'ordinateur, jouer, enregistrer.
+
+Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
+
+    [output]                 # où jouer (arr play, arr record)
+    device = "Soundcraft"    # fragment du nom du périphérique ; "" = sortie par défaut
+    channels = [7, 8]
+
+    [input]                  # l'instrument (arr record)
+    device = "Soundcraft"
+    channels = [1]           # un canal = mono, deux = stéréo
+    latency_ms = 21.3        # retard de l'enregistrement sur le playback ; écrit par arr calibrate
+
+    [capture]                # ce que joue l'ordinateur (arr capture)
+    source = ""              # nom PipeWire ; "" = moniteur de la sortie par défaut
+    channels = []            # [] = la paire de canaux qui porte le signal
+"""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tomllib
+from pathlib import Path
+from typing import Callable, Iterable, Iterator
+
+import numpy as np
+
+from arr import audio
+from arr.project import ProjectError
+
+CONFIG = Path(os.environ.get("ARR_AUDIO", Path.home() / ".config/arr/audio.toml"))
+INTERFACE = "Soundcraft"  # utilisée par défaut quand elle est branchée, sur ses canaux 7/8
+CHUNK = 0.05              # secondes
+DEFAULT_LATENCY = 0.0213  # un cycle PipeWire de 1024 échantillons : le minimum, sans les convertisseurs
+
+
+# --- réglages
+
+
+def _device_names() -> list[str]:
+    import sounddevice as sd
+
+    return [d["name"] for d in sd.query_devices()]
+
+
+def config() -> dict:
+    """Réglages effectifs : le fichier, complété par des défauts selon le matériel branché."""
+    user = tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+    present = any(INTERFACE.lower() in n.lower() for n in _device_names())
+    defaults = {
+        "output": {"device": INTERFACE if present else "", "channels": [7, 8] if present else [1, 2]},
+        "input": {"device": INTERFACE if present else "", "channels": [1], "latency_ms": None},
+        "capture": {"source": "", "channels": []},
+    }
+    return {k: {**v, **user.get(k, {})} for k, v in defaults.items()}
+
+
+def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
+    """Indice du périphérique dont le nom contient `fragment` ; None pour celui par défaut."""
+    import sounddevice as sd
+
+    if not fragment:
+        return None
+    need = max(channels)
+    found = [
+        (sd.query_hostapis(d["hostapi"])["name"].startswith("JACK"), i)
+        for i, d in enumerate(sd.query_devices())
+        if fragment.lower() in d["name"].lower() and d[f"max_{kind}_channels"] >= need
+    ]
+    if not found:
+        raise ProjectError(f"périphérique introuvable : « {fragment} » avec {need} canaux en "
+                           f"{'entrée' if kind == 'input' else 'sortie'} (arr devices)")
+    return max(found)[1]  # de préférence par JACK : c'est le graphe PipeWire, synchronisé
+
+
+# --- capture de ce que joue l'ordinateur
+
+
+def default_monitor() -> tuple[str, int]:
+    """Source PipeWire qui écoute la sortie par défaut, et son nombre de canaux."""
+    sink = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True, check=True).stdout.strip()
+    return f"{sink}.monitor", source_channels(f"{sink}.monitor")
+
+
+def source_channels(name: str) -> int:
+    listing = subprocess.run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, check=True)
+    for s in json.loads(listing.stdout):
+        if s["name"] == name:
+            return len(s["channel_map"].split(","))
+    raise ProjectError(f"source PipeWire introuvable : {name} (arr devices)")
+
+
+def listen(source: str, channels: int) -> Iterator[np.ndarray]:
+    """Flux continu de blocs (échantillons, canaux) lus sur une source PipeWire."""
+    block = int(CHUNK * audio.SR) * channels * 4
+    cmd = ["parec", f"--device={source}", "--format=float32le", f"--rate={audio.SR}",
+           f"--channels={channels}", "--raw", "--latency-msec=20"]
+    if channels > 2:
+        cmd.append("--channel-map=" + ",".join(f"aux{i}" for i in range(channels)))
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as proc:
+        try:
+            while data := proc.stdout.read(block):
+                yield np.frombuffer(data[: len(data) // (channels * 4) * channels * 4], np.float32).reshape(-1, channels)
+        finally:
+            proc.terminate()
+
+
+def gate(
+    chunks: Iterable[np.ndarray], *, threshold_db: float = -50.0, preroll: float = 0.25,
+    silence: float = 3.0, should_stop: Callable[[], bool] = lambda: False,
+    on_start: Callable[[], None] = lambda: None,
+) -> np.ndarray:
+    """Garde l'audio entre le premier son et le silence final.
+
+    Démarre au premier bloc au-dessus du seuil (en gardant `preroll` secondes avant), s'arrête
+    après `silence` secondes sous le seuil, quand `should_stop()` devient vrai, ou sur Ctrl+C.
+    """
+    limit = audio.db(threshold_db)
+    before: list[np.ndarray] = []
+    kept: list[np.ndarray] = []
+    quiet = 0.0
+    try:
+        for chunk in chunks:
+            loud = float(np.abs(chunk).max(initial=0.0)) >= limit
+            seconds = len(chunk) / audio.SR
+            if not kept:
+                if not loud:
+                    before = (before + [chunk])[-max(1, round(preroll / seconds)):]
+                    continue
+                kept = before + [chunk]
+                on_start()
+                continue
+            kept.append(chunk)
+            quiet = 0.0 if loud else quiet + seconds
+            if quiet >= silence or should_stop():
+                break
+    except KeyboardInterrupt:
+        pass
+    if not kept:
+        raise ProjectError("aucun son reçu")
+    out = np.concatenate(kept)
+    loud = np.flatnonzero(np.abs(out).max(axis=1) >= limit)
+    return out[: min(len(out), loud[-1] + audio.SR // 2)]
+
+
+def stereo(captured: np.ndarray, channels: list[int]) -> np.ndarray:
+    """Réduit une capture multicanal à deux canaux : ceux demandés, sinon la paire la plus forte."""
+    if channels:
+        picked = captured[:, [c - 1 for c in channels]]
+    else:
+        energy = (captured ** 2).sum(axis=0)
+        pairs = energy[: len(energy) // 2 * 2].reshape(-1, 2).sum(axis=1)
+        first = int(pairs.argmax()) * 2
+        picked = captured[:, first: first + 2]
+    return np.repeat(picked, 2, axis=1) if picked.shape[1] == 1 else np.ascontiguousarray(picked)
+
+
+# --- lecture et enregistrement synchronisés
+
+
+def play(data: np.ndarray) -> None:
+    """Joue sur la sortie configurée ; Ctrl+C arrête."""
+    import sounddevice as sd
+
+    out = config()["output"]
+    try:
+        sd.play(data, audio.SR, device=find_device(out["device"], "output", out["channels"]),
+                mapping=out["channels"], blocking=True)
+    except KeyboardInterrupt:
+        sd.stop()
+
+
+def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[np.ndarray, float]:
+    """Joue `playback` et enregistre l'instrument dans le même flux, donc à décalage constant.
+
+    Renvoie l'enregistrement (stéréo) et son retard sur le playback, en secondes : la valeur
+    mesurée par `arr calibrate`, sinon le minimum du système (la latence annoncée par
+    PortAudio n'est pas fiable ici).
+    """
+    import sounddevice as sd
+
+    cfg = config()
+    out, inp = cfg["output"], cfg["input"]
+    wanted = [channel] if channel else inp["channels"]
+    device = (find_device(inp["device"], "input", wanted), find_device(out["device"], "output", out["channels"]))
+    recorded = sd.playrec(playback, audio.SR, device=device, input_mapping=wanted,
+                          output_mapping=out["channels"], dtype="float32")
+    try:
+        sd.wait()
+    except KeyboardInterrupt:
+        sd.stop()
+    latency = DEFAULT_LATENCY if inp["latency_ms"] is None else inp["latency_ms"] / 1000
+    return (np.repeat(recorded, 2, axis=1) if recorded.shape[1] == 1 else recorded), latency
+
+
+def measure_latency(played: np.ndarray, recorded: np.ndarray, longest: float = 0.5) -> float:
+    """Retard de `recorded` sur `played`, en secondes, par corrélation (jusqu'à `longest`)."""
+    a, b = played[:, 0], recorded[:, 0]
+    if float(np.abs(b).max(initial=0.0)) < audio.db(-40):
+        raise ProjectError("rien n'est revenu sur l'entrée : relie la sortie à l'entrée de l'instrument "
+                           "(câble, ou retour de la table) et monte le gain")
+    lags = np.arange(int(longest * audio.SR))
+    spectrum = np.fft.rfft(b, 2 * len(a)) * np.conj(np.fft.rfft(a, 2 * len(a)))
+    return float(lags[np.argmax(np.fft.irfft(spectrum)[: len(lags)])]) / audio.SR
+
+
+def save_latency(seconds: float) -> None:
+    """Note la latence mesurée dans audio.toml, en gardant les autres réglages."""
+    import tomli_w
+
+    user = tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+    user.setdefault("input", {})["latency_ms"] = round(seconds * 1000, 1)
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(tomli_w.dumps(user))

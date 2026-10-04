@@ -6,6 +6,7 @@
 ## Contraintes non négociables
 
 - **Local uniquement.** Aucun service distant ne reçoit l'audio de l'utilisateur.
+- **Enregistrer Spotify** reste local : `capture` écoute la sortie son de la machine.
 - **Réseau limité à deux commandes.** `arr models pull` (modèles et moteurs) et
   `arr lyrics fetch` (artiste et titre envoyés à lrclib.net). Tout le reste tourne avec
   `HF_HUB_OFFLINE=1` (voir `engines.offline()`).
@@ -49,6 +50,8 @@ src/arr/
   project.py                Project : song.toml, pistes versionnées, prises, sections
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, scale_to, save_mp3)
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
+  studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
+  spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
   engines/__init__.py       chemins (HOME, AUDIOCPP, YUE2, SS2_PYTHON), device(), offline()
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
@@ -78,6 +81,20 @@ Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`) :
 
 SheetSage2 se charge par son identifiant Hugging Face (`m-a-p/SheetSage2`, depuis le cache) :
 le chargement depuis un dossier local échoue sur ses imports relatifs.
+
+## Audio en direct (`studio.py`)
+
+- **Capture** : `parec` sur le moniteur d'une sortie PipeWire, lu en continu ; `gate()` est
+  une fonction pure (démarrage au premier son, arrêt sur silence ou sur `should_stop`).
+- **Lecture et enregistrement** passent par `sounddevice` sur l'API JACK de PipeWire : un
+  seul flux en duplex, donc un décalage constant entre playback et prise (21,3 ms mesurés
+  en boucle logicielle, identiques d'un essai à l'autre).
+- **Ne pas se fier à la latence annoncée par PortAudio** : elle est aberrante ici. La
+  latence vient de `arr calibrate` (mesure par corrélation), sinon de `DEFAULT_LATENCY`.
+- **Tester sans bruit** : créer une sortie virtuelle (`pactl load-module module-null-sink
+  sink_name=arr_test sink_properties=device.description=arr_test`), pointer `ARR_AUDIO` vers
+  un audio.toml qui la désigne, puis la retirer (`pactl unload-module`). Ne jamais jouer sur
+  les enceintes de l'utilisateur ni piloter son Spotify pour un test.
 
 ## Conventions audio
 

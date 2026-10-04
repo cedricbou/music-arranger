@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -320,16 +322,171 @@ def mix(
 def play(
     name: Optional[str] = typer.Argument(None, help="Piste ou prise (ex. t001) ; sinon le mix."),
     version: Optional[str] = typer.Argument(None, help="Version d'une piste ; sinon la version active."),
+    without: list[str] = typer.Option([], "--without", "-w", help="Mix sans cette piste (ex. -w bass pour jouer par-dessus)."),
+    only: list[str] = typer.Option([], "--only", "-o", help="Mix de ces seules pistes."),
 ) -> None:
-    """Écoute le mix, une piste ou une prise."""
+    """Écoute le mix (complet ou partiel), une piste ou une prise. Ctrl+C arrête."""
+    from arr import studio
+
     p = Project.find()
     if name is None:
-        path = render_mix(p)
+        path = render_mix(p, tuple(without), tuple(only))
     elif name in p.takes():
         path = p.take_path(name)
     else:
         path = p.version_path(name, version)
-    subprocess.run(["ffplay", "-v", "error", "-nodisp", "-autoexit", str(path)])
+    studio.play(audio.load(path))
+
+
+# --- studio : capturer, enregistrer
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+@app.command()
+def capture(
+    name: Optional[str] = typer.Argument(None, help="Nom du projet à créer ; par défaut, le titre lu dans Spotify."),
+    play_: bool = typer.Option(False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."),
+    silence: float = typer.Option(3.0, help="Secondes de silence qui terminent l'enregistrement."),
+) -> None:
+    """Enregistre ce que joue l'ordinateur dans un nouveau projet.
+
+    L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau
+    (changement de titre dans Spotify, ou silence). Ctrl+C arrête aussi.
+    """
+    from arr import spotify, studio
+
+    cfg = studio.config()["capture"]
+    if name and (Path(name) / "song.toml").exists():
+        raise ProjectError(f"{name} contient déjà un projet")
+    source, count = (cfg["source"], studio.source_channels(cfg["source"])) if cfg["source"] else studio.default_monitor()
+    state = {"track": None, "checked": 0.0}
+    if play_:
+        current = spotify.now_playing()
+        if not current:
+            raise ProjectError("Spotify ne répond pas : lance la lecture à la main, sans --play")
+        spotify.restart(current["id"])
+
+    def started() -> None:
+        state["track"] = spotify.now_playing(playing_only=True)
+        label = f" : {state['track']['artist']} - {state['track']['title']}" if state["track"] else ""
+        typer.echo(f"enregistrement{label}")
+
+    def track_changed() -> bool:
+        if not state["track"] or time.monotonic() - state["checked"] < 0.5:
+            return False
+        state["checked"] = time.monotonic()
+        now = spotify.now_playing()
+        return now is not None and now["id"] != state["track"]["id"]
+
+    typer.echo(f"en attente du son sur {source} (lance la lecture ; Ctrl+C pour arrêter)")
+    captured = studio.gate(studio.listen(source, count), silence=silence, should_stop=track_changed, on_start=started)
+    if play_:
+        spotify.pause()
+    data = studio.stereo(captured, cfg["channels"])
+    track = state["track"]
+    if track and track["length"]:
+        data = data[: int((track["length"] + 1.0) * audio.SR)]  # coupe le début du morceau suivant
+    name = name or (slug(track["title"]) if track else None)
+    if not name:
+        raise ProjectError("donne un nom de projet : arr capture <nom>")
+    p = Project.create(Path(name), track["title"] if track else name)
+    if track:
+        p.song["artist"] = track["artist"]
+    audio.save(p.root / ORIGINAL, data)
+    p.song["duration"] = round(len(data) / audio.SR, 3)
+    p.save()
+    typer.echo(f"projet créé : {p.root}  ({len(data) / audio.SR:.1f} s)  ->  cd {p.root} && arr transcribe")
+
+
+@app.command()
+def record(
+    track: str = typer.Argument(..., help="Piste à enregistrer (ex. bass) ; une nouvelle version est créée."),
+    without: list[str] = typer.Option([], "--without", "-w", help="Piste à retirer du playback."),
+    only: list[str] = typer.Option([], "--only", "-o", help="Playback réduit à ces pistes."),
+    bars: int = typer.Option(1, "--count-in", help="Mesures de décompte avant le premier temps fort ; 0 pour aucun."),
+    click: bool = typer.Option(False, "--click", help="Garde le métronome pendant tout le morceau."),
+    channel: Optional[int] = typer.Option(None, help="Canal d'entrée de l'instrument ; sinon celui de audio.toml."),
+) -> None:
+    """Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
+
+    Le playback est le mix courant sans la piste enregistrée. Ctrl+C arrête et garde la prise.
+    """
+    from arr import studio
+
+    p = Project.find()
+    names = [t for t in p.tracks
+             if t != track and t not in without and (t in only if only else not p.tracks[t].get("mute"))]
+    if names:
+        backing = audio.mix([(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0)) for t in names])
+    elif (p.root / ORIGINAL).exists():
+        backing = audio.load(p.root / ORIGINAL)
+    else:
+        raise ProjectError("rien à jouer : ni piste ni morceau original")
+    ticks: list[tuple[float, bool]] = []
+    analysis = p.root / ANALYSIS
+    if analysis.exists():
+        grid = json.loads(analysis.read_text())
+        ticks = audio.count_in(grid["beats"], grid["downbeats"], bars) if bars else []
+        if click:
+            ticks += [(b, b in grid["downbeats"]) for b in grid["beats"]]
+    elif bars or click:
+        typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
+    pad = max(0.0, -min((t for t, _ in ticks), default=0.0))
+    lead = np.zeros((int(round(pad * audio.SR)), 2), np.float32)
+    playback = audio.add_clicks(np.concatenate([lead, backing]), [(t + pad, accent) for t, accent in ticks])
+    typer.echo(f"playback : {', '.join(names) or 'morceau original'} ; joue après le décompte (Ctrl+C pour arrêter)")
+    recorded, latency = studio.play_and_record(playback, channel)
+    take = audio.fit(recorded[len(lead) + int(round(latency * audio.SR)):], len(backing))
+    if float(np.abs(take).max()) < audio.db(-60):
+        typer.secho("attention : rien n'a été enregistré (vérifie le canal d'entrée : arr devices)", fg="yellow", err=True)
+    version = add_track(p, track, take, {"op": "record", "source": " + ".join(names) or ORIGINAL,
+                                         "latency_ms": round(latency * 1000)})
+    p.tracks[track]["mute"] = False
+    p.save()
+    typer.echo(f"{track} {version}  (latence compensée : {latency * 1000:.0f} ms)")
+
+
+@app.command()
+def calibrate(
+    channel: Optional[int] = typer.Option(None, help="Canal d'entrée relié à la sortie ; sinon celui de audio.toml."),
+) -> None:
+    """Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
+
+    Relie la sortie à l'entrée de l'instrument (un câble, ou le retour de la table), puis
+    lance la commande : elle joue quelques clics et note la latence dans audio.toml.
+    """
+    from arr import studio
+
+    ticks = [(0.5 + 0.4 * i, i == 0) for i in range(6)]
+    playback = audio.add_clicks(np.zeros((3 * audio.SR, 2), np.float32), ticks)
+    recorded, _ = studio.play_and_record(playback, channel)
+    latency = studio.measure_latency(playback, recorded)
+    studio.save_latency(latency)
+    typer.echo(f"latence mesurée : {latency * 1000:.1f} ms, notée dans {studio.CONFIG}")
+
+
+@app.command()
+def devices() -> None:
+    """Montre les réglages audio effectifs et les périphériques disponibles."""
+    import sounddevice as sd
+
+    from arr import studio
+
+    cfg = studio.config()
+    source = cfg["capture"]["source"] or studio.default_monitor()[0]
+    typer.echo(f"réglages ({studio.CONFIG}{'' if studio.CONFIG.exists() else ', absent : valeurs par défaut'})")
+    typer.echo(f"  sortie    {cfg['output']['device'] or 'par défaut'}  canaux {cfg['output']['channels']}")
+    measured = cfg["input"]["latency_ms"]
+    typer.echo(f"  entrée    {cfg['input']['device'] or 'par défaut'}  canaux {cfg['input']['channels']}  latence "
+               + (f"{measured} ms (mesurée)" if measured is not None else "non mesurée (arr calibrate)"))
+    typer.echo(f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}")
+    typer.echo("périphériques")
+    for d in sd.query_devices():
+        if sd.query_hostapis(d["hostapi"])["name"].startswith("JACK"):
+            typer.echo(f"  {d['name']}  ({d['max_input_channels']} entrées, {d['max_output_channels']} sorties)")
 
 
 # --- partition et paroles
@@ -363,7 +520,8 @@ def transcribe() -> None:
 
 @lyrics_app.command("fetch")
 def lyrics_fetch(
-    artist: str, title: str,
+    artist: Optional[str] = typer.Argument(None, help="Par défaut, l'artiste du projet."),
+    title: Optional[str] = typer.Argument(None, help="Par défaut, le titre du projet."),
     force: bool = typer.Option(False, "--force", help="Remplace un lyrics.txt existant."),
 ) -> None:
     """Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt."""
@@ -374,6 +532,9 @@ def lyrics_fetch(
     target = p.root / LYRICS
     if target.exists() and not force:
         raise ProjectError(f"{LYRICS} existe déjà (--force pour le remplacer)")
+    artist, title = artist or p.song.get("artist"), title or p.song.get("title")
+    if not artist or not title:
+        raise ProjectError("donne l'artiste et le titre : arr lyrics fetch ARTISTE TITRE")
     found = lyrics.fetch(artist, title)
     if found.get("syncedLyrics") and p.sections:
         target.write_text(lyrics.tagged(found["syncedLyrics"], p.sections, first_sung(p.root / "score")))

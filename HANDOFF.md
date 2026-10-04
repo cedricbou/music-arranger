@@ -16,6 +16,7 @@ mélodie reconnaissable, guitare funk audible.
 | `render`, `takes` (YuE2) | faits ; qualité validée à l'oreille par Cédric |
 | `split tNNN`, `graft` | faits, mais **le calage n'aboutit qu'une fois sur trois** (voir plus bas) ; greffe à juger à l'oreille |
 | `share` | fait ; non essayé avec un musicien |
+| `capture`, `play -w/-o`, `record`, `calibrate`, `devices` | faits ; vérifiés sur une sortie virtuelle, **pas encore sur la Soundcraft ni avec Spotify en lecture** |
 | Socle (`init`, `import`, `split`, `merge`, `tracks`, `mix`, `play`...) | inchangé |
 | ACE-Step et ses commandes (`restem`, `polish`, `fix`, `add`, `complete`) | retirés |
 
@@ -48,6 +49,22 @@ deux côtés ; 83 % des temps à moins de 35 ms ; décalage médian 0 ms ; même
 Prise libre (`cot=melody`) : tempo mesuré à 135,9, 131 mesures, donc non superposable.
 Parts des stems d'une prise « funk live » : batterie ~50 %, basse 14 à 26 %, voix 20 à 25 %,
 guitare 1 à 4 % (peu, selon Demucs, alors que Cédric l'entend bien).
+
+### Studio (4 octobre, issue #7)
+
+Vérifié sur une sortie PipeWire virtuelle silencieuse, sans toucher aux enceintes :
+
+- `capture` : démarre au premier son, choisit seul la paire 7/8 d'un flux 12 canaux,
+  s'arrête après le silence demandé ;
+- duplex : décalage playback/prise de 21,3 ms, identique sur trois essais ;
+- `calibrate` : retrouve ces 21,3 ms ;
+- `record` avec décompte sur 15 s de Gala : prise calée à +0,04 ms, longueur identique.
+
+Non vérifié, à faire par Cédric sur son installation :
+
+- `capture` avec Spotify en lecture réelle, et `--play` (relance et pause par MPRIS) ;
+- la Soundcraft : sortie sur 7/8, entrée de l'instrument, `calibrate` avec un vrai câble ;
+- le confort du décompte et du métronome à l'oreille.
 
 ## Ce qui a été essayé et abandonné
 

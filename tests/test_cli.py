@@ -1,9 +1,12 @@
+import json
+
 import numpy as np
+import pytest
 from typer.testing import CliRunner
 
 from arr import audio
 from arr.cli import add_track, app
-from arr.project import Project, Section
+from arr.project import Project, ProjectError, Section
 from tests.test_core import tone
 
 runner = CliRunner()
@@ -296,3 +299,157 @@ def test_lyrics_timestamps_are_shifted_to_the_recording():
     assert lyrics.tagged(synced, sections) == "[Intro]\none\ntwo\n\n[Verse]\n"
     # la voix entre à 3,5 s dans l'enregistrement : tout glisse de 2,5 s
     assert lyrics.tagged(synced, sections, first_sung=3.5) == "[Intro]\n\n[Verse]\none\ntwo\n"
+
+
+# --- studio : capture, lecture partielle, enregistrement
+
+
+def chunks_of(data, seconds=0.05):
+    n = int(seconds * audio.SR)
+    return [data[i: i + n] for i in range(0, len(data), n)]
+
+
+def test_gate_keeps_the_song_and_drops_the_silences():
+    from arr import studio
+
+    silence = lambda s: np.zeros((int(s * audio.SR), 2), np.float32)
+    song = tone(220, 2.0, amp=0.3)
+    started = []
+    out = studio.gate(chunks_of(np.concatenate([silence(1.0), song, silence(5.0), tone(440, 1.0)])),
+                      silence=3.0, on_start=lambda: started.append(True))
+    assert started == [True]
+    assert 2.2 <= len(out) / audio.SR <= 2.9  # un peu d'avance, un peu de queue, pas le son suivant
+    assert not out[: int(0.1 * audio.SR)].any() and out[int(0.5 * audio.SR)].any()
+
+    out = studio.gate(chunks_of(np.concatenate([song, song])), should_stop=lambda: True)
+    assert len(out) / audio.SR < 0.2  # arrêt demandé (changement de titre)
+    with pytest.raises(ProjectError):
+        studio.gate(chunks_of(silence(1.0)))
+
+
+def test_stereo_picks_requested_or_loudest_pair():
+    from arr import studio
+
+    captured = np.zeros((1000, 12), np.float32)
+    captured[:, 6], captured[:, 7], captured[:, 0] = 0.3, 0.2, 0.05
+    assert np.allclose(studio.stereo(captured, [])[0], [0.3, 0.2])       # paire 7/8, la plus forte
+    assert np.allclose(studio.stereo(captured, [1, 2])[0], [0.05, 0.0])  # paire imposée
+    assert studio.stereo(captured, [7]).shape == (1000, 2)               # mono dupliqué
+
+
+def fake_studio(monkeypatch, heard):
+    from arr import spotify, studio
+
+    track = {"id": "/t/1", "title": "Freed From Desire", "artist": "Gala", "length": 2.0}
+    calls = {"played": [], "restart": [], "pause": 0}
+    monkeypatch.setattr(studio, "config", lambda: {
+        "output": {"device": "", "channels": [1, 2]}, "input": {"device": "", "channels": [1], "latency_ms": 0},
+        "capture": {"source": "", "channels": []}})
+    monkeypatch.setattr(studio, "default_monitor", lambda: ("fake.monitor", 2))
+    monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
+    monkeypatch.setattr(studio, "play", lambda data: calls["played"].append(data))
+    monkeypatch.setattr(spotify, "now_playing", lambda playing_only=False: track)
+    monkeypatch.setattr(spotify, "restart", lambda tid: calls["restart"].append(tid))
+    monkeypatch.setattr(spotify, "pause", lambda: calls.__setitem__("pause", calls["pause"] + 1))
+    return calls
+
+
+def test_capture_creates_a_project_named_after_the_song(tmp_path, monkeypatch):
+    quiet = np.zeros((audio.SR, 2), np.float32)
+    # 1 s de silence, le morceau (2 s), puis le morceau suivant enchaîné sans silence
+    heard = np.concatenate([quiet, tone(220, 2.0, amp=0.3), tone(880, 3.0, amp=0.3)])
+    calls = fake_studio(monkeypatch, heard)
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["capture", "--play"])
+    assert result.exit_code == 0, result.output
+    p = Project(tmp_path / "freed-from-desire")
+    assert p.song["title"] == "Freed From Desire" and p.song["artist"] == "Gala"
+    assert calls["restart"] == ["/t/1"] and calls["pause"] == 1
+    # coupé à la durée annoncée par Spotify (+ marge) : le morceau suivant n'y est presque pas
+    assert 2.0 <= p.song["duration"] <= 3.3
+    assert runner.invoke(app, ["capture", "freed-from-desire"]).exit_code != 0  # n'écrase pas un projet
+
+
+def test_lyrics_fetch_defaults_to_the_project_song(tmp_path, monkeypatch):
+    from arr import lyrics
+
+    p = Project.create(tmp_path / "song", "Freed From Desire")
+    monkeypatch.chdir(p.root)
+    asked = []
+    monkeypatch.setattr(lyrics, "fetch", lambda artist, title: asked.append((artist, title)) or {"plainLyrics": "la"})
+    assert runner.invoke(app, ["lyrics", "fetch"]).exit_code != 0  # pas d'artiste connu
+    p.song["artist"] = "Gala"
+    p.save()
+    assert runner.invoke(app, ["lyrics", "fetch"]).exit_code == 0
+    assert asked == [("Gala", "Freed From Desire")]
+
+
+def test_play_partial_mix(tmp_path, monkeypatch):
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    for name, f in (("drums", 110), ("bass", 55), ("guitar", 330)):
+        add_track(p, name, tone(f, 0.5, amp=0.1), {"op": "split"})
+    monkeypatch.chdir(p.root)
+    total = lambda *fs: sum(tone(f, 0.5, amp=0.1) for f in fs)
+
+    assert runner.invoke(app, ["play", "--without", "bass"]).exit_code == 0
+    assert runner.invoke(app, ["play", "-o", "bass", "-o", "drums"]).exit_code == 0
+    assert runner.invoke(app, ["play", "guitar"]).exit_code == 0
+    assert np.allclose(calls["played"][0], total(110, 330), atol=1e-3)
+    assert np.allclose(calls["played"][1], total(110, 55), atol=1e-3)
+    assert np.allclose(calls["played"][2], total(330), atol=1e-3)
+
+
+def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, monkeypatch):
+    from arr import studio
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "drums", tone(110, 4.0, amp=0.1), {"op": "split"})
+    add_track(p, "bass", tone(55, 4.0, amp=0.1), {"op": "split"})
+    # temps toutes les 0,5 s à partir de 0,5 s : un décompte de 4 temps doit commencer à -1,5 s
+    beats = [0.5 * i + 0.5 for i in range(7)]
+    (p.root / "analysis.json").write_text(json.dumps({"beats": beats, "downbeats": [0.5, 2.5]}))
+    monkeypatch.chdir(p.root)
+    heard = {}
+
+    def fake_duplex(playback, channel):
+        heard["playback"], heard["channel"] = playback, channel
+        # le musicien « joue » un son reconnaissable, que la carte restitue 100 ms en retard
+        played = np.concatenate([np.zeros((int(1.5 * audio.SR), 2), np.float32), tone(880, 4.0, amp=0.2)])
+        return audio.shift(audio.fit(played, len(playback)), 0.1), 0.1
+
+    monkeypatch.setattr(studio, "play_and_record", fake_duplex)
+    result = runner.invoke(app, ["record", "bass", "--channel", "3"])
+    assert result.exit_code == 0, result.output
+
+    playback = heard["playback"]
+    assert heard["channel"] == 3 and len(playback) == int(5.5 * audio.SR)  # 1,5 s de décompte en plus
+    lead = playback[: int(1.5 * audio.SR)]
+    assert np.abs(lead).max() > 0.3 and not lead[int(0.1 * audio.SR): int(0.4 * audio.SR)].any()  # des clics, pas de musique
+    body = playback[int(1.6 * audio.SR): int(1.9 * audio.SR)]
+    assert np.allclose(body, tone(110, 4.0, amp=0.1)[int(0.1 * audio.SR): int(0.4 * audio.SR)], atol=1e-3)  # batterie seule, sans la basse
+
+    p = Project.find()
+    assert p.versions("bass") == ["v001", "v002"] and p.meta("bass", "v002")["latency_ms"] == 100
+    take = audio.load(p.version_path("bass"))
+    assert len(take) == 4 * audio.SR
+    assert np.allclose(take[: 3 * audio.SR], tone(880, 4.0, amp=0.2)[: 3 * audio.SR], atol=1e-3)  # calé sur le début du morceau
+
+
+def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
+    from arr import studio
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    monkeypatch.setattr(studio, "CONFIG", tmp_path / "audio.toml")
+    (tmp_path / "audio.toml").write_text('[output]\ndevice = "X"\n')
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (audio.shift(playback, 0.0375) * 0.5, 0.0))
+    result = runner.invoke(app, ["calibrate"])
+    assert result.exit_code == 0, result.output
+    saved = (tmp_path / "audio.toml").read_text()
+    assert "latency_ms = 37.5" in saved and 'device = "X"' in saved  # les autres réglages restent
+
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
+    assert runner.invoke(app, ["calibrate"]).exit_code != 0  # rien n'est revenu : pas de valeur écrite
+    assert "latency_ms = 37.5" in (tmp_path / "audio.toml").read_text()
