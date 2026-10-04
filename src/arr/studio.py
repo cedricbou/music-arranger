@@ -1,10 +1,15 @@
 """Entrées et sorties audio en direct : capturer ce que joue l'ordinateur, jouer, enregistrer.
 
+Installation visée par défaut : l'ordinateur joue sur sa sortie habituelle (une PreSonus),
+dont les sorties arrivent en analogique sur les voies 7/8 d'une Soundcraft Signature MTK ;
+on enregistre donc ce que joue l'ordinateur sur les entrées 7/8 de la Soundcraft, où se
+règle le gain.
+
 Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
 
     [output]                 # où jouer (arr play, arr record)
-    device = "Soundcraft"    # fragment du nom du périphérique ; "" = sortie par défaut
-    channels = [7, 8]
+    device = ""              # fragment du nom du périphérique ; "" = sortie par défaut
+    channels = [1, 2]
 
     [input]                  # l'instrument (arr record)
     device = "Soundcraft"
@@ -12,8 +17,10 @@ Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
     latency_ms = 21.3        # retard de l'enregistrement sur le playback ; écrit par arr calibrate
 
     [capture]                # ce que joue l'ordinateur (arr capture)
-    source = ""              # nom PipeWire ; "" = moniteur de la sortie par défaut
-    channels = []            # [] = la paire de canaux qui porte le signal
+    source = ""              # "" = les entrées de la Soundcraft si elle est branchée ;
+                             # "monitor" = copie numérique de la sortie par défaut ;
+                             # sinon le nom PipeWire d'une source (arr devices)
+    channels = [7, 8]        # [] = la paire de canaux qui porte le signal
 """
 from __future__ import annotations
 
@@ -30,7 +37,7 @@ from arr import audio
 from arr.project import ProjectError
 
 CONFIG = Path(os.environ.get("ARR_AUDIO", Path.home() / ".config/arr/audio.toml"))
-INTERFACE = "Soundcraft"  # utilisée par défaut quand elle est branchée, sur ses canaux 7/8
+INTERFACE = "Soundcraft"  # table d'enregistrement : ses entrées 7/8 reçoivent le son de l'ordinateur
 CHUNK = 0.05              # secondes
 DEFAULT_LATENCY = 0.0213  # un cycle PipeWire de 1024 échantillons : le minimum, sans les convertisseurs
 
@@ -44,16 +51,39 @@ def _device_names() -> list[str]:
     return [d["name"] for d in sd.query_devices()]
 
 
+def sources() -> list[tuple[str, int]]:
+    """Sources PipeWire : (nom, nombre de canaux)."""
+    listing = subprocess.run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, check=True)
+    return [(s["name"], len(s["channel_map"].split(","))) for s in json.loads(listing.stdout)]
+
+
 def config() -> dict:
     """Réglages effectifs : le fichier, complété par des défauts selon le matériel branché."""
     user = tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
     present = any(INTERFACE.lower() in n.lower() for n in _device_names())
     defaults = {
-        "output": {"device": INTERFACE if present else "", "channels": [7, 8] if present else [1, 2]},
+        "output": {"device": "", "channels": [1, 2]},
         "input": {"device": INTERFACE if present else "", "channels": [1], "latency_ms": None},
-        "capture": {"source": "", "channels": []},
+        "capture": {"source": "", "channels": [7, 8] if present else []},
     }
     return {k: {**v, **user.get(k, {})} for k, v in defaults.items()}
+
+
+def capture_source() -> tuple[str, int]:
+    """Source PipeWire à écouter pour `arr capture`, et son nombre de canaux."""
+    wanted = config()["capture"]["source"]
+    known = sources()
+    if wanted == "monitor":
+        return default_monitor()
+    if wanted:
+        for name, count in known:
+            if name == wanted:
+                return name, count
+        raise ProjectError(f"source PipeWire introuvable : {wanted} (arr devices)")
+    for name, count in known:
+        if INTERFACE.lower() in name.lower() and not name.endswith(".monitor"):
+            return name, count
+    return default_monitor()
 
 
 def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
@@ -78,17 +108,9 @@ def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
 
 
 def default_monitor() -> tuple[str, int]:
-    """Source PipeWire qui écoute la sortie par défaut, et son nombre de canaux."""
+    """Source PipeWire qui copie la sortie par défaut, et son nombre de canaux."""
     sink = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True, check=True).stdout.strip()
-    return f"{sink}.monitor", source_channels(f"{sink}.monitor")
-
-
-def source_channels(name: str) -> int:
-    listing = subprocess.run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, check=True)
-    for s in json.loads(listing.stdout):
-        if s["name"] == name:
-            return len(s["channel_map"].split(","))
-    raise ProjectError(f"source PipeWire introuvable : {name} (arr devices)")
+    return f"{sink}.monitor", dict(sources())[f"{sink}.monitor"]
 
 
 def listen(source: str, channels: int) -> Iterator[np.ndarray]:
@@ -142,6 +164,28 @@ def gate(
     out = np.concatenate(kept)
     loud = np.flatnonzero(np.abs(out).max(axis=1) >= limit)
     return out[: min(len(out), loud[-1] + audio.SR // 2)]
+
+
+def peaks(chunks: Iterable[np.ndarray], seconds: float | None = None,
+          on_update: Callable[[np.ndarray, np.ndarray], None] = lambda now, held: None) -> np.ndarray:
+    """Niveau de crête par canal, en dB, sur `seconds` (ou jusqu'à Ctrl+C).
+
+    `on_update(now, held)` reçoit à chaque bloc la crête du bloc et la crête maximale tenue.
+    """
+    held, heard = None, 0.0
+    try:
+        for chunk in chunks:
+            now = 20 * np.log10(np.abs(chunk).max(axis=0) + 1e-9)
+            held = now if held is None else np.maximum(held, now)
+            on_update(now, held)
+            heard += len(chunk) / audio.SR
+            if seconds is not None and heard >= seconds:
+                break
+    except KeyboardInterrupt:
+        pass
+    if held is None:
+        raise ProjectError("aucun son reçu")
+    return held
 
 
 def stereo(captured: np.ndarray, channels: list[int]) -> np.ndarray:

@@ -58,6 +58,7 @@ arr share t001.guitar                   # dossier pour le guitariste
 ## Studio : capturer, jouer par-dessus, s'enregistrer
 
 ```
+arr levels                         # vérifie que le son arrive sur 7/8 et règle le gain
 arr capture --play                 # enregistre le morceau en cours dans Spotify, du début à la fin
 cd freed-from-desire               # le projet porte le titre du morceau
 arr lyrics fetch                   # artiste et titre sont déjà connus
@@ -72,37 +73,47 @@ arr record bass --click -w guitar  # avec métronome, playback sans la guitare
 arr tracks bass                    # tes prises, versionnées ; arr pick pour choisir
 ```
 
-- **`arr capture`** écoute ce que l'ordinateur envoie à la sortie son, en numérique. Il
-  démarre au premier son et s'arrête à la fin du morceau (changement de titre dans Spotify,
-  sinon 3 s de silence). Avec `--play`, il relance lui-même le morceau depuis le début et
-  met Spotify en pause à la fin. Sans Spotify : `arr capture mon-projet`, puis lance la
-  lecture dans n'importe quel lecteur.
+- **`arr capture`** enregistre ce que joue l'ordinateur tel qu'il revient sur la table :
+  par défaut, les entrées 7/8 de la Soundcraft. Il démarre au premier son et s'arrête à la
+  fin du morceau (changement de titre dans Spotify, sinon 3 s de silence). Avec `--play`,
+  il relance lui-même le morceau depuis le début et met Spotify en pause à la fin. Sans
+  Spotify : `arr capture mon-projet`, puis lance la lecture dans n'importe quel lecteur.
+- **`arr levels`** affiche un vumètre par canal de la table. Lance Spotify (ou
+  `arr levels --tone`, qui joue un son de référence à -12 dB), regarde quels canaux bougent
+  et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
 - **`arr record`** joue le mix sans la piste enregistrée et capte ton instrument dans le
   même flux. Le décompte mène au premier temps fort du morceau ; il lui faut le tempo
-  (`arr transcribe` ou `arr analyze`). Tu t'entends par la table, pas par l'ordinateur.
-- **`arr calibrate`** : relie la sortie à l'entrée de ton instrument (un câble, ou le
-  retour de la table), lance la commande ; elle joue six clics et note le retard mesuré.
-  Sans calibration, `arr record` compense 21 ms, le minimum du système.
+  (`arr transcribe` ou `arr analyze`). Tu t'entends par la table, pas par l'ordinateur. Une
+  prise silencieuse n'est pas gardée.
+- **`arr calibrate`** joue six clics et les réenregistre sur le canal où revient le son de
+  l'ordinateur (le 7), puis note le retard mesuré : aucun câble à ajouter. Sans calibration,
+  `arr record` compense 21 ms, le minimum du système.
 
 ### Réglages audio
 
-`arr devices` montre ce qui est utilisé. Par défaut, quand la Soundcraft est branchée : sortie
-sur ses canaux 7/8, instrument sur son canal 1 ; la capture écoute la sortie son par défaut
-du système et garde la paire de canaux qui porte le signal. Pour changer, crée
-`~/.config/arr/audio.toml` :
+`arr devices` montre ce qui est utilisé. Par défaut, avec la Soundcraft branchée :
+
+| Usage | Défaut |
+|---|---|
+| Lecture (`play`, `record`) | sortie son habituelle de l'ordinateur |
+| Capture de l'ordinateur (`capture`, `levels`) | entrées 7/8 de la Soundcraft |
+| Instrument (`record`) | entrée 1 de la Soundcraft |
+
+Pour changer, crée `~/.config/arr/audio.toml` :
 
 ```toml
 [output]
-device = "Soundcraft"    # fragment du nom ; "" = sortie par défaut du système
-channels = [7, 8]
+device = ""              # fragment du nom ; "" = sortie par défaut du système
+channels = [1, 2]
 
 [input]
 device = "Soundcraft"
 channels = [3]           # un canal = mono, deux = stéréo
 
 [capture]
-source = ""              # nom PipeWire d'une source ; "" = moniteur de la sortie par défaut
-channels = []            # [] = automatique
+source = ""              # "" = entrées de la Soundcraft ; "monitor" = copie numérique de
+                         # la sortie, sans passer par la table ni régler de gain
+channels = [7, 8]
 ```
 
 ## Itérer
@@ -143,6 +154,7 @@ d'un instrument note à note.
 |---|---|
 | `arr capture [NOM] [--play] [--silence S]` | enregistre ce que joue l'ordinateur dans un nouveau projet |
 | `arr record PISTE [-w PISTE] [-o PISTE] [--count-in N] [--click] [--channel N]` | enregistre ton instrument sur le playback |
+| `arr levels [--tone] [--seconds S] [--source NOM]` | vumètre par canal, pour vérifier le câblage et régler le gain |
 | `arr calibrate [--channel N]` | mesure et note la latence d'enregistrement |
 | `arr devices` | réglages audio effectifs et périphériques |
 

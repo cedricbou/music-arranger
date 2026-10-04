@@ -345,7 +345,8 @@ def fake_studio(monkeypatch, heard):
     monkeypatch.setattr(studio, "config", lambda: {
         "output": {"device": "", "channels": [1, 2]}, "input": {"device": "", "channels": [1], "latency_ms": 0},
         "capture": {"source": "", "channels": []}})
-    monkeypatch.setattr(studio, "default_monitor", lambda: ("fake.monitor", 2))
+    monkeypatch.setattr(studio, "capture_source", lambda: ("fake.monitor", heard.shape[1]))
+    monkeypatch.setattr(studio, "sources", lambda: [("fake.monitor", heard.shape[1]), ("other", 2)])
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
     monkeypatch.setattr(studio, "play", lambda data: calls["played"].append(data))
     monkeypatch.setattr(spotify, "now_playing", lambda playing_only=False: track)
@@ -453,3 +454,48 @@ def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
     monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
     assert runner.invoke(app, ["calibrate"]).exit_code != 0  # rien n'est revenu : pas de valeur écrite
     assert "latency_ms = 37.5" in (tmp_path / "audio.toml").read_text()
+
+
+def test_capture_source_follows_the_setup(monkeypatch):
+    from arr import studio
+
+    known = [("alsa_output.presonus.monitor", 2), ("alsa_output.Soundcraft.monitor", 12), ("alsa_input.Soundcraft.multi", 14)]
+    monkeypatch.setattr(studio, "sources", lambda: known)
+    monkeypatch.setattr(studio, "default_monitor", lambda: known[0])
+    setting = {"source": ""}
+    monkeypatch.setattr(studio, "config", lambda: {"capture": setting})
+    assert studio.capture_source() == ("alsa_input.Soundcraft.multi", 14)  # les entrées de la table, pas son moniteur
+    setting["source"] = "monitor"
+    assert studio.capture_source() == ("alsa_output.presonus.monitor", 2)
+    setting["source"] = "alsa_output.Soundcraft.monitor"
+    assert studio.capture_source() == ("alsa_output.Soundcraft.monitor", 12)
+    setting["source"] = "nope"
+    with pytest.raises(ProjectError):
+        studio.capture_source()
+    monkeypatch.setattr(studio, "sources", lambda: known[:1])
+    setting["source"] = ""
+    assert studio.capture_source() == known[0]  # sans la table : copie numérique de la sortie
+
+
+def test_levels_reports_each_channel(monkeypatch):
+    heard = np.zeros((audio.SR, 4), np.float32)
+    heard[:, 2] = audio.db(-12) * np.sign(np.sin(np.arange(audio.SR)))  # canal 3 : bon niveau
+    heard[:, 3] = 1.0                                                   # canal 4 : sature
+    fake_studio(monkeypatch, heard)
+    result = runner.invoke(app, ["levels", "--seconds", "0.5"])
+    assert result.exit_code == 0, result.output
+    lines = [l for l in result.output.splitlines() if "canal" in l and "crête" in l]
+    assert "rien" in lines[0] and "-12.0 dB  bon niveau" in lines[2] and "SATURE" in lines[3]
+    assert runner.invoke(app, ["levels", "--seconds", "0.2", "--source", "nope"]).exit_code != 0
+
+
+def test_record_refuses_a_silent_take(tmp_path, monkeypatch):
+    from arr import studio
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "drums", tone(110, 1.0, amp=0.1), {"op": "split"})
+    monkeypatch.chdir(p.root)
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
+    result = runner.invoke(app, ["record", "bass", "--count-in", "0"])
+    assert result.exit_code != 0 and "bass" not in Project.find().tracks

@@ -361,7 +361,7 @@ def capture(
     cfg = studio.config()["capture"]
     if name and (Path(name) / "song.toml").exists():
         raise ProjectError(f"{name} contient déjà un projet")
-    source, count = (cfg["source"], studio.source_channels(cfg["source"])) if cfg["source"] else studio.default_monitor()
+    source, count = studio.capture_source()
     state = {"track": None, "checked": 0.0}
     if play_:
         current = spotify.now_playing()
@@ -381,7 +381,9 @@ def capture(
         now = spotify.now_playing()
         return now is not None and now["id"] != state["track"]["id"]
 
-    typer.echo(f"en attente du son sur {source} (lance la lecture ; Ctrl+C pour arrêter)")
+    picked = f"canaux {cfg['channels']}" if cfg["channels"] else "canaux automatiques"
+    typer.echo(f"en attente du son sur {source}, {picked} (lance la lecture ; Ctrl+C pour arrêter)")
+    typer.echo("si rien ne démarre : arr levels montre le niveau de chaque canal")
     captured = studio.gate(studio.listen(source, count), silence=silence, should_stop=track_changed, on_start=started)
     if play_:
         spotify.pause()
@@ -441,7 +443,8 @@ def record(
     recorded, latency = studio.play_and_record(playback, channel)
     take = audio.fit(recorded[len(lead) + int(round(latency * audio.SR)):], len(backing))
     if float(np.abs(take).max()) < audio.db(-60):
-        typer.secho("attention : rien n'a été enregistré (vérifie le canal d'entrée : arr devices)", fg="yellow", err=True)
+        raise ProjectError("rien n'a été enregistré sur ce canal : la prise n'est pas gardée "
+                           "(arr levels montre le niveau de chaque canal)")
     version = add_track(p, track, take, {"op": "record", "source": " + ".join(names) or ORIGINAL,
                                          "latency_ms": round(latency * 1000)})
     p.tracks[track]["mute"] = False
@@ -455,17 +458,85 @@ def calibrate(
 ) -> None:
     """Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
 
-    Relie la sortie à l'entrée de l'instrument (un câble, ou le retour de la table), puis
-    lance la commande : elle joue quelques clics et note la latence dans audio.toml.
+    Joue quelques clics et les réenregistre sur le canal où revient le son de l'ordinateur
+    (7 par défaut avec la Soundcraft), puis note la latence dans audio.toml.
     """
     from arr import studio
 
     ticks = [(0.5 + 0.4 * i, i == 0) for i in range(6)]
     playback = audio.add_clicks(np.zeros((3 * audio.SR, 2), np.float32), ticks)
+    back = studio.config()["capture"]["channels"]
+    if channel is None and back and not studio.capture_source()[0].endswith(".monitor"):
+        channel = back[0]  # la sortie de l'ordinateur revient déjà sur ce canal : pas de câble à ajouter
     recorded, _ = studio.play_and_record(playback, channel)
     latency = studio.measure_latency(playback, recorded)
     studio.save_latency(latency)
     typer.echo(f"latence mesurée : {latency * 1000:.1f} ms, notée dans {studio.CONFIG}")
+
+
+def bar(db: float, width: int = 30) -> str:
+    filled = int(round(np.clip((db + 60) / 60, 0, 1) * width))
+    return "█" * filled + "·" * (width - filled)
+
+
+def verdict(db: float) -> str:
+    if db >= -0.5:
+        return "SATURE : baisse le gain"
+    if db >= -3:
+        return "très fort"
+    if db >= -18:
+        return "bon niveau"
+    if db >= -40:
+        return "faible : monte le gain"
+    return "rien"
+
+
+@app.command()
+def levels(
+    seconds: Optional[float] = typer.Option(None, help="Durée de la mesure ; sinon jusqu'à Ctrl+C."),
+    tone: bool = typer.Option(False, "--tone", help="Joue un son de référence à -12 dB sur la sortie pendant la mesure."),
+    source: Optional[str] = typer.Option(None, help="Source PipeWire à mesurer ; sinon celle de arr capture."),
+) -> None:
+    """Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
+
+    Lance Spotify (ou --tone), regarde quels canaux bougent et règle le gain pour que les
+    crêtes arrivent entre -18 et -3 dB. Ctrl+C affiche le bilan.
+    """
+    import sounddevice as sd
+    from rich.live import Live
+    from rich.text import Text
+
+    from arr import studio
+
+    cfg = studio.config()
+    name, count = (source, dict(studio.sources()).get(source)) if source else studio.capture_source()
+    if count is None:
+        raise ProjectError(f"source PipeWire introuvable : {source} (arr devices)")
+    used = set(cfg["capture"]["channels"]) if not source else set()
+    typer.echo(f"source : {name}  ({count} canaux)")
+    if tone:
+        out = cfg["output"]
+        t = np.arange(audio.SR) / audio.SR
+        wave = (audio.db(-12) * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        sd.play(np.stack([wave, wave], axis=1), audio.SR, loop=True, mapping=out["channels"],
+                device=studio.find_device(out["device"], "output", out["channels"]))
+
+    def view(now, held) -> Text:
+        return Text("\n".join(
+            f"{'▶' if i + 1 in used else ' '} {i + 1:2d} {bar(now[i])} {now[i]:6.1f} dB  crête {held[i]:6.1f}"
+            for i in range(count)))
+
+    try:
+        with Live(Text("en attente..."), refresh_per_second=10, transient=True) as live:
+            held = studio.peaks(studio.listen(name, count), seconds, lambda now, held: live.update(view(now, held)))
+    finally:
+        if tone:
+            sd.stop()
+    for i in range(count):
+        mark = "▶" if i + 1 in used else " "
+        typer.echo(f"{mark} canal {i + 1:2d}  crête {held[i]:6.1f} dB  {verdict(held[i])}")
+    if used:
+        typer.echo(f"▶ canaux utilisés par arr capture : {sorted(used)}")
 
 
 @app.command()
@@ -476,14 +547,17 @@ def devices() -> None:
     from arr import studio
 
     cfg = studio.config()
-    source = cfg["capture"]["source"] or studio.default_monitor()[0]
+    source = studio.capture_source()[0]
     typer.echo(f"réglages ({studio.CONFIG}{'' if studio.CONFIG.exists() else ', absent : valeurs par défaut'})")
     typer.echo(f"  sortie    {cfg['output']['device'] or 'par défaut'}  canaux {cfg['output']['channels']}")
     measured = cfg["input"]["latency_ms"]
     typer.echo(f"  entrée    {cfg['input']['device'] or 'par défaut'}  canaux {cfg['input']['channels']}  latence "
                + (f"{measured} ms (mesurée)" if measured is not None else "non mesurée (arr calibrate)"))
     typer.echo(f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}")
-    typer.echo("périphériques")
+    typer.echo("sources PipeWire (pour [capture] source)")
+    for name, count in studio.sources():
+        typer.echo(f"  {name}  ({count} canaux)")
+    typer.echo("périphériques (pour [output] et [input] device)")
     for d in sd.query_devices():
         if sd.query_hostapis(d["hostapi"])["name"].startswith("JACK"):
             typer.echo(f"  {d['name']}  ({d['max_input_channels']} entrées, {d['max_output_channels']} sorties)")
