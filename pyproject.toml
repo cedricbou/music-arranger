@@ -1,14 +1,13 @@
 [project]
 name = "arr"
 version = "0.1.0"
-description = "CLI local d'arrangement audio (stems, génération, structure)"
+description = "CLI local pour réarranger des morceaux : partition, prises complètes, greffe de stems"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "torch==2.11.0",
     "torchaudio==2.11.0",
-    "torchvision==0.26.0",
     "triton-xpu",
-    "ace-step",
+    "huggingface-hub>=0.36",
     "typer>=0.12",
     "rich>=13",
     "soundfile>=0.12",
@@ -34,21 +33,13 @@ url = "https://download.pytorch.org/whl/xpu"
 explicit = true
 
 [tool.uv]
-# ACE-Step épingle torch en CUDA ; on force les roues XPU d'Intel à la place.
-override-dependencies = [
-    "torch==2.11.0",
-    "torchaudio==2.11.0",
-    "torchvision==0.26.0",
-    "torchao<0.16.0",
-    "torchcodec; sys_platform == 'never'",
-]
+# Le projet vise une seule machine : Linux x86_64 avec une carte Intel Arc.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-xpu" }
 torchaudio = { index = "pytorch-xpu" }
-torchvision = { index = "pytorch-xpu" }
 triton-xpu = { index = "pytorch-xpu" }
-ace-step = { git = "https://github.com/ace-step/ACE-Step-1.5.git" }
 
 [dependency-groups]
 dev = [

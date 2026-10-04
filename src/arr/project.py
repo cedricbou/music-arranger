@@ -32,7 +32,7 @@ class Project:
     def create(cls, root: Path, title: str) -> "Project":
         if (root / SONG_FILE).exists():
             raise ProjectError(f"{root} contient déjà un projet")
-        for d in ("source", "stems", "tracks", "mix", "export"):
+        for d in ("source", "score", "takes", "tracks", "mix", "export"):
             (root / d).mkdir(parents=True, exist_ok=True)
         (root / SONG_FILE).write_text(tomli_w.dumps({"song": {"title": title}, "tracks": {}}))
         return cls(root)
@@ -102,6 +102,30 @@ class Project:
         meta = {"created": datetime.now().isoformat(timespec="seconds"), **meta}
         (d / f"{version}.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         return version, d / f"{version}.flac"
+
+    # --- prises : rendus complets du morceau (voix et groupe)
+
+    def takes(self) -> list[str]:
+        return sorted(f.stem for f in (self.root / "takes").glob("t[0-9][0-9][0-9].flac"))
+
+    def take_path(self, name: str) -> Path:
+        path = self.root / "takes" / f"{name}.flac"
+        if not path.exists():
+            raise ProjectError(f"prise inconnue : {name} (connues : {', '.join(self.takes()) or 'aucune'})")
+        return path
+
+    def take_meta(self, name: str) -> dict:
+        return json.loads(self.take_path(name).with_suffix(".json").read_text())
+
+    def new_take(self, meta: dict) -> tuple[str, Path]:
+        """Réserve la prochaine prise ; l'appelant écrit le fichier audio."""
+        d = self.root / "takes"
+        d.mkdir(exist_ok=True)
+        existing = sorted(f.stem for f in d.glob("t[0-9][0-9][0-9].json"))
+        name = f"t{(int(existing[-1][1:]) if existing else 0) + 1:03d}"
+        meta = {"created": datetime.now().isoformat(timespec="seconds"), **meta}
+        (d / f"{name}.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+        return name, d / f"{name}.flac"
 
     def activate(self, track: str, version: str) -> None:
         self.tracks.setdefault(track, {})["active"] = version

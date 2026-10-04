@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -12,14 +13,20 @@ import typer
 from arr import audio, engines
 from arr.project import Project, ProjectError, Section
 
-app = typer.Typer(help="Arrangement audio local, stem par stem.", no_args_is_help=True)
+app = typer.Typer(help="Réarranger un morceau : partition, prises complètes, greffe de stems.", no_args_is_help=True)
 sections_app = typer.Typer(help="Parties du morceau (intro, couplet, refrain...).", no_args_is_help=True)
 models_app = typer.Typer(help="Poids des modèles.", no_args_is_help=True)
+lyrics_app = typer.Typer(help="Paroles du morceau.", no_args_is_help=True)
 app.add_typer(sections_app, name="sections")
+app.add_typer(lyrics_app, name="lyrics")
 app.add_typer(models_app, name="models")
 
 ORIGINAL = "source/original.flac"
 ANALYSIS = "analysis.json"
+SCORE = "score/score.abc"
+LYRICS = "lyrics.txt"
+ON_BEAT = 0.035     # un temps de la prise est « calé » s'il tombe à moins de 35 ms d'un temps de l'original
+MAX_STRETCH = 0.03  # au-delà de 3 % d'écart de tempo, une prise n'est plus la même interprétation
 
 
 def run() -> None:
@@ -32,7 +39,7 @@ def run() -> None:
 
 @app.callback()
 def main(ctx: typer.Context) -> None:
-    # Seul `models pull` a le droit de toucher le réseau.
+    # Les modèles ne touchent le réseau que dans `models pull` (`lyrics fetch` interroge LRCLIB).
     if ctx.invoked_subcommand != "models":
         engines.offline()
 
@@ -100,31 +107,78 @@ def import_(
     typer.echo(f"{track} {version}")
 
 
+def original_beats(p: Project) -> Optional[list[float]]:
+    f = p.root / ANALYSIS
+    return json.loads(f.read_text())["beats"] if f.exists() else None
+
+
+def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
+    """Met les stems d'une prise au tempo exact de l'original et les cale sur ses temps.
+
+    Un écart de tempo de 0,1 % suffit à décaler la fin du morceau : on étire toujours.
+    """
+    from arr.engines import analysis
+
+    ref = original_beats(p)
+    original = p.root / ORIGINAL
+    if ref is None or not original.exists():
+        return stems, {}
+    mine = analysis.beats(p.take_path(take))[0]
+    speed = analysis.period(mine) / analysis.period(ref)
+    if abs(speed - 1) > MAX_STRETCH:
+        typer.secho(f"attention : {take} est à un autre tempo que l'original ({1 / speed:.2f} fois) ; "
+                    "ses stems ne sont pas superposables", fg="yellow", err=True)
+        return stems, {"superposable": False}
+    ref, mine = np.array(ref), np.array(mine) / speed
+    offset = float(np.median([t - ref[np.abs(ref - t).argmin()] for t in mine]))
+    on_beat = float(np.mean([np.abs(ref - (t - offset)).min() < ON_BEAT for t in mine]))
+    n = len(audio.load(original))
+    aligned = {k: audio.fit(audio.shift(audio.stretch(v, speed), -offset), n) for k, v in stems.items()}
+    if on_beat < 0.6:
+        typer.secho(f"attention : {take} ne suit pas la grille de l'original ({on_beat:.0%} des temps calés) ; "
+                    "la greffe sonnera décalée", fg="yellow", err=True)
+    return aligned, {"superposable": on_beat >= 0.6, "on_beat": round(on_beat, 2),
+                     "offset_ms": round(offset * 1000), "speed": round(speed, 5)}
+
+
 @app.command()
 def split(
-    source: Optional[Path] = typer.Argument(None, help="Fichier à séparer (ex. un rendu) ; sinon l'original."),
+    take: Optional[str] = typer.Argument(None, help="Prise à séparer (ex. t001) ; sinon l'original."),
     model: str = typer.Option("htdemucs_6s", help="htdemucs_6s : 6 stems ; htdemucs_ft : 4 stems, plus précis."),
     shifts: int = typer.Option(1, help="Passes moyennées : 2 ou plus réduit les fuites, temps multiplié d'autant."),
 ) -> None:
-    """Sépare un mix en stems ; chaque stem devient une nouvelle version de sa piste."""
+    """Sépare l'original ou une prise en stems.
+
+    Les stems de l'original deviennent les pistes drums, bass... Ceux d'une prise deviennent
+    t001.drums, t001.bass..., muets et calés sur l'original : `arr graft` les fait entendre.
+    """
     from arr.engines.separation import MODELS, separate
 
     p = Project.find()
     if model not in MODELS:
         raise ProjectError(f"modèle inconnu : {model} (connus : {', '.join(MODELS)})")
-    source = (source or p.root / ORIGINAL).resolve()
+    source = p.take_path(take) if take else p.root / ORIGINAL
     if not source.exists():
         raise ProjectError(f"{source} introuvable (arr import <fichier>)")
-    rel = str(source.relative_to(p.root)) if source.is_relative_to(p.root) else str(source)
+    meta = {"op": "split", "model": model, "source": str(source.relative_to(p.root))}
     stems = separate(source, model, shifts)
+    if take:
+        stems, alignment = align_to_original(p, take, stems)
+        for name, data in stems.items():
+            track = f"{take}.{name}"
+            version = add_track(p, track, data, {**meta, **alignment})
+            p.tracks[track].setdefault("mute", True)
+            typer.echo(f"{track} {version}")
+        p.save()
+        return
     for name, data in stems.items():
-        version = add_track(p, name, data, {"op": "split", "model": model, "source": rel})
+        version = add_track(p, name, data, meta)
         typer.echo(f"{name} {version}")
     # Cette séparation remplace la précédente : ses stems et leurs fusions doubleraient le mix.
     for name, t in p.tracks.items():
         if name in stems:
             t["mute"] = False
-        elif not t.get("mute") and p.meta(name, t["active"])["op"] in ("split", "merge"):
+        elif "." not in name and not t.get("mute") and p.meta(name, t["active"])["op"] in ("split", "merge"):
             t["mute"] = True
             typer.echo(f"{name} rendue muette (séparation précédente)")
     p.save()
@@ -170,16 +224,7 @@ def analyze() -> None:
 def describe(meta: dict) -> str:
     """Origine d'une version, en quelques mots."""
     op = meta["op"]
-    if op == "split":
-        detail = meta.get("model", "")
-    elif op in ("merge", "import"):
-        detail = meta.get("source", "")
-    else:
-        detail = meta.get("prompt", "")
-        if meta.get("section"):
-            detail += f" [{meta['section']}]"
-        elif "start" in meta:
-            detail += f" [{meta['start']:.0f}-{meta['end']:.0f} s]"
+    detail = meta.get("model", "") if op == "split" else meta.get("source", "")
     return f"{op:<7} {detail}".rstrip()
 
 
@@ -272,175 +317,163 @@ def mix(
 
 
 @app.command()
-def play(track: Optional[str] = typer.Argument(None, help="Piste seule ; sinon le mix.")) -> None:
-    """Écoute une piste ou le mix."""
+def play(
+    name: Optional[str] = typer.Argument(None, help="Piste ou prise (ex. t001) ; sinon le mix."),
+    version: Optional[str] = typer.Argument(None, help="Version d'une piste ; sinon la version active."),
+) -> None:
+    """Écoute le mix, une piste ou une prise."""
     p = Project.find()
-    path = p.version_path(track) if track else render_mix(p)
+    if name is None:
+        path = render_mix(p)
+    elif name in p.takes():
+        path = p.take_path(name)
+    else:
+        path = p.version_path(name, version)
     subprocess.run(["ffplay", "-v", "error", "-nodisp", "-autoexit", str(path)])
 
 
-# --- génération
+# --- partition et paroles
 
 
-def span(p: Project, section: Optional[str], start: Optional[float], end: Optional[float]):
-    """Plage de temps visée : une section nommée, ou --from/--to, ou rien (tout le morceau)."""
-    if section:
-        s = p.section(section)
-        return s.start, s.end
-    if start is not None or end is not None:
-        return start or 0.0, end
-    return None
+@app.command()
+def transcribe() -> None:
+    """Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections."""
+    from arr.engines import analysis, transcription
+
+    p = Project.find()
+    original = p.root / ORIGINAL
+    if not original.exists():
+        raise ProjectError("pas de morceau original (arr import <fichier>)")
+    typer.echo("transcription en cours (quelques minutes pour un morceau entier)...")
+    out = p.root / "score"
+    transcription.transcribe(original, out)
+    info = transcription.read(out)
+    # Le tempo de la partition fixe celui des prises : on le mesure sur l'audio, au BPM près,
+    # car SheetSage2 peut se tromper d'une unité et les prises dériveraient.
+    beats, downbeats = analysis.beats(original)
+    bpm = round(60 / analysis.period(beats))
+    transcription.set_tempo(out, bpm)
+    (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
+    p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))
+    p.set_sections([Section(name, start, end) for name, start, end in info["sections"]])
+    p.save()
+    typer.echo(f"bpm {bpm}  tonalité {info['key']}  {len(downbeats)} mesures  -> {SCORE}")
+    sections_list()
 
 
-def song_kw(p: Project) -> dict:
-    return {"bpm": p.song.get("bpm"), "key": p.song.get("key", "")}
+@lyrics_app.command("fetch")
+def lyrics_fetch(
+    artist: str, title: str,
+    force: bool = typer.Option(False, "--force", help="Remplace un lyrics.txt existant."),
+) -> None:
+    """Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt."""
+    from arr import lyrics
+    from arr.engines.transcription import first_sung
+
+    p = Project.find()
+    target = p.root / LYRICS
+    if target.exists() and not force:
+        raise ProjectError(f"{LYRICS} existe déjà (--force pour le remplacer)")
+    found = lyrics.fetch(artist, title)
+    if found.get("syncedLyrics") and p.sections:
+        target.write_text(lyrics.tagged(found["syncedLyrics"], p.sections, first_sung(p.root / "score")))
+        typer.echo(f"{LYRICS} : paroles rangées dans {len(p.sections)} sections ; relis et corrige le découpage")
+    else:
+        target.write_text(found["plainLyrics"].strip() + "\n")
+        why = "pas de sections (arr transcribe d'abord)" if not p.sections else "paroles non horodatées"
+        typer.secho(f"{LYRICS} : paroles brutes, {why} ; ajoute les balises [Verse], [Chorus]... à la main",
+                    fg="yellow")
 
 
-SECTION = typer.Option(None, "--section", "-s", help="Ne traiter que cette section.")
-PROMPT = typer.Option(None, "--prompt", "-p", help="Description du son voulu (en anglais de préférence).")
-SEED = typer.Option(-1, help="Graine ; -1 pour aléatoire.")
-COUNT = typer.Option(1, "-n", help="Nombre de variantes à générer.")
+# --- prises
 
 
-def cover_track(p, source: str, target: str, caption: str, fidelity: float, section, seed: int, n: int, op: str):
-    """Rejoue la piste SOURCE selon CAPTION.
+@app.command()
+def render(
+    style: str = typer.Option(..., "--style", "-s", help="Formation et couleur, en anglais : genre, instruments, voix."),
+    free: bool = typer.Option(False, "--free", help="Mélodie seule : accompagnement réinventé, tempo libre."),
+    seed: int = typer.Option(-1, help="Graine ; -1 pour aléatoire."),
+    n: int = typer.Option(1, "-n", help="Nombre de prises."),
+) -> None:
+    """Rend une prise complète du morceau (voix et groupe) à partir de la partition.
 
-    Avec une section, seule cette plage change : sur place si la cible est la source,
-    sinon la cible ne joue que la section et la source s'y tait.
+    Par défaut la prise est fidèle : mélodie et accords imposés, même tempo et mêmes mesures
+    que l'original, donc ses stems peuvent y être greffés.
     """
-    from arr.engines.acestep import Engine
+    from arr.engines import yue2
 
-    src = p.version_path(source)
-    base = audio.load(src)
-    rng = span(p, section, None, None)
-    engine = Engine()
+    p = Project.find()
+    score = p.root / SCORE
+    if not score.exists():
+        raise ProjectError("pas de partition (arr transcribe)")
+    words = p.root / LYRICS
+    if not words.exists():
+        typer.secho(f"pas de {LYRICS} : la prise sera instrumentale", fg="yellow", err=True)
+    text = words.read_text() if words.exists() else ""
     for i in range(n):
-        out, meta = engine.generate("cover", caption, src, fidelity=fidelity,
-                                    seed=seed if seed < 0 else seed + i, **song_kw(p))
-        out = audio.scale_to(audio.fit(out, len(base)), base)
-        if rng:
-            under = base if target == source else np.zeros_like(base)
-            out = audio.splice(under, out, *rng)
-            meta["section"] = section
-        meta.update(op=op, parent=f"{source}/{src.stem}")
-        typer.echo(f"{target} {add_track(p, target, out, meta)}")
-    if rng and target != source:
-        cut = audio.splice(base, np.zeros_like(base), *rng)
-        meta = {"op": "cut", "section": section, "parent": f"{source}/{src.stem}"}
-        typer.echo(f"{source} {add_track(p, source, cut, meta)}  (se tait pendant {section})")
+        tmp = p.root / "takes" / "rendu.wav"
+        tmp.parent.mkdir(exist_ok=True)
+        meta = yue2.render(score.read_text(), text, style, tmp, free=free, seed=seed if seed < 0 else seed + i)
+        name, path = p.new_take({**meta, "score": SCORE, "instrumental": not text})
+        audio.convert(tmp, path)
+        tmp.unlink()
+        typer.echo(f"{name}  ({'libre' if free else 'fidèle'}, graine {meta['seed']}, {audio.duration(path):.1f} s)")
 
 
 @app.command()
-def restem(
-    track: str,
-    as_: str = typer.Option(..., "--as", help="Instrument cible (profil du groupe ou famille ACE-Step)."),
-    fidelity: float = typer.Option(0.35, help="0 : partie réinventée ; 0.3 : garde le rythme ; 0.7 : très proche de l'original."),
-    prompt: Optional[str] = PROMPT, section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
-) -> None:
-    """Rejoue un stem avec un autre instrument en gardant sa ligne."""
-    from arr import band
+def takes() -> None:
+    """Liste les prises."""
+    from rich.console import Console
+    from rich.table import Table
 
     p = Project.find()
-    inst = band.instrument(as_)
-    cover_track(p, track, inst.name, prompt or f"solo {inst.sound}, isolated instrument stem",
-                fidelity, section, seed, n, "restem")
-    if inst.name != track and not section:
-        p.tracks[track]["mute"] = True
-        p.save()
-        typer.echo(f"{track} rendue muette (arr mute {track} --off pour la réactiver)")
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    for column in ("Prise", "Mode", "Graine", "Durée", "Créée", "Style"):
+        table.add_column(column, no_wrap=column != "Style")
+    for name in p.takes():
+        m = p.take_meta(name)
+        table.add_row(name, "libre" if m["mode"] == "free" else "fidèle", str(m["seed"]),
+                      f"{audio.duration(p.take_path(name)):.0f} s", created(m), m["style"])
+    Console().print(table)
 
 
 @app.command()
-def polish(
-    track: str,
-    fidelity: float = typer.Option(0.5, help="0.3 : rejoué librement ; 0.5 : même ligne, nettoyée ; 0.7 : retouche légère."),
-    prompt: Optional[str] = PROMPT, section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
+def graft(
+    take: str,
+    stems: list[str] = typer.Argument(..., help="Stems de la prise à faire entendre : guitar, drums..."),
+    replace: bool = typer.Option(False, "--replace", help="Coupe les mêmes stems de l'original."),
 ) -> None:
-    """Rejoue proprement une idée mal jouée, même instrument, même ligne."""
+    """Greffe des stems d'une prise sur le mix : en plus de l'original, ou à sa place."""
     p = Project.find()
-    caption = prompt or f"clean, tight, well played {track.replace('_', ' ')}, studio recording"
-    cover_track(p, track, track, caption, fidelity, section, seed, n, "polish")
+    p.take_path(take)
+    if not any(t.startswith(f"{take}.") for t in p.tracks):
+        raise ProjectError(f"{take} n'est pas encore séparée (arr split {take})")
+    for stem in stems:
+        track = f"{take}.{stem}"
+        p.version_path(track)
+        p.tracks[track]["mute"] = False
+        typer.echo(f"{track} dans le mix")
+        if replace and stem in p.tracks:
+            p.tracks[stem]["mute"] = True
+            typer.echo(f"{stem} (original) rendue muette")
+    p.save()
 
 
 @app.command()
-def fix(
-    track: str,
-    prompt: str = typer.Option(..., "--prompt", "-p", help="Ce qu'on veut entendre dans le passage."),
-    section: Optional[str] = SECTION,
-    start: Optional[float] = typer.Option(None, "--from", help="Début en secondes."),
-    end: Optional[float] = typer.Option(None, "--to", help="Fin en secondes."),
-    seed: int = SEED, n: int = COUNT,
-) -> None:
-    """Régénère un passage d'une piste ; le reste n'est pas touché."""
-    from arr.engines.acestep import Engine
-
+def share(track: str) -> None:
+    """Prépare un dossier pour le musicien : sa partie seule, le mix, et le mix sans lui."""
     p = Project.find()
-    rng = span(p, section, start, end)
-    if not rng:
-        raise ProjectError("indique --section ou --from/--to")
-    src = p.version_path(track)
-    base = audio.load(src)
-    start, end = rng[0], rng[1] if rng[1] is not None else len(base) / audio.SR
-    inside = np.zeros(len(base), bool)
-    inside[int(start * audio.SR) : int(end * audio.SR)] = True
-    engine = Engine()
-    for i in range(n):
-        out, meta = engine.generate("repaint", prompt, src, start=start, end=end,
-                                    seed=seed if seed < 0 else seed + i, **song_kw(p))
-        # Le passage refait est ramené au niveau moyen de la piste ; hors plage, l'original reste au bit près.
-        out = audio.fit(out, len(base))
-        out = audio.scale_to(out, base, inside)
-        meta.update(op="fix", parent=f"{track}/{src.stem}")
-        typer.echo(f"{track} {add_track(p, track, audio.splice(base, out, start, end), meta)}")
-
-
-def render(p: Project, task: str, name: str, caption: str, tracks: list[str], rng, seed: int, n: int) -> None:
-    """Tâches qui rendent un mix complet (contexte + nouveaux instruments) dans renders/."""
-    from arr.engines.acestep import Engine
-
-    src = render_mix(p)
-    total = audio.duration(src)
-    engine = Engine()
-    for i in range(n):
-        kw = {}
-        if task == "lego":
-            kw = {"start": rng[0] if rng else 0.0, "end": (rng[1] if rng and rng[1] is not None else total)}
-        out, meta = engine.generate(task, caption, src, tracks=tracks,
-                                    seed=seed if seed < 0 else seed + i, **kw, **song_kw(p))
-        d = p.root / "renders"
-        d.mkdir(exist_ok=True)
-        k = len(list(d.glob(f"{name}-*.flac"))) + 1
-        path = d / f"{name}-{k:03d}.flac"
-        audio.save(path, out)
-        path.with_suffix(".json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
-        typer.echo(f"{path.relative_to(p.root)}  (arr split {path.relative_to(p.root)} pour en tirer des stems)")
-
-
-@app.command()
-def add(
-    instrument: str,
-    prompt: Optional[str] = PROMPT, section: Optional[str] = SECTION, seed: int = SEED, n: int = COUNT,
-) -> None:
-    """Ajoute un instrument par-dessus le mix courant ; produit un rendu complet."""
-    from arr import band
-
-    p = Project.find()
-    inst = band.instrument(instrument)
-    render(p, "lego", f"add-{inst.name}", prompt or inst.sound, [inst.track], span(p, section, None, None), seed, n)
-
-
-@app.command()
-def complete(
-    with_: str = typer.Option(..., "--with", help="Instruments à ajouter, séparés par des virgules."),
-    prompt: str = typer.Option(..., "--prompt", "-p", help="Style de l'arrangement voulu."),
-    seed: int = SEED, n: int = COUNT,
-) -> None:
-    """Habille une idée (basse, piano...) avec d'autres instruments ; produit un rendu complet."""
-    from arr import band
-
-    p = Project.find()
-    insts = [band.instrument(x.strip()) for x in with_.split(",")]
-    render(p, "complete", "complete", prompt, [i.track for i in insts], None, seed, n)
+    part = audio.load(p.version_path(track))
+    others = [(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0))
+              for t in p.tracks if t != track and not p.tracks[t].get("mute")]
+    if not others:
+        raise ProjectError("aucune autre piste dans le mix")
+    out = p.root / "export" / track
+    gain = p.tracks[track].get("gain", 0.0)
+    audio.save_mp3(out / "partie.mp3", part)
+    audio.save_mp3(out / "mix.mp3", audio.mix([*others, (part, gain)]))
+    audio.save_mp3(out / "sans.mp3", audio.mix(others))
+    typer.echo(f"{out.relative_to(p.root)}/ : partie.mp3, mix.mp3, sans.mp3")
 
 
 # --- sections
@@ -483,28 +516,60 @@ def sections_list() -> None:
 # --- modèles et machine
 
 
+AUDIOCPP_RELEASE = (
+    "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.0/"
+    "audio-v0.9.0-bin-ubuntu-x64-vulkan-portable.tar.gz"
+)
+SS2_PACKAGES = [
+    "transformers==4.45.2", "huggingface-hub==0.36.0", "safetensors==0.5.3", "numpy==1.26.4", "scipy==1.13.1",
+    "mir_eval==0.8.2", "pretty_midi==0.2.10", "mido==1.3.3", "setuptools==78.1.1", "soundfile",
+]
+
+
 @models_app.command("pull")
 def models_pull() -> None:
-    """Télécharge les poids depuis Hugging Face (seule commande qui utilise le réseau)."""
-    from huggingface_hub import snapshot_download
+    """Installe les modèles et leurs moteurs (seule commande qui télécharge des modèles)."""
+    import tarfile
+    import urllib.request
 
-    snapshot_download("ACE-Step/Ace-Step1.5", local_dir=engines.CHECKPOINTS)
-    snapshot_download("ACE-Step/acestep-v15-base", local_dir=engines.CHECKPOINTS / "acestep-v15-base")
-    typer.echo(f"ACE-Step dans {engines.CHECKPOINTS}")
     from beat_this.inference import load_model
     from demucs.pretrained import get_model
+    from huggingface_hub import snapshot_download
 
     from arr.engines.separation import MODELS
+
+    snapshot_download("audio-cpp/Yue2-3B-GGUF", local_dir=engines.YUE2,
+                      allow_patterns=["yue2-3b-q8_0.gguf", "yue2-vae-f16.gguf", "sidecars/*"])
+    typer.echo(f"YuE2 dans {engines.YUE2}")
+
+    if not engines.AUDIOCPP.exists():
+        engines.AUDIOCPP.parent.mkdir(parents=True, exist_ok=True)
+        archive, _ = urllib.request.urlretrieve(AUDIOCPP_RELEASE)
+        with tarfile.open(archive) as tar:
+            tar.extractall(engines.AUDIOCPP.parent, filter="data")
+        engines.AUDIOCPP.chmod(0o755)
+    typer.echo(f"audio.cpp dans {engines.AUDIOCPP.parent}")
+
+    if not engines.SS2_PYTHON.exists():
+        env = {**os.environ, "VIRTUAL_ENV": str(engines.SS2_PYTHON.parents[1])}
+        subprocess.run(["uv", "venv", "-q", "--python", "3.11", env["VIRTUAL_ENV"]], check=True)
+        subprocess.run(["uv", "pip", "install", "-q", "torch==2.11.0", "torchaudio==2.11.0",
+                        "--index-url", "https://download.pytorch.org/whl/xpu"], check=True, env=env)
+        subprocess.run(["uv", "pip", "install", "-q", *SS2_PACKAGES], check=True, env=env)
+    subprocess.run([str(engines.SS2_PYTHON), "-c",
+                    "from transformers import AutoModel; "
+                    "AutoModel.from_pretrained('m-a-p/SheetSage2', trust_remote_code=True)"], check=True)
+    typer.echo(f"SheetSage2 dans {engines.SS2_PYTHON.parents[1]}")
 
     for name in MODELS:
         get_model(name)
     load_model("final0", "cpu")
-    typer.echo("Demucs et beat_this dans ~/.cache/torch/hub")
+    typer.echo("Demucs et beat_this dans ~/.cache")
 
 
 @app.command()
 def doctor() -> None:
-    """Vérifie que la carte Intel Arc est utilisable par PyTorch."""
+    """Vérifie la carte Intel Arc et la présence des modèles."""
     import torch
 
     typer.echo(f"torch {torch.__version__}")
@@ -514,6 +579,6 @@ def doctor() -> None:
     typer.echo(f"xpu: disponible ({torch.xpu.get_device_name(0)})")
     x = torch.randn(2048, 2048, device="xpu")
     typer.echo(f"calcul de test: {float((x @ x).abs().mean()):.3f}")
-    for name in ("acestep-v15-turbo", "acestep-v15-base", "vae"):
-        state = "présent" if (engines.CHECKPOINTS / name).is_dir() else "absent (arr models pull)"
-        typer.echo(f"{name}: {state}")
+    for label, path in (("audio.cpp", engines.AUDIOCPP), ("YuE2", engines.YUE2 / "yue2-3b-q8_0.gguf"),
+                        ("SheetSage2", engines.SS2_PYTHON)):
+        typer.echo(f"{label}: {'présent' if path.exists() else 'absent (arr models pull)'}")

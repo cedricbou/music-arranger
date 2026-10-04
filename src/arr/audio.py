@@ -32,6 +32,34 @@ def save(path: Path, audio: np.ndarray) -> None:
     sf.write(path, audio, SR, subtype="PCM_24")
 
 
+def save_mp3(path: Path, audio: np.ndarray) -> None:
+    """Pour partager avec les musiciens : MP3 lisible partout."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
+         "-codec:a", "libmp3lame", "-q:a", "2", str(path)],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), check=True,
+    )
+
+
+def stretch(audio: np.ndarray, speed: float) -> np.ndarray:
+    """Change la durée sans changer la hauteur : speed 1.01 raccourcit de 1 %."""
+    done = subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
+         "-filter:a", f"atempo={speed:.6f}", "-f", "f32le", "-"],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), capture_output=True, check=True,
+    )
+    return np.frombuffer(done.stdout, dtype=np.float32).reshape(-1, 2).copy()
+
+
+def shift(audio: np.ndarray, seconds: float) -> np.ndarray:
+    """Retarde (seconds > 0) ou avance l'audio, à longueur constante."""
+    k = int(round(seconds * SR))
+    if k >= 0:
+        return fit(np.concatenate([np.zeros((k, audio.shape[1]), audio.dtype), audio]), len(audio))
+    return fit(audio[-k:], len(audio))
+
+
 def duration(path: Path) -> float:
     return sf.info(path).duration
 

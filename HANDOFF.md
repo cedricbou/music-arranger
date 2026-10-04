@@ -1,124 +1,112 @@
 # Handoff
 
-État au 3 octobre 2026, fin de la première session.
+État au 4 octobre 2026.
 
 ## Où on en est
 
-Les phases 0 à 2 du plan sont faites : environnement XPU validé, socle du CLI, commandes
-génératives. La phase 3 (adaptation à la scène) n'est pas commencée.
+`arr` a changé de logique : on ne génère plus des pistes, on commande des **prises complètes**
+du morceau à YuE2, à partir de la partition transcrite par SheetSage2, puis on en tire des
+stems. Cédric a validé ce MVP à l'écoute sur « Freed from Desire » (Gala) : son au niveau,
+mélodie reconnaissable, guitare funk audible.
 
 | Élément | État |
 |---|---|
-| PyTorch XPU sur Arc A770 | fonctionne |
-| ACE-Step 1.5 `base` sur XPU | fonctionne, avec un patch float64 |
-| `init`, `import`, `split`, `analyze`, `sections`, `tracks`, `pick`, `gain`, `mute`, `mix`, `play`, `doctor`, `models pull` | faits, testés de bout en bout |
-| `restem`, `polish`, `fix` | faits, vérifiés par la mesure |
-| `add` | fait, s'exécute ; qualité non vérifiée |
-| `complete` | fait ; exécuté une seule fois, avant les dernières corrections |
-| Tests | 10 tests : `project.py`, `audio.py`, et `merge`/`split` du CLI avec un moteur factice |
-| `structure`, transposition, tempo, `export` | à faire |
-| MIDI, partitions | à faire, prévu en dernier |
+| `transcribe` (SheetSage2) | fait ; vérifié sur Gala (ré mineur, 129 BPM, sections, accords) |
+| `lyrics fetch` (LRCLIB) | fait ; rangement par section approximatif, à relire |
+| `render`, `takes` (YuE2) | faits ; qualité validée à l'oreille par Cédric |
+| `split tNNN`, `graft` | faits, mais **le calage n'aboutit qu'une fois sur trois** (voir plus bas) ; greffe à juger à l'oreille |
+| `share` | fait ; non essayé avec un musicien |
+| Socle (`init`, `import`, `split`, `merge`, `tracks`, `mix`, `play`...) | inchangé |
+| ACE-Step et ses commandes (`restem`, `polish`, `fix`, `add`, `complete`) | retirés |
 
-## Décision en attente : l'écoute
+## Mesures de référence (Gala, 3 min 40, Arc A770)
 
-Aucun résultat n'a été écouté. Tout ce qui est « vérifié » l'est par la mesure (durée,
-niveau, corrélation d'enveloppe et de forme d'onde). Cédric doit écouter, dans `demo/` :
-
-- `arr play brass` : guitare rejouée en cuivres (`restem`, fidelity 0,35) ;
-- `arr play bass` : passage 5–10 s refait (`fix`) ;
-- `renders/add-brass-001.flac` : cuivres ajoutés sur le couplet (`add`).
-
-Selon le verdict :
-
-- `restem` trop proche de la guitare ou trop éloigné de la ligne : ajuster la valeur par
-  défaut de `--fidelity` (0,35) et le prompt par défaut dans `cli.py`.
-- `add` peu convaincant : essayer dans l'ordre le modèle de langage (`thinking=True`,
-  non testé), puis `acestep-v15-xl-base` (4B, ~12 Go avec offload, à télécharger).
-- `fix` sur un stem isolé génère peut-être un arrangement entier dans le trou : avant
-  correction du niveau, le passage refait était 5 fois plus fort que la piste. Si c'est
-  le cas à l'oreille, refaire le passage sur le mix puis re-séparer.
-
-## Mesures de référence
-
-Extrait de 30 s, `acestep-v15-base`, 50 pas, graine fixe.
-
-| Mesure | Valeur |
-|---|---|
-| Génération turbo (8 pas) | 21 s, 6,7 Go |
-| Génération base (50 pas) | 24 s, 8,3 Go |
-| Chargement du modèle | ~9 s à chaud, ~25 s par commande au total |
-| `split` Demucs 6 stems | 8 s (19 s pour 3 min 40) |
-| `split` Demucs `htdemucs_ft` | 46 s pour 3 min 40 |
-| `fix` hors plage | différence maximale 0,0 |
-
-Effet de `fidelity` (corrélation d'enveloppe / de forme d'onde avec la source) :
-
-| fidelity | basse → polish | guitare → cuivres |
+| Étape | Temps | Remarque |
 |---|---|---|
-| 0,0 | −0,09 / −0,02 | −0,26 / 0,00 |
-| 0,3 | +0,72 / +0,38 | +0,41 / +0,17 |
-| 0,5 | +0,90 / +0,85 | +0,81 / +0,54 |
-| 0,7 | +0,96 / +0,95 | +0,94 / +0,79 |
+| `transcribe` | 12 min 38 la première fois, 2 min 49 ensuite | sur XPU ; le résultat varie un peu d'un passage à l'autre (129 ou 130 BPM, 118 ou 120 mesures) |
+| `render` (YuE2 Q8, Vulkan) | 4 min 35 | 219 s d'audio, 48 kHz stéréo |
+| `split` 6 stems | ~20 s | |
 
-Rien n'a été mesuré sur un morceau entier (3 à 5 min) : temps et VRAM inconnus à cette durée.
+### Calage des prises sur l'original : fragile
+
+Trois prises fidèles de Gala, trois transcriptions différentes :
+
+| Partition | Prise | Temps calés après étirement et décalage |
+|---|---|---|
+| 129 BPM, 118 mesures | 219,9 s | 83 % : greffable (essais `demo/essais-yue2/hybride_*`) |
+| 130 BPM, 120 mesures | 219,4 s | 26 % |
+| 129 BPM (corrigé par `arr`), ~120 mesures | 223,8 s | 33 % |
+
+Causes : SheetSage2 ne donne pas la même grille de mesures d'un passage à l'autre (118 ou
+120, avec des mesures à 5/8 dans l'intro silencieuse), et YuE2 ne tient pas le tempo au
+centième. Un ajustement linéaire (une vitesse, un décalage) ne suffit donc pas. `split tNNN`
+mesure `on_beat` et prévient sous 60 %. Suite prévue : synchronisation par déformation
+temporelle (DTW sur chroma ou attaques, puis étirement par morceaux), issue GitHub ouverte.
+
+Première prise fidèle (`cot=full`) contre l'original : tempo 129,03 contre 128,93 ; 118 mesures des
+deux côtés ; 83 % des temps à moins de 35 ms ; décalage médian 0 ms ; même tonalité.
+Prise libre (`cot=melody`) : tempo mesuré à 135,9, 131 mesures, donc non superposable.
+Parts des stems d'une prise « funk live » : batterie ~50 %, basse 14 à 26 %, voix 20 à 25 %,
+guitare 1 à 4 % (peu, selon Demucs, alors que Cédric l'entend bien).
+
+## Ce qui a été essayé et abandonné
+
+À ne pas refaire sans élément nouveau. Tous les essais portaient sur « une piste de guitare
+funk pour Gala ».
+
+| Approche | Résultat |
+|---|---|
+| ACE-Step `cover` à partir d'un stem (`restem`, `derive`) | rend la même piste avec un autre grain ; le texte est ignoré dès que la source est suivie |
+| ACE-Step `lego` / `complete` sur un contexte | calé sur les temps (97 à 100 %) mais rend un groupe entier, de qualité moyenne ; la guitare isolée par Demucs est inexploitable |
+| ACE-Step texte seul | génère toujours un groupe, même pour « solo guitar » (guitare 3 à 31 % du son) |
+| Stable Audio 3 (`TrackType: Instrument`) | vraie guitare isolée, bon tempo ; mais n'écoute pas le morceau : groove décorrélé, même en partant de la batterie ou du mix |
+| Tri de riffs de 2 mesures par ressemblance de groove | le score ne correspond pas à ce que Cédric entend |
+
+Conclusion vérifiée dans la littérature : ajouter une piste cohérente à un mix existe en
+ligne (Suno Studio) et en recherche (StemGen, Diff-A-Riff, Stemphonic), pas en local ouvert.
 
 ## Reste à faire
 
-### Phase 3 : adaptation à la scène
+### Suite directe du MVP
 
-1. `arr structure set "intro couplet refrain refrain outro"` : couper, répéter, réordonner
-   les sections sur toutes les pistes, avec fondus calés sur les mesures. `audio.splice`
-   et les sections existent ; il manque l'assemblage et la mise à jour de `analysis.json`
-   et des sections après réordonnancement.
-2. Lissage optionnel des raccords par `repaint` sur une courte plage autour de chaque coupe.
-3. Transposition et changement de tempo. Aucun outil n'est choisi ; `rubberband` n'est pas
-   installé (vérifier si le filtre `rubberband` de `ffmpeg` est disponible).
-4. `arr export` : stems WAV alignés dans `export/`.
+0. **Calage robuste des prises** (voir « Calage des prises ») : sans lui, `graft` reste une
+   loterie.
+1. **Retour d'écoute de Cédric** sur la greffe (`arr graft`) et sur `arr share` avec son
+   guitariste : ce sont les deux fonctions non jugées.
+2. **Éditer la partition sans ouvrir le fichier ABC** : transposer pour les chanteuses,
+   couper ou répéter des sections pour la scène (`arr structure`). Le fichier
+   `score/score.abc` porte des commentaires `% verse`, `% chorus` qui délimitent les sections.
+3. **Assembler par section** : prendre le refrain d'une prise et le couplet d'une autre.
+   Possible entre prises fidèles, puisqu'elles partagent les mesures.
+4. **Paroles** : le rangement par section dépend de l'alignement entre l'enregistrement de
+   Cédric et les horodatages LRCLIB ; un décalage constant est possible. À vérifier sur Gala.
+5. **Adaptateur instrumental de YuE2** (`Mothersuperior/YuE2-instrumental-cot-full-loras`),
+   non essayé : pour des prises sans voix, ou pour faire ressortir un instrument.
 
-### Défauts connus
+### Défauts et dettes connus
 
-- **Fuites entre stems** : sur un morceau électro (Gala, « Freed from Desire »), Cédric
-  entend du piano/synthé dans la voix et une confusion piano/guitare. Ajoutés depuis :
-  `arr merge`, `--model htdemucs_ft` (4 stems) et `--shifts`. Sur ce morceau, la voix de
-  `htdemucs_ft` diffère peu de celle de `htdemucs_6s` (corrélation 0,97) : la fuite dans
-  la voix n'est donc probablement pas réglée. Piste suivante : un modèle vocal RoFormer
-  (BS-RoFormer ou Mel-Band RoFormer), à charger en PyTorch sur XPU et depuis Hugging Face ;
-  `audio-separator` ne gère pas XPU.
-- **Tonalité peu fiable** : si mineur détecté pour un extrait demandé en mi mineur. Pas de
-  commande pour la corriger (édition manuelle de `song.toml`). Ajouter `arr set --key --bpm`
-  ou améliorer l'estimation.
-- **Sections manuelles** : pas de détection automatique. Candidat : `all-in-one-infer`
-  (dépendances lourdes, compatibilité XPU à vérifier).
-- **beat_this** : poids téléchargés depuis le cloud de l'université JKU (Linz), pas depuis
-  Hugging Face. À remplacer si la règle « Hugging Face exclusivement » est stricte.
-- **Chargement à chaque commande** (~25 s). Prévu : `arr serve` qui garde le modèle en
-  mémoire derrière un socket Unix.
-- **`-n` avec graine fixe** incrémente la graine ; avec `--seed -1` chaque variante est aléatoire.
-- **`render_mix` écrit `mix/mix.flac`** à chaque appel, y compris depuis `add`, `complete`
-  et `analyze` sans original. Effet de bord à connaître.
-- **`Engine.generate(strength=...)`** (audio_cover_strength) n'est plus utilisé par le CLI.
+- `transcribe` et `render` sont muets pendant plusieurs minutes (sortie capturée).
+- `analyze` garde une estimation de tonalité peu fiable ; préférer `transcribe`.
+- `render` ne sait pas rendre une seule section.
+- Les tests ne couvrent ni `models pull` ni les vrais moteurs.
+- `models pull` télécharge le binaire audio.cpp depuis GitHub, pas depuis Hugging Face.
+- beat_this : poids hébergés par l'université JKU, pas sur Hugging Face.
 
-### Hygiène du dépôt
+### Ménage possible sur le disque de Cédric
 
-- Dépôt privé : https://github.com/cedricbou/music-arranger (branche `main`). Les fichiers audio et `demo/` sont ignorés ; les fonctionnalités et bugs se suivent dans les issues GitHub.
-- ACE-Step est suivi sur sa branche principale ; seul `uv.lock` fige la révision. Épingler
-  un `rev` dans `pyproject.toml`.
-- Le patch float64 mériterait un correctif proposé à ACE-Step (le cas MPS y est déjà traité).
-- Étendre les tests de `cli.py` (init → import → sections → mix, et les commandes génératives avec un `Engine` factice).
+Téléchargés pendant les essais, plus utilisés par `arr` :
 
-### Plus tard
-
-- Transcription en MIDI et export MusicXML par instrument.
-- Commande en langage naturel pilotée par un LLM local.
-- Entraînement d'un LoRA sur le son du groupe (ACE-Step le permet ; `peft` est installé).
+- `~/.local/share/arr/checkpoints` : ACE-Step, 14 Go ;
+- `~/.local/share/arr/yue2/yue2-3b-bf16.gguf` (6,8 Go) et `yue2-vae-f32.gguf` (0,5 Go) ;
+- `~/.local/share/arr/sheetsage2` : copie inutile, le modèle est dans le cache Hugging Face ;
+- `~/.cache/huggingface/hub/models--ACE-Step--*` et `models--stabilityai--stable-audio-3-*`.
 
 ## Fichiers et emplacements
 
 | Quoi | Où |
 |---|---|
-| Plan d'origine | `~/.claude/plans/je-veux-cr-er-un-serene-stroustrup.md` |
-| Poids ACE-Step (14 Go) | `~/.local/share/arr/checkpoints` |
-| Poids Demucs | `~/.cache/huggingface/hub/models--adefossez--HTDemucs-6s` |
-| Poids beat_this | `~/.cache/torch/hub/checkpoints/beat_this-final0.ckpt` |
-| Projet de démonstration | `demo/` |
-| Profil du groupe (pas encore créé) | `~/.config/arr/band.toml` |
+| Dépôt | https://github.com/cedricbou/music-arranger (privé) |
+| Moteurs et poids | `~/.local/share/arr` (`audiocpp/`, `yue2/`, `envs/ss2/`) |
+| Projet Gala de référence | `demo/gala-yue2` (ignoré par git) |
+| Essais d'écoute des approches abandonnées | `demo/essais-*` (ignorés par git) |
+| Jeton Hugging Face | `.env` à la racine (ignoré par git) ; inutile pour YuE2 et SheetSage2 |
