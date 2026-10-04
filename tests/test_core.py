@@ -76,3 +76,35 @@ def test_scale_to_measures_only_the_given_region():
     assert np.allclose(out[first_half], ref[first_half], atol=1e-4)
     assert np.allclose(audio.scale_to(tone(220, 1.0, amp=0.9), ref), ref, atol=1e-4)
     assert not audio.scale_to(np.zeros_like(ref), ref).any()
+
+
+def test_takes_are_numbered_and_never_reused(tmp_path):
+    p = Project.create(tmp_path / "song", "song")
+    assert p.takes() == []
+    for expected in ("t001", "t002"):
+        name, path = p.new_take({"style": "funk"})
+        audio.save(path, tone(220, 0.1))
+        assert name == expected
+    assert p.takes() == ["t001", "t002"] and p.take_meta("t002")["style"] == "funk"
+    with pytest.raises(ProjectError):
+        p.take_path("t009")
+
+
+def test_shift_delays_or_advances_at_constant_length():
+    a = tone(220, 1.0)
+    k = audio.SR // 10
+    late, early = audio.shift(a, 0.1), audio.shift(a, -0.1)
+    assert len(late) == len(early) == len(a)
+    assert not late[:k].any() and np.array_equal(late[k:], a[:-k])
+    assert np.array_equal(early[:-k], a[k:]) and not early[-k:].any()
+
+
+def test_stretch_changes_duration_not_level():
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg absent")
+    a = tone(220, 2.0, amp=0.3)
+    slow = audio.stretch(a, 0.99)
+    assert abs(len(slow) / len(a) - 1 / 0.99) < 0.002
+    assert abs(np.abs(slow).max() - 0.3) < 0.05
