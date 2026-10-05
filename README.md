@@ -86,6 +86,10 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   fin du morceau (changement de titre dans Spotify, sinon 3 s de silence). Avec `--play`,
   il relance lui-même le morceau depuis le début et met Spotify en pause à la fin. Sans
   Spotify : `arr capture mon-projet`, puis lance la lecture dans n'importe quel lecteur.
+- **Volume des captures** : chaque capture est ramenée au même volume perçu (-16 LUFS par
+  défaut) par un seul gain global, plafonné pour que les crêtes restent sous -1 dB. Le
+  réglage de gain de la table n'a donc plus besoin d'être identique d'un jour à l'autre ;
+  il suffit qu'il ne sature pas. `--raw` garde le niveau tel qu'enregistré.
 - **`arr levels`** affiche un vumètre par canal de la table. Lance Spotify (ou
   `arr levels --tone`, qui joue un son de référence à -12 dB), regarde quels canaux bougent
   et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
@@ -122,6 +126,7 @@ channels = [3]           # un canal = mono, deux = stéréo
 source = ""              # "" = entrées de la Soundcraft ; "monitor" = copie numérique de
                          # la sortie, sans passer par la table ni régler de gain
 channels = [7, 8]
+loudness = -16.0         # volume cible des captures, en LUFS
 ```
 
 ## Itérer
@@ -160,7 +165,7 @@ d'un instrument note à note.
 
 | Commande | Effet |
 |---|---|
-| `arr capture [NOM] [--play] [--silence S]` | enregistre ce que joue l'ordinateur dans un nouveau projet |
+| `arr capture [NOM] [--play] [--silence S] [--raw]` | enregistre ce que joue l'ordinateur dans un nouveau projet |
 | `arr record PISTE [-w PISTE] [-o PISTE] [--count-in N] [--click] [--channel N]` | enregistre ton instrument sur le playback |
 | `arr levels [--tone] [--seconds S] [--source NOM]` | vumètre par canal, pour vérifier le câblage et régler le gain |
 | `arr calibrate [--channel N]` | mesure et note la latence d'enregistrement |

@@ -21,6 +21,7 @@ Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
                              # "monitor" = copie numérique de la sortie par défaut ;
                              # sinon le nom PipeWire d'une source (arr devices)
     channels = [7, 8]        # [] = la paire de canaux qui porte le signal
+    loudness = -16.0         # volume cible des captures, en LUFS
 """
 from __future__ import annotations
 
@@ -64,7 +65,7 @@ def config() -> dict:
     defaults = {
         "output": {"device": "", "channels": [1, 2]},
         "input": {"device": INTERFACE if present else "", "channels": [1], "latency_ms": None},
-        "capture": {"source": "", "channels": [7, 8] if present else []},
+        "capture": {"source": "", "channels": [7, 8] if present else [], "loudness": -16.0},
     }
     return {k: {**v, **user.get(k, {})} for k, v in defaults.items()}
 

@@ -344,7 +344,7 @@ def fake_studio(monkeypatch, heard):
     calls = {"played": [], "restart": [], "pause": 0}
     monkeypatch.setattr(studio, "config", lambda: {
         "output": {"device": "", "channels": [1, 2]}, "input": {"device": "", "channels": [1], "latency_ms": 0},
-        "capture": {"source": "", "channels": []}})
+        "capture": {"source": "", "channels": [], "loudness": -16.0}})
     monkeypatch.setattr(studio, "capture_source", lambda: ("fake.monitor", heard.shape[1]))
     monkeypatch.setattr(studio, "sources", lambda: [("fake.monitor", heard.shape[1]), ("other", 2)])
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
@@ -593,3 +593,21 @@ def test_gain_accepts_negative_values(tmp_path, monkeypatch):
         assert result.exit_code == 0, result.output
         assert Project.find().tracks["bass"]["gain"] == expected
     assert runner.invoke(app, ["gain", "bass", "fort"]).exit_code != 0
+
+
+def test_capture_brings_every_song_to_the_same_loudness(tmp_path, monkeypatch):
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg absent")
+    monkeypatch.chdir(tmp_path)
+    for name, amp in (("faible", 0.02), ("fort", 0.5)):
+        fake_studio(monkeypatch, tone(220, 3.0, amp=amp))
+        result = runner.invoke(app, ["capture", name])
+        assert result.exit_code == 0 and "LUFS" in result.output, result.output
+    level = lambda name: audio.loudness(audio.load(tmp_path / name / "source/original.flac"))
+    assert abs(level("faible") - -16.0) < 0.5 and abs(level("fort") - -16.0) < 0.5
+
+    fake_studio(monkeypatch, tone(220, 3.0, amp=0.02))
+    assert runner.invoke(app, ["capture", "brut", "--raw"]).exit_code == 0
+    assert level("brut") < -30  # niveau d'origine conservé

@@ -402,8 +402,12 @@ def capture(
     name: Optional[str] = typer.Argument(None, help="Nom du projet à créer ; par défaut, le titre lu dans Spotify."),
     play_: bool = typer.Option(False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."),
     silence: float = typer.Option(3.0, help="Secondes de silence qui terminent l'enregistrement."),
+    raw: bool = typer.Option(False, "--raw", help="Garde le niveau tel qu'enregistré, sans le ramener au volume cible."),
 ) -> None:
     """Enregistre ce que joue l'ordinateur dans un nouveau projet.
+
+    Le volume est ramené à une cible commune (-16 LUFS par défaut), pour que toutes les
+    captures soient au même niveau quel que soit le gain réglé sur la table ce jour-là.
 
     L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau
     (changement de titre dans Spotify, ou silence). Ctrl+C arrête aussi.
@@ -449,6 +453,9 @@ def capture(
     p = Project.create(Path(name), track["title"] if track else name)
     if track:
         p.song["artist"] = track["artist"]
+    if not raw:
+        data, applied = audio.normalize(data, cfg["loudness"])
+        typer.echo(f"volume ramené à {cfg['loudness']:g} LUFS ({applied:+.1f} dB)")
     audio.save(p.root / ORIGINAL, data)
     p.song["duration"] = round(len(data) / audio.SR, 3)
     p.save()
@@ -605,7 +612,8 @@ def devices() -> None:
     measured = cfg["input"]["latency_ms"]
     typer.echo(f"  entrée    {cfg['input']['device'] or 'par défaut'}  canaux {cfg['input']['channels']}  latence "
                + (f"{measured} ms (mesurée)" if measured is not None else "non mesurée (arr calibrate)"))
-    typer.echo(f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}")
+    typer.echo(f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}"
+               f"  volume cible {cfg['capture']['loudness']:g} LUFS")
     typer.echo("sources PipeWire (pour [capture] source)")
     for name, count in studio.sources():
         typer.echo(f"  {name}  ({count} canaux)")

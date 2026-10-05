@@ -89,6 +89,9 @@ le chargement depuis un dossier local échoue sur ses imports relatifs.
   arrivent en analogique sur les voies 7/8 d'une Soundcraft Signature 12 MTK. On capture
   donc sur les **entrées** 7/8 de la Soundcraft, et la lecture reste sur la sortie par
   défaut. Ne pas confondre avec les sorties USB de la Soundcraft.
+- **Volume des captures** : `audio.normalize()` applique un seul gain vers la cible LUFS
+  (mesure `ebur128` de ffmpeg), plafonné à -1 dB de crête. Ne pas utiliser le filtre
+  `loudnorm` en une passe : il compresse la dynamique.
 - **Capture** : `parec` sur une source PipeWire (`capture_source()`), lu en continu ; `gate()` est
   une fonction pure (démarrage au premier son, arrêt sur silence ou sur `should_stop`).
 - **Lecture et enregistrement** passent par `sounddevice` sur l'API JACK de PipeWire : un
