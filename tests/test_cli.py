@@ -523,3 +523,62 @@ def test_duplex_devices_come_from_the_same_driver(monkeypatch):
     assert studio.duplex_devices(system, system, [1]) == (None, None)
     with pytest.raises(ProjectError):
         studio.duplex_devices({"device": "Soundcraft", "channels": [1]}, system, [20])  # canal inexistant
+
+
+# --- retirer des pistes
+
+
+def test_rm_moves_tracks_to_the_project_trash(tmp_path, monkeypatch):
+    p = Project.create(tmp_path / "song", "song")
+    for name in ("drums", "bass", "guitar"):
+        add_track(p, name, tone(110, 0.2), {"op": "split"})
+    add_track(p, "bass", tone(55, 0.2), {"op": "record"})
+    monkeypatch.chdir(p.root)
+
+    assert runner.invoke(app, ["rm", "guitar", "nope"]).exit_code != 0
+    assert "guitar" in Project.find().tracks  # une erreur ne retire rien
+
+    result = runner.invoke(app, ["rm", "guitar", "drums"])
+    assert result.exit_code == 0, result.output
+    p = Project.find()
+    assert set(p.tracks) == {"bass"} and not (p.root / "tracks/guitar").exists()
+    assert len(list((p.root / "trash").glob("*/tracks/guitar/v001.flac"))) == 1  # récupérable
+
+    # retirer la version active rend la précédente active ; retirer la dernière retire la piste
+    assert runner.invoke(app, ["rm", "bass", "-v", "v002"]).exit_code == 0
+    p = Project.find()
+    assert p.versions("bass") == ["v001"] and p.tracks["bass"]["active"] == "v001"
+    assert runner.invoke(app, ["rm", "bass", "-v", "v001"]).exit_code == 0
+    assert "bass" not in Project.find().tracks and runner.invoke(app, ["tracks"]).exit_code == 0
+
+
+def test_rm_purge_asks_before_deleting_for_good(tmp_path, monkeypatch):
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(330, 0.2), {"op": "split"})
+    add_track(p, "piano", tone(440, 0.2), {"op": "split"})
+    monkeypatch.chdir(p.root)
+
+    assert runner.invoke(app, ["rm", "--purge", "guitar"], input="n\n").exit_code != 0
+    assert "guitar" in Project.find().tracks
+    assert runner.invoke(app, ["rm", "--purge", "guitar"], input="o\n").exit_code == 0
+    assert "guitar" not in Project.find().tracks and not (p.root / "trash").exists()
+
+    assert runner.invoke(app, ["rm", "piano"]).exit_code == 0 and (p.root / "trash").exists()
+    assert runner.invoke(app, ["rm", "trash"]).exit_code != 0  # la corbeille ne se vide qu'avec --purge
+    assert runner.invoke(app, ["rm", "--purge", "--yes", "trash"]).exit_code == 0
+    assert not (p.root / "trash").exists()
+
+
+def test_rm_take_removes_its_stems_too(tmp_path, monkeypatch):
+    song_project(tmp_path, monkeypatch)
+    runner.invoke(app, ["transcribe"])
+    runner.invoke(app, ["split"])
+    runner.invoke(app, ["render", "-s", "funk", "-n", "2"])
+    runner.invoke(app, ["split", "t001"])
+    result = runner.invoke(app, ["rm", "t001"])
+    assert result.exit_code == 0, result.output
+    p = Project.find()
+    assert p.takes() == ["t002"] and not any(t.startswith("t001.") for t in p.tracks)
+    assert {"drums", "bass", "guitar", "vocals"} <= set(p.tracks)  # les stems de l'original restent
+    name, _ = p.new_take({"style": "x"})
+    assert name == "t003"  # un numéro de prise n'est jamais réutilisé tant qu'il en reste de plus récentes

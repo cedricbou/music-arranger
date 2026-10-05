@@ -13,7 +13,8 @@
 - **Intel Arc A770, 16 Go.** PyTorch XPU pour Demucs, beat_this et SheetSage2 ; Vulkan pour
   YuE2. Pas de CUDA, pas de float64 sur le GPU, pas de bf16 en Vulkan.
 - **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version ; elle
-  n'écrase jamais un fichier audio.
+  n'écrase jamais un fichier audio. Seul `arr rm` retire, vers `trash/` par défaut, et
+  n'efface pour de bon qu'avec `--purge` et une confirmation.
 - **Usage non commercial** : YuE2 et SheetSage2 sont sous CC BY-NC 4.0.
 
 ## Le principe à ne pas réapprendre

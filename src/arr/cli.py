@@ -281,6 +281,56 @@ def tracks(
         typer.echo(f"\n{summary}")
 
 
+def confirm(question: str) -> bool:
+    return typer.prompt(f"{question} [o/N]", default="n", show_default=False).strip().lower() in ("o", "oui", "y", "yes")
+
+
+@app.command()
+def rm(
+    names: list[str] = typer.Argument(..., help="Pistes ou prises à retirer (ex. guitar piano t002)."),
+    version: Optional[str] = typer.Option(None, "--version", "-v", help="Ne retirer que cette version d'une piste."),
+    purge: bool = typer.Option(False, "--purge", help="Efface définitivement au lieu de mettre à la corbeille."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Ne demande pas de confirmation pour --purge."),
+) -> None:
+    """Retire des pistes, une version ou des prises dont tu n'as plus besoin.
+
+    Par défaut tout part dans la corbeille du projet (trash/), d'où on peut le reprendre à la
+    main. --purge libère la place tout de suite ; `arr rm --purge trash` vide la corbeille.
+    """
+    import shutil
+
+    p = Project.find()
+    if names == ["trash"]:
+        trash = p.root / "trash"
+        if not purge:
+            raise ProjectError("pour vider la corbeille : arr rm --purge trash")
+        if trash.exists() and (yes or confirm(f"vider définitivement {trash} ?")):
+            shutil.rmtree(trash)
+            typer.echo("corbeille vidée")
+        return
+    if version and len(names) != 1:
+        raise ProjectError("--version s'applique à une seule piste")
+    for name in names:  # tout vérifier avant de toucher à quoi que ce soit
+        p.take_path(name) if name in p.takes() else p.version_path(name, version)
+    if purge and not yes:
+        what = f"{names[0]} {version}" if version else ", ".join(names)
+        if not confirm(f"effacer définitivement {what} ?"):
+            raise typer.Exit(1)
+    for name in names:
+        if name in p.takes():
+            stems = [t for t in p.tracks if t.startswith(f"{name}.")]
+            p.remove_take(name, purge=purge)
+            typer.echo(f"{name} retirée" + (f" avec ses stems ({len(stems)})" if stems else ""))
+            continue
+        p.remove(name, version, purge=purge)
+        if name in p.tracks:
+            typer.echo(f"{name} {version} retirée ; version active : {p.tracks[name]['active']}")
+        else:
+            typer.echo(f"{name} retirée")
+    if not purge:
+        typer.echo("dans la corbeille du projet (trash/) ; arr rm --purge trash pour la vider")
+
+
 @app.command()
 def pick(track: str, version: str) -> None:
     """Choisit la version active d'une piste."""

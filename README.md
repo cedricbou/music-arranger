@@ -174,6 +174,7 @@ d'un instrument note à note.
 | `arr split t001` | stems d'une prise : `t001.drums`..., muets et calés sur l'original |
 | `arr graft t001 STEM... [--replace]` | fait entendre des stems d'une prise, en plus ou à la place de l'original |
 | `arr merge PISTE PISTE... --as NOM` | fusionne des pistes |
+| `arr rm NOM... [-v VERSION] [--purge]` | retire des pistes, une version ou une prise ; corbeille du projet par défaut |
 | `arr tracks [-v]`, `arr tracks PISTE` | ce qui joue (●), ce qui est muet (○), l'historique |
 | `arr pick PISTE VERSION`, `arr gain PISTE DB`, `arr mute PISTE [--off]` | réglages du mix |
 | `arr mix [-w PISTE] [-o PISTE]` | écrit `mix/mix.flac` |
@@ -194,6 +195,7 @@ gala/
   takes/           t001.flac + t001.json (style, mode, graine)
   tracks/<piste>/  vNNN.flac + vNNN.json
   mix/  export/
+  trash/           ce que `arr rm` a retiré ; `arr rm --purge trash` le vide
 ```
 
 `score/` contient aussi `melody_vocal.mid`, `melody_instrumental.mid` et `chords.mid`, à
