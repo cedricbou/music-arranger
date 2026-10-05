@@ -108,3 +108,18 @@ def test_stretch_changes_duration_not_level():
     slow = audio.stretch(a, 0.99)
     assert abs(len(slow) / len(a) - 1 / 0.99) < 0.002
     assert abs(np.abs(slow).max() - 0.3) < 0.05
+
+
+def test_count_in_leads_to_the_first_downbeat():
+    beats = [1.0 + 0.5 * i for i in range(8)]
+    ticks = audio.count_in(beats, [1.0, 3.0], bars=1)
+    assert [round(t, 2) for t, _ in ticks] == [-1.0, -0.5, 0.0, 0.5]
+    assert [accent for _, accent in ticks] == [True, False, False, False]
+    assert len(audio.count_in(beats, [1.0, 3.0], bars=2)) == 8
+
+
+def test_add_clicks_only_touches_click_positions():
+    silent = np.zeros((audio.SR, 2), np.float32)
+    out = audio.add_clicks(silent, [(0.5, True), (-0.2, False), (5.0, False)])
+    assert not out[: int(0.49 * audio.SR)].any() and out[int(0.5 * audio.SR): int(0.53 * audio.SR)].any()
+    assert not out[int(0.6 * audio.SR):].any() and len(out) == len(silent)

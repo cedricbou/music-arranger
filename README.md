@@ -19,8 +19,8 @@ greffés (sa guitare, sa batterie, tout le groupe) ; `arr split` mesure si c'est
 
 ## Installation
 
-Prérequis : `uv`, `ffmpeg`, pilotes Intel (`intel-compute-runtime`, `level-zero-loader`,
-`vulkan-intel`).
+Prérequis : `uv`, `ffmpeg`, PipeWire (avec `pipewire-pulse` et `pipewire-jack`), `portaudio`,
+pilotes Intel (`intel-compute-runtime`, `level-zero-loader`, `vulkan-intel`).
 
 ```
 cd ~/dev/music-arranger
@@ -55,6 +55,67 @@ arr play
 arr share t001.guitar                   # dossier pour le guitariste
 ```
 
+## Studio : capturer, jouer par-dessus, s'enregistrer
+
+```
+arr levels                         # vérifie que le son arrive sur 7/8 et règle le gain
+arr capture --play                 # enregistre le morceau en cours dans Spotify, du début à la fin
+cd freed-from-desire               # le projet porte le titre du morceau
+arr lyrics fetch                   # artiste et titre sont déjà connus
+
+arr split
+arr play --without bass            # le morceau sans la basse, pour jouer par-dessus
+arr play -o drums -o vocals        # seulement batterie et voix
+
+arr calibrate                      # une fois : mesure la latence de ton installation
+arr record bass                    # décompte d'une mesure, puis tu joues sur le playback
+arr record bass --click -w guitar  # avec métronome, playback sans la guitare
+arr tracks bass                    # tes prises, versionnées ; arr pick pour choisir
+```
+
+- **`arr capture`** enregistre ce que joue l'ordinateur tel qu'il revient sur la table :
+  par défaut, les entrées 7/8 de la Soundcraft. Il démarre au premier son et s'arrête à la
+  fin du morceau (changement de titre dans Spotify, sinon 3 s de silence). Avec `--play`,
+  il relance lui-même le morceau depuis le début et met Spotify en pause à la fin. Sans
+  Spotify : `arr capture mon-projet`, puis lance la lecture dans n'importe quel lecteur.
+- **`arr levels`** affiche un vumètre par canal de la table. Lance Spotify (ou
+  `arr levels --tone`, qui joue un son de référence à -12 dB), regarde quels canaux bougent
+  et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
+- **`arr record`** joue le mix sans la piste enregistrée et capte ton instrument dans le
+  même flux. Le décompte mène au premier temps fort du morceau ; il lui faut le tempo
+  (`arr transcribe` ou `arr analyze`). Tu t'entends par la table, pas par l'ordinateur. Une
+  prise silencieuse n'est pas gardée.
+- **`arr calibrate`** joue six clics et les réenregistre sur le canal où revient le son de
+  l'ordinateur (le 7), puis note le retard mesuré : aucun câble à ajouter. Sans calibration,
+  `arr record` compense 21 ms, le minimum du système.
+
+### Réglages audio
+
+`arr devices` montre ce qui est utilisé. Par défaut, avec la Soundcraft branchée :
+
+| Usage | Défaut |
+|---|---|
+| Lecture (`play`, `record`) | sortie son habituelle de l'ordinateur |
+| Capture de l'ordinateur (`capture`, `levels`) | entrées 7/8 de la Soundcraft |
+| Instrument (`record`) | entrée 1 de la Soundcraft |
+
+Pour changer, crée `~/.config/arr/audio.toml` :
+
+```toml
+[output]
+device = ""              # fragment du nom ; "" = sortie par défaut du système
+channels = [1, 2]
+
+[input]
+device = "Soundcraft"
+channels = [3]           # un canal = mono, deux = stéréo
+
+[capture]
+source = ""              # "" = entrées de la Soundcraft ; "monitor" = copie numérique de
+                         # la sortie, sans passer par la table ni régler de gain
+channels = [7, 8]
+```
+
 ## Itérer
 
 Cinq leviers, à changer un par un :
@@ -83,9 +144,19 @@ d'un instrument note à note.
 | `arr import FICHIER` | remplace le morceau original |
 | `arr import FICHIER --as PISTE` | ajoute un enregistrement comme piste |
 | `arr transcribe` | partition dans `score/`, tempo, tonalité, sections |
-| `arr lyrics fetch ARTISTE TITRE [--force]` | paroles dans `lyrics.txt`, rangées par section |
+| `arr lyrics fetch [ARTISTE TITRE] [--force]` | paroles dans `lyrics.txt`, rangées par section ; par défaut, le morceau du projet |
 | `arr analyze` | temps et tempo seulement, en quelques secondes (sans partition) |
 | `arr sections list`, `arr sections set "intro:1-8 ..."` | sections, en numéros de mesure |
+
+### Studio
+
+| Commande | Effet |
+|---|---|
+| `arr capture [NOM] [--play] [--silence S]` | enregistre ce que joue l'ordinateur dans un nouveau projet |
+| `arr record PISTE [-w PISTE] [-o PISTE] [--count-in N] [--click] [--channel N]` | enregistre ton instrument sur le playback |
+| `arr levels [--tone] [--seconds S] [--source NOM]` | vumètre par canal, pour vérifier le câblage et régler le gain |
+| `arr calibrate [--channel N]` | mesure et note la latence d'enregistrement |
+| `arr devices` | réglages audio effectifs et périphériques |
 
 ### Prises
 
@@ -106,7 +177,7 @@ d'un instrument note à note.
 | `arr tracks [-v]`, `arr tracks PISTE` | ce qui joue (●), ce qui est muet (○), l'historique |
 | `arr pick PISTE VERSION`, `arr gain PISTE DB`, `arr mute PISTE [--off]` | réglages du mix |
 | `arr mix [-w PISTE] [-o PISTE]` | écrit `mix/mix.flac` |
-| `arr play [PISTE] [VERSION]` | écoute le mix, une piste ou une version |
+| `arr play [PISTE] [VERSION]`, `arr play -w PISTE`, `arr play -o PISTE` | écoute le mix complet ou partiel, une piste, une version |
 | `arr share PISTE` | `export/PISTE/` : `partie.mp3`, `mix.mp3`, `sans.mp3` |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu

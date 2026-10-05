@@ -52,6 +52,30 @@ def stretch(audio: np.ndarray, speed: float) -> np.ndarray:
     return np.frombuffer(done.stdout, dtype=np.float32).reshape(-1, 2).copy()
 
 
+def count_in(beats: list[float], downbeats: list[float], bars: int) -> list[tuple[float, bool]]:
+    """Clics de décompte menant au premier temps fort : (instant, accentué).
+
+    Les instants peuvent être négatifs quand le morceau commence trop tôt pour le décompte.
+    """
+    period = float(np.median(np.diff(beats)))
+    per_bar = max(1, round(float(np.median(np.diff(downbeats))) / period)) if len(downbeats) > 1 else 4
+    first = downbeats[0] if downbeats else beats[0]
+    return [(first - k * period, k % per_bar == 0) for k in range(bars * per_bar, 0, -1)]
+
+
+def add_clicks(audio: np.ndarray, ticks: list[tuple[float, bool]]) -> np.ndarray:
+    """Ajoute un clic court à chaque instant (accentué : plus aigu)."""
+    out = audio.copy()
+    n = int(0.03 * SR)
+    decay = np.exp(-np.arange(n) / (0.006 * SR))
+    for time, accent in ticks:
+        start = int(round(time * SR))
+        if 0 <= start < len(out) - n:
+            blip = 0.5 * decay * np.sin(2 * np.pi * (1600 if accent else 1000) * np.arange(n) / SR)
+            out[start: start + n] += blip[:, None].astype(np.float32)
+    return out
+
+
 def shift(audio: np.ndarray, seconds: float) -> np.ndarray:
     """Retarde (seconds > 0) ou avance l'audio, à longueur constante."""
     k = int(round(seconds * SR))
