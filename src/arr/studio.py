@@ -104,6 +104,27 @@ def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
     return max(found)[1]  # de préférence par JACK : c'est le graphe PipeWire, synchronisé
 
 
+def duplex_devices(inp: dict, out: dict, wanted: list[int]) -> tuple[int | None, int | None]:
+    """Entrée et sortie d'un même flux : PortAudio exige qu'elles viennent du même pilote.
+
+    Quand un seul des deux est nommé, l'autre devient le périphérique par défaut du pilote
+    du premier (avec JACK, c'est la sortie ou l'entrée par défaut de PipeWire).
+    """
+    import sounddevice as sd
+
+    i, o = find_device(inp["device"], "input", wanted), find_device(out["device"], "output", out["channels"])
+    if (i is None) != (o is None):
+        api = sd.query_hostapis(sd.query_devices(i if o is None else o)["hostapi"])
+        if o is None:
+            o = api["default_output_device"]
+        else:
+            i = api["default_input_device"]
+        if min(i, o) < 0:
+            raise ProjectError("pas de périphérique par défaut compatible : nomme l'entrée et la sortie "
+                               "dans audio.toml (arr devices)")
+    return i, o
+
+
 # --- capture de ce que joue l'ordinateur
 
 
@@ -227,9 +248,11 @@ def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[n
     cfg = config()
     out, inp = cfg["output"], cfg["input"]
     wanted = [channel] if channel else inp["channels"]
-    device = (find_device(inp["device"], "input", wanted), find_device(out["device"], "output", out["channels"]))
-    recorded = sd.playrec(playback, audio.SR, device=device, input_mapping=wanted,
-                          output_mapping=out["channels"], dtype="float32")
+    try:
+        recorded = sd.playrec(playback, audio.SR, device=duplex_devices(inp, out, wanted), input_mapping=wanted,
+                              output_mapping=out["channels"], dtype="float32")
+    except sd.PortAudioError as e:
+        raise ProjectError(f"impossible d'ouvrir l'entrée et la sortie ensemble : {e} (arr devices)")
     try:
         sd.wait()
     except KeyboardInterrupt:

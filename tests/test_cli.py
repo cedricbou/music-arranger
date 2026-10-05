@@ -499,3 +499,27 @@ def test_record_refuses_a_silent_take(tmp_path, monkeypatch):
     monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
     result = runner.invoke(app, ["record", "bass", "--count-in", "0"])
     assert result.exit_code != 0 and "bass" not in Project.find().tracks
+
+
+def test_duplex_devices_come_from_the_same_driver(monkeypatch):
+    import sounddevice as sd
+
+    from arr import studio
+
+    devices = [
+        {"name": "default", "hostapi": 0, "max_input_channels": 2, "max_output_channels": 2},
+        {"name": "PreSonus", "hostapi": 1, "max_input_channels": 2, "max_output_channels": 2},
+        {"name": "Soundcraft MTK", "hostapi": 1, "max_input_channels": 14, "max_output_channels": 12},
+    ]
+    apis = [{"name": "ALSA", "default_input_device": 0, "default_output_device": 0},
+            {"name": "JACK Audio Connection Kit", "default_input_device": 1, "default_output_device": 1}]
+    monkeypatch.setattr(sd, "query_devices", lambda i=None: devices if i is None else devices[i])
+    monkeypatch.setattr(sd, "query_hostapis", lambda i=None: apis if i is None else apis[i])
+    table, system = {"device": "Soundcraft", "channels": [1]}, {"device": "", "channels": [1, 2]}
+
+    # entrée sur la table, sortie « par défaut » : celle du même pilote, pas celle d'ALSA
+    assert studio.duplex_devices(table, system, [7]) == (2, 1)
+    assert studio.duplex_devices(system, {"device": "Soundcraft", "channels": [7, 8]}, [1]) == (1, 2)
+    assert studio.duplex_devices(system, system, [1]) == (None, None)
+    with pytest.raises(ProjectError):
+        studio.duplex_devices({"device": "Soundcraft", "channels": [1]}, system, [20])  # canal inexistant
