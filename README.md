@@ -29,7 +29,15 @@ uv run arr models pull   # modèles et moteurs, une seule fois (~6 Go)
 uv run arr doctor        # tout doit être « présent »
 ```
 
-Ajoute un alias dans `~/.zshrc` : `alias arr=~/dev/music-arranger/.venv/bin/arr`.
+Pour taper `arr` partout, avec la complétion par Tab :
+
+```
+ln -s ~/dev/music-arranger/.venv/bin/arr ~/.local/bin/arr   # ~/.local/bin doit être dans le PATH
+arr --install-completion                                    # puis ouvrir un nouveau terminal
+```
+
+N'utilise pas un alias : la complétion appelle `arr` hors du shell et ne le trouverait pas
+(« env: arr: Aucun fichier ou dossier de ce nom » à chaque Tab).
 
 ## Parcours type
 
