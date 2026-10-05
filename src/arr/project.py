@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tomllib
 from dataclasses import dataclass
 from datetime import datetime
@@ -102,6 +103,49 @@ class Project:
         meta = {"created": datetime.now().isoformat(timespec="seconds"), **meta}
         (d / f"{version}.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         return version, d / f"{version}.flac"
+
+    def remove(self, track: str, version: str | None = None, *, purge: bool = False) -> list[Path]:
+        """Retire une piste, ou une seule de ses versions ; renvoie les fichiers retirés.
+
+        Par défaut ils vont dans la corbeille du projet (`trash/`) ; `purge` les efface.
+        Si la version active disparaît, la plus récente qui reste devient active.
+        """
+        path = self.version_path(track, version) if version else None
+        d = self.track_dir(track)
+        last = version is None or self.versions(track) == [version]
+        files = [d] if last else [path, path.with_suffix(".json")]
+        self._discard(files, purge)
+        if last:
+            if track not in self.tracks:
+                raise ProjectError(f"piste inconnue : {track}")
+            del self.tracks[track]
+        elif self.tracks[track]["active"] == version:
+            self.tracks[track]["active"] = self.versions(track)[-1]
+        self.save()
+        return files
+
+    def remove_take(self, name: str, *, purge: bool = False) -> list[Path]:
+        """Retire une prise et ses stems (`tNNN.drums`...)."""
+        path = self.take_path(name)
+        stems = [t for t in self.tracks if t.startswith(f"{name}.")]
+        files = [path, path.with_suffix(".json"), *(self.track_dir(t) for t in stems)]
+        self._discard(files, purge)
+        for t in stems:
+            del self.tracks[t]
+        self.save()
+        return files
+
+    def _discard(self, files: list[Path], purge: bool) -> None:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        for f in files:
+            if not f.exists():
+                continue
+            if purge:
+                shutil.rmtree(f) if f.is_dir() else f.unlink()
+            else:
+                target = self.root / "trash" / stamp / f.relative_to(self.root)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(f), str(target))
 
     # --- prises : rendus complets du morceau (voix et groupe)
 
