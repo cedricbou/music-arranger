@@ -340,13 +340,15 @@ def pick(track: str, version: str) -> None:
     typer.echo(f"{track} -> {version}")
 
 
-@app.command()
-def gain(track: str, db: float) -> None:
+# Sans ignore_unknown_options, « arr gain bass -5 » prend -5 pour une option.
+@app.command(context_settings={"ignore_unknown_options": True})
+def gain(track: str, db: float = typer.Argument(..., help="Gain en dB, par rapport à la piste telle quelle : -5, 0, +3.")) -> None:
     """Règle le volume d'une piste dans le mix, en dB."""
     p = Project.find()
     p.version_path(track)
     p.tracks[track]["gain"] = db
     p.save()
+    typer.echo(f"{track} : {db:+.1f} dB")
 
 
 @app.command()
