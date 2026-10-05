@@ -582,3 +582,14 @@ def test_rm_take_removes_its_stems_too(tmp_path, monkeypatch):
     assert {"drums", "bass", "guitar", "vocals"} <= set(p.tracks)  # les stems de l'original restent
     name, _ = p.new_take({"style": "x"})
     assert name == "t003"  # un numéro de prise n'est jamais réutilisé tant qu'il en reste de plus récentes
+
+
+def test_gain_accepts_negative_values(tmp_path, monkeypatch):
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "bass", tone(55, 0.2), {"op": "record"})
+    monkeypatch.chdir(p.root)
+    for value, expected in (("-5", -5.0), ("+3", 3.0), ("-2.5", -2.5), ("0", 0.0)):
+        result = runner.invoke(app, ["gain", "bass", value])
+        assert result.exit_code == 0, result.output
+        assert Project.find().tracks["bass"]["gain"] == expected
+    assert runner.invoke(app, ["gain", "bass", "fort"]).exit_code != 0
