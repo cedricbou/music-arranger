@@ -1,4 +1,5 @@
 """Temps, mesures, tempo et tonalité."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,7 +37,7 @@ def tempo(beat_times: list[float]) -> float:
 
 
 def key(path: Path) -> str:
-    mono = audio.load(path).mean(1)[:: 4]  # 12 kHz suffit pour le chroma
+    mono = audio.load(path).mean(1)[::4]  # 12 kHz suffit pour le chroma
     sr, n = audio.SR // 4, 8192
     frames = np.lib.stride_tricks.sliding_window_view(mono, n)[:: n // 2]
     spec = np.abs(np.fft.rfft(frames * np.hanning(n), axis=1)).sum(0)

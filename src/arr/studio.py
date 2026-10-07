@@ -23,6 +23,7 @@ Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
     channels = [7, 8]        # [] = la paire de canaux qui porte le signal
     loudness = -16.0         # volume cible des captures, en LUFS
 """
+
 from __future__ import annotations
 
 import json
@@ -39,7 +40,7 @@ from arr.project import ProjectError
 
 CONFIG = Path(os.environ.get("ARR_AUDIO", Path.home() / ".config/arr/audio.toml"))
 INTERFACE = "Soundcraft"  # table d'enregistrement : ses entrées 7/8 reçoivent le son de l'ordinateur
-CHUNK = 0.05              # secondes
+CHUNK = 0.05  # secondes
 DEFAULT_LATENCY = 0.0213  # un cycle PipeWire de 1024 échantillons : le minimum, sans les convertisseurs
 
 
@@ -100,8 +101,10 @@ def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
         if fragment.lower() in d["name"].lower() and d[f"max_{kind}_channels"] >= need
     ]
     if not found:
-        raise ProjectError(f"périphérique introuvable : « {fragment} » avec {need} canaux en "
-                           f"{'entrée' if kind == 'input' else 'sortie'} (arr devices)")
+        raise ProjectError(
+            f"périphérique introuvable : « {fragment} » avec {need} canaux en "
+            f"{'entrée' if kind == 'input' else 'sortie'} (arr devices)"
+        )
     return max(found)[1]  # de préférence par JACK : c'est le graphe PipeWire, synchronisé
 
 
@@ -121,8 +124,9 @@ def duplex_devices(inp: dict, out: dict, wanted: list[int]) -> tuple[int | None,
         else:
             i = api["default_input_device"]
         if min(i, o) < 0:
-            raise ProjectError("pas de périphérique par défaut compatible : nomme l'entrée et la sortie "
-                               "dans audio.toml (arr devices)")
+            raise ProjectError(
+                "pas de périphérique par défaut compatible : nomme l'entrée et la sortie dans audio.toml (arr devices)"
+            )
     return i, o
 
 
@@ -138,21 +142,34 @@ def default_monitor() -> tuple[str, int]:
 def listen(source: str, channels: int) -> Iterator[np.ndarray]:
     """Flux continu de blocs (échantillons, canaux) lus sur une source PipeWire."""
     block = int(CHUNK * audio.SR) * channels * 4
-    cmd = ["parec", f"--device={source}", "--format=float32le", f"--rate={audio.SR}",
-           f"--channels={channels}", "--raw", "--latency-msec=20"]
+    cmd = [
+        "parec",
+        f"--device={source}",
+        "--format=float32le",
+        f"--rate={audio.SR}",
+        f"--channels={channels}",
+        "--raw",
+        "--latency-msec=20",
+    ]
     if channels > 2:
         cmd.append("--channel-map=" + ",".join(f"aux{i}" for i in range(channels)))
     with subprocess.Popen(cmd, stdout=subprocess.PIPE) as proc:
         try:
             while data := proc.stdout.read(block):
-                yield np.frombuffer(data[: len(data) // (channels * 4) * channels * 4], np.float32).reshape(-1, channels)
+                yield np.frombuffer(data[: len(data) // (channels * 4) * channels * 4], np.float32).reshape(
+                    -1, channels
+                )
         finally:
             proc.terminate()
 
 
 def gate(
-    chunks: Iterable[np.ndarray], *, threshold_db: float = -50.0, preroll: float = 0.25,
-    silence: float = 3.0, should_stop: Callable[[], bool] = lambda: False,
+    chunks: Iterable[np.ndarray],
+    *,
+    threshold_db: float = -50.0,
+    preroll: float = 0.25,
+    silence: float = 3.0,
+    should_stop: Callable[[], bool] = lambda: False,
     on_start: Callable[[], None] = lambda: None,
 ) -> np.ndarray:
     """Garde l'audio entre le premier son et le silence final.
@@ -170,7 +187,7 @@ def gate(
             seconds = len(chunk) / audio.SR
             if not kept:
                 if not loud:
-                    before = (before + [chunk])[-max(1, round(preroll / seconds)):]
+                    before = (before + [chunk])[-max(1, round(preroll / seconds)) :]
                     continue
                 kept = before + [chunk]
                 on_start()
@@ -188,8 +205,11 @@ def gate(
     return out[: min(len(out), loud[-1] + audio.SR // 2)]
 
 
-def peaks(chunks: Iterable[np.ndarray], seconds: float | None = None,
-          on_update: Callable[[np.ndarray, np.ndarray], None] = lambda now, held: None) -> np.ndarray:
+def peaks(
+    chunks: Iterable[np.ndarray],
+    seconds: float | None = None,
+    on_update: Callable[[np.ndarray, np.ndarray], None] = lambda now, held: None,
+) -> np.ndarray:
     """Niveau de crête par canal, en dB, sur `seconds` (ou jusqu'à Ctrl+C).
 
     `on_update(now, held)` reçoit à chaque bloc la crête du bloc et la crête maximale tenue.
@@ -215,10 +235,10 @@ def stereo(captured: np.ndarray, channels: list[int]) -> np.ndarray:
     if channels:
         picked = captured[:, [c - 1 for c in channels]]
     else:
-        energy = (captured ** 2).sum(axis=0)
+        energy = (captured**2).sum(axis=0)
         pairs = energy[: len(energy) // 2 * 2].reshape(-1, 2).sum(axis=1)
         first = int(pairs.argmax()) * 2
-        picked = captured[:, first: first + 2]
+        picked = captured[:, first : first + 2]
     return np.repeat(picked, 2, axis=1) if picked.shape[1] == 1 else np.ascontiguousarray(picked)
 
 
@@ -231,8 +251,13 @@ def play(data: np.ndarray) -> None:
 
     out = config()["output"]
     try:
-        sd.play(data, audio.SR, device=find_device(out["device"], "output", out["channels"]),
-                mapping=out["channels"], blocking=True)
+        sd.play(
+            data,
+            audio.SR,
+            device=find_device(out["device"], "output", out["channels"]),
+            mapping=out["channels"],
+            blocking=True,
+        )
     except KeyboardInterrupt:
         sd.stop()
 
@@ -250,8 +275,14 @@ def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[n
     out, inp = cfg["output"], cfg["input"]
     wanted = [channel] if channel else inp["channels"]
     try:
-        recorded = sd.playrec(playback, audio.SR, device=duplex_devices(inp, out, wanted), input_mapping=wanted,
-                              output_mapping=out["channels"], dtype="float32")
+        recorded = sd.playrec(
+            playback,
+            audio.SR,
+            device=duplex_devices(inp, out, wanted),
+            input_mapping=wanted,
+            output_mapping=out["channels"],
+            dtype="float32",
+        )
     except sd.PortAudioError as e:
         raise ProjectError(f"impossible d'ouvrir l'entrée et la sortie ensemble : {e} (arr devices)")
     try:
@@ -266,8 +297,10 @@ def measure_latency(played: np.ndarray, recorded: np.ndarray, longest: float = 0
     """Retard de `recorded` sur `played`, en secondes, par corrélation (jusqu'à `longest`)."""
     a, b = played[:, 0], recorded[:, 0]
     if float(np.abs(b).max(initial=0.0)) < audio.db(-40):
-        raise ProjectError("rien n'est revenu sur l'entrée : relie la sortie à l'entrée de l'instrument "
-                           "(câble, ou retour de la table) et monte le gain")
+        raise ProjectError(
+            "rien n'est revenu sur l'entrée : relie la sortie à l'entrée de l'instrument "
+            "(câble, ou retour de la table) et monte le gain"
+        )
     lags = np.arange(int(longest * audio.SR))
     spectrum = np.fft.rfft(b, 2 * len(a)) * np.conj(np.fft.rfft(a, 2 * len(a)))
     return float(lags[np.argmax(np.fft.irfft(spectrum)[: len(lags)])]) / audio.SR

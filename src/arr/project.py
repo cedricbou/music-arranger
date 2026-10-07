@@ -1,4 +1,5 @@
 """Projet sur disque : song.toml, pistes versionnées, provenance."""
+
 from __future__ import annotations
 
 import json

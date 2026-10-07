@@ -101,7 +101,7 @@ def test_tracks_history_marks_the_active_version(tmp_path, monkeypatch):
 
 # --- partition, paroles, prises
 
-ABC = '''X:1
+ABC = """X:1
 M:4/4
 L:1/32
 Q:1/4=121
@@ -110,7 +110,7 @@ K:Dm
 % verse
 V: Vocal
 "Dm"f4d4z4d4|"C"A4z8e4|
-'''
+"""
 
 
 def fake_transcription(src, out_dir):
@@ -140,7 +140,9 @@ def song_project(tmp_path, monkeypatch):
     monkeypatch.setattr(separation, "separate", lambda path, model, shifts: dict(stems))
     # l'original bat à 120 ; les prises sont en retard de 100 ms
     late = lambda path: 0.0 if path.name == "original.flac" else 0.1
-    monkeypatch.setattr(analysis, "beats", lambda path: ([0.5 * i + late(path) for i in range(8)], [late(path), 2.0 + late(path)]))
+    monkeypatch.setattr(
+        analysis, "beats", lambda path: ([0.5 * i + late(path) for i in range(8)], [late(path), 2.0 + late(path)])
+    )
     p = Project.create(tmp_path / "song", "song")
     audio.save(p.root / "source/original.flac", tone(220, 4.0))
     monkeypatch.chdir(p.root)
@@ -153,9 +155,15 @@ def test_transcribe_fills_song_sections_and_beats(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     p = Project.find()
     assert p.song["bpm"] == 120 and p.song["key"] == "D minor" and p.song["duration"] == 4.0
-    assert [(s.name, s.start, s.end) for s in p.sections] == [("intro", 0.0, 1.0), ("chorus", 1.0, 2.0), ("chorus2", 2.0, 4.0)]
+    assert [(s.name, s.start, s.end) for s in p.sections] == [
+        ("intro", 0.0, 1.0),
+        ("chorus", 1.0, 2.0),
+        ("chorus2", 2.0, 4.0),
+    ]
     assert "Q:1/4=120\n" in (p.root / "score/score.abc").read_text()  # tempo mesuré, pas celui de SheetSage2
-    assert runner.invoke(app, ["sections", "set", "a:1-1 b:2-2"]).exit_code == 0  # les mesures viennent de la transcription
+    assert (
+        runner.invoke(app, ["sections", "set", "a:1-1 b:2-2"]).exit_code == 0
+    )  # les mesures viennent de la transcription
 
 
 def test_render_creates_versioned_takes(tmp_path, monkeypatch):
@@ -170,9 +178,18 @@ def test_render_creates_versioned_takes(tmp_path, monkeypatch):
     p = Project.find()
     assert p.takes() == ["t001", "t002", "t003"]
     assert [c["seed"] for c in fake_render.calls] == [3, 4, -1]
-    assert fake_render.calls[0]["lyrics"] == "[Verse]\nla la\n" and fake_render.calls[0]["abc"] == ABC.replace("=121", "=120")
-    assert p.take_meta("t003") | {"created": ""} == {"created": "", "model": "fake", "mode": "free", "style": "jazz trio",
-                                                    "seed": 7, "score": "score/score.abc", "instrumental": False}
+    assert fake_render.calls[0]["lyrics"] == "[Verse]\nla la\n" and fake_render.calls[0]["abc"] == ABC.replace(
+        "=121", "=120"
+    )
+    assert p.take_meta("t003") | {"created": ""} == {
+        "created": "",
+        "model": "fake",
+        "mode": "free",
+        "style": "jazz trio",
+        "seed": 7,
+        "score": "score/score.abc",
+        "instrumental": False,
+    }
     assert audio.duration(p.take_path("t001")) == 4.0 and not (p.root / "takes/rendu.wav").exists()
     listing = runner.invoke(app, ["takes"]).output
     assert "t001" in listing and "fidèle" in listing and "libre" in listing and "jazz trio" in listing
@@ -222,8 +239,11 @@ def test_split_take_stretches_to_the_original_tempo(tmp_path, monkeypatch):
     runner.invoke(app, ["render", "-s", "funk"])
     original = analysis.beats
     # la prise bat 1 % plus vite que l'original
-    monkeypatch.setattr(analysis, "beats", lambda path: original(path) if path.name == "original.flac"
-                        else ([0.495 * i for i in range(8)], [0.0, 1.98]))
+    monkeypatch.setattr(
+        analysis,
+        "beats",
+        lambda path: original(path) if path.name == "original.flac" else ([0.495 * i for i in range(8)], [0.0, 1.98]),
+    )
     assert runner.invoke(app, ["split", "t001"]).exit_code == 0
     meta = Project.find().meta("t001.guitar", "v001")
     assert meta["superposable"] and meta["speed"] == 0.99 and meta["offset_ms"] == 0
@@ -238,8 +258,9 @@ def test_split_take_off_the_grid_is_flagged(tmp_path, monkeypatch):
     original = analysis.beats
     # même tempo, mais la seconde moitié a glissé de 200 ms (une mesure en trop, par exemple)
     drifting = [0.5 * i + (0.2 if i >= 4 else 0.0) for i in range(8)]
-    monkeypatch.setattr(analysis, "beats", lambda path: original(path) if path.name == "original.flac"
-                        else (drifting, [0.0, 2.0]))
+    monkeypatch.setattr(
+        analysis, "beats", lambda path: original(path) if path.name == "original.flac" else (drifting, [0.0, 2.0])
+    )
     result = runner.invoke(app, ["split", "t001"])
     assert result.exit_code == 0, result.output
     meta = Project.find().meta("t001.guitar", "v001")
@@ -253,8 +274,11 @@ def test_split_take_at_another_tempo_is_flagged(tmp_path, monkeypatch):
     runner.invoke(app, ["transcribe"])
     runner.invoke(app, ["render", "-s", "funk", "--free"])
     original = analysis.beats
-    monkeypatch.setattr(analysis, "beats", lambda path: original(path) if path.name == "original.flac"
-                        else ([0.45 * i for i in range(9)], [0.0, 1.8]))
+    monkeypatch.setattr(
+        analysis,
+        "beats",
+        lambda path: original(path) if path.name == "original.flac" else ([0.45 * i for i in range(9)], [0.0, 1.8]),
+    )
     result = runner.invoke(app, ["split", "t001"])
     assert result.exit_code == 0, result.output
     assert Project.find().meta("t001.guitar", "v001")["superposable"] is False
@@ -306,7 +330,7 @@ def test_lyrics_timestamps_are_shifted_to_the_recording():
 
 def chunks_of(data, seconds=0.05):
     n = int(seconds * audio.SR)
-    return [data[i: i + n] for i in range(0, len(data), n)]
+    return [data[i : i + n] for i in range(0, len(data), n)]
 
 
 def test_gate_keeps_the_song_and_drops_the_silences():
@@ -315,8 +339,11 @@ def test_gate_keeps_the_song_and_drops_the_silences():
     silence = lambda s: np.zeros((int(s * audio.SR), 2), np.float32)
     song = tone(220, 2.0, amp=0.3)
     started = []
-    out = studio.gate(chunks_of(np.concatenate([silence(1.0), song, silence(5.0), tone(440, 1.0)])),
-                      silence=3.0, on_start=lambda: started.append(True))
+    out = studio.gate(
+        chunks_of(np.concatenate([silence(1.0), song, silence(5.0), tone(440, 1.0)])),
+        silence=3.0,
+        on_start=lambda: started.append(True),
+    )
     assert started == [True]
     assert 2.2 <= len(out) / audio.SR <= 2.9  # un peu d'avance, un peu de queue, pas le son suivant
     assert not out[: int(0.1 * audio.SR)].any() and out[int(0.5 * audio.SR)].any()
@@ -332,9 +359,9 @@ def test_stereo_picks_requested_or_loudest_pair():
 
     captured = np.zeros((1000, 12), np.float32)
     captured[:, 6], captured[:, 7], captured[:, 0] = 0.3, 0.2, 0.05
-    assert np.allclose(studio.stereo(captured, [])[0], [0.3, 0.2])       # paire 7/8, la plus forte
+    assert np.allclose(studio.stereo(captured, [])[0], [0.3, 0.2])  # paire 7/8, la plus forte
     assert np.allclose(studio.stereo(captured, [1, 2])[0], [0.05, 0.0])  # paire imposée
-    assert studio.stereo(captured, [7]).shape == (1000, 2)               # mono dupliqué
+    assert studio.stereo(captured, [7]).shape == (1000, 2)  # mono dupliqué
 
 
 def fake_studio(monkeypatch, heard):
@@ -342,9 +369,15 @@ def fake_studio(monkeypatch, heard):
 
     track = {"id": "/t/1", "title": "Freed From Desire", "artist": "Gala", "length": 2.0}
     calls = {"played": [], "restart": [], "pause": 0}
-    monkeypatch.setattr(studio, "config", lambda: {
-        "output": {"device": "", "channels": [1, 2]}, "input": {"device": "", "channels": [1], "latency_ms": 0},
-        "capture": {"source": "", "channels": [], "loudness": -16.0}})
+    monkeypatch.setattr(
+        studio,
+        "config",
+        lambda: {
+            "output": {"device": "", "channels": [1, 2]},
+            "input": {"device": "", "channels": [1], "latency_ms": 0},
+            "capture": {"source": "", "channels": [], "loudness": -16.0},
+        },
+    )
     monkeypatch.setattr(studio, "capture_source", lambda: ("fake.monitor", heard.shape[1]))
     monkeypatch.setattr(studio, "sources", lambda: [("fake.monitor", heard.shape[1]), ("other", 2)])
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
@@ -428,15 +461,21 @@ def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, mo
     playback = heard["playback"]
     assert heard["channel"] == 3 and len(playback) == int(5.5 * audio.SR)  # 1,5 s de décompte en plus
     lead = playback[: int(1.5 * audio.SR)]
-    assert np.abs(lead).max() > 0.3 and not lead[int(0.1 * audio.SR): int(0.4 * audio.SR)].any()  # des clics, pas de musique
-    body = playback[int(1.6 * audio.SR): int(1.9 * audio.SR)]
-    assert np.allclose(body, tone(110, 4.0, amp=0.1)[int(0.1 * audio.SR): int(0.4 * audio.SR)], atol=1e-3)  # batterie seule, sans la basse
+    assert (
+        np.abs(lead).max() > 0.3 and not lead[int(0.1 * audio.SR) : int(0.4 * audio.SR)].any()
+    )  # des clics, pas de musique
+    body = playback[int(1.6 * audio.SR) : int(1.9 * audio.SR)]
+    assert np.allclose(
+        body, tone(110, 4.0, amp=0.1)[int(0.1 * audio.SR) : int(0.4 * audio.SR)], atol=1e-3
+    )  # batterie seule, sans la basse
 
     p = Project.find()
     assert p.versions("bass") == ["v001", "v002"] and p.meta("bass", "v002")["latency_ms"] == 100
     take = audio.load(p.version_path("bass"))
     assert len(take) == 4 * audio.SR
-    assert np.allclose(take[: 3 * audio.SR], tone(880, 4.0, amp=0.2)[: 3 * audio.SR], atol=1e-3)  # calé sur le début du morceau
+    assert np.allclose(
+        take[: 3 * audio.SR], tone(880, 4.0, amp=0.2)[: 3 * audio.SR], atol=1e-3
+    )  # calé sur le début du morceau
 
 
 def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
@@ -459,7 +498,11 @@ def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
 def test_capture_source_follows_the_setup(monkeypatch):
     from arr import studio
 
-    known = [("alsa_output.presonus.monitor", 2), ("alsa_output.Soundcraft.monitor", 12), ("alsa_input.Soundcraft.multi", 14)]
+    known = [
+        ("alsa_output.presonus.monitor", 2),
+        ("alsa_output.Soundcraft.monitor", 12),
+        ("alsa_input.Soundcraft.multi", 14),
+    ]
     monkeypatch.setattr(studio, "sources", lambda: known)
     monkeypatch.setattr(studio, "default_monitor", lambda: known[0])
     setting = {"source": ""}
@@ -480,7 +523,7 @@ def test_capture_source_follows_the_setup(monkeypatch):
 def test_levels_reports_each_channel(monkeypatch):
     heard = np.zeros((audio.SR, 4), np.float32)
     heard[:, 2] = audio.db(-12) * np.sign(np.sin(np.arange(audio.SR)))  # canal 3 : bon niveau
-    heard[:, 3] = 1.0                                                   # canal 4 : sature
+    heard[:, 3] = 1.0  # canal 4 : sature
     fake_studio(monkeypatch, heard)
     result = runner.invoke(app, ["levels", "--seconds", "0.5"])
     assert result.exit_code == 0, result.output
@@ -511,8 +554,10 @@ def test_duplex_devices_come_from_the_same_driver(monkeypatch):
         {"name": "PreSonus", "hostapi": 1, "max_input_channels": 2, "max_output_channels": 2},
         {"name": "Soundcraft MTK", "hostapi": 1, "max_input_channels": 14, "max_output_channels": 12},
     ]
-    apis = [{"name": "ALSA", "default_input_device": 0, "default_output_device": 0},
-            {"name": "JACK Audio Connection Kit", "default_input_device": 1, "default_output_device": 1}]
+    apis = [
+        {"name": "ALSA", "default_input_device": 0, "default_output_device": 0},
+        {"name": "JACK Audio Connection Kit", "default_input_device": 1, "default_output_device": 1},
+    ]
     monkeypatch.setattr(sd, "query_devices", lambda i=None: devices if i is None else devices[i])
     monkeypatch.setattr(sd, "query_hostapis", lambda i=None: apis if i is None else apis[i])
     table, system = {"device": "Soundcraft", "channels": [1]}, {"device": "", "channels": [1, 2]}

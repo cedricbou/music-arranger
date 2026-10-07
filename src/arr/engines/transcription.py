@@ -3,6 +3,7 @@
 Il a ses propres dépendances, incompatibles avec celles d'arr : il tourne dans un
 environnement Python séparé, appelé en sous-processus.
 """
+
 from __future__ import annotations
 
 import os
@@ -23,7 +24,9 @@ def transcribe(src: Path, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     done = subprocess.run(
         [str(SS2_PYTHON), str(SCRIPT), str(src), str(out_dir), device()],
-        capture_output=True, text=True, env=os.environ,
+        capture_output=True,
+        text=True,
+        env=os.environ,
     )
     if done.returncode != 0 or not (out_dir / SCORE).exists():
         raise RuntimeError(f"SheetSage2 a échoué (code {done.returncode}) : {done.stderr[-400:]}")
@@ -32,9 +35,11 @@ def transcribe(src: Path, out_dir: Path) -> None:
 def set_tempo(out_dir: Path, bpm: int) -> None:
     """Impose le tempo de la partition (ligne Q: de l'ABC)."""
     score = out_dir / SCORE
-    score.write_text("".join(
-        f"Q:1/4={bpm}\n" if line.startswith("Q:") else line for line in score.read_text().splitlines(keepends=True)
-    ))
+    score.write_text(
+        "".join(
+            f"Q:1/4={bpm}\n" if line.startswith("Q:") else line for line in score.read_text().splitlines(keepends=True)
+        )
+    )
 
 
 def _rows(path: Path) -> list[list[str]]:
@@ -60,5 +65,6 @@ def read(out_dir: Path) -> dict:
         name = label if seen[label] == 1 else f"{label}{seen[label]}"
         sections.append((name, float(start), float(end)))
     return {
-        "key": keys.most_common(1)[0][0] if keys else "", "sections": sections,
+        "key": keys.most_common(1)[0][0] if keys else "",
+        "sections": sections,
     }

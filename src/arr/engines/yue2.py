@@ -2,6 +2,7 @@
 
 Le modèle tourne dans le binaire audio.cpp, sur le GPU via Vulkan.
 """
+
 from __future__ import annotations
 
 import random
@@ -17,9 +18,7 @@ HEADER = re.compile(r"^(X:|T:|M:|L:|Q:|V:|K:|%)")
 
 def melody_only(abc: str) -> str:
     """Retire les symboles d'accords : YuE2 invente alors l'accompagnement (mode libre)."""
-    return "\n".join(
-        line if HEADER.match(line) else re.sub(r'"[^"]*"', "", line) for line in abc.splitlines()
-    ) + "\n"
+    return "\n".join(line if HEADER.match(line) else re.sub(r'"[^"]*"', "", line) for line in abc.splitlines()) + "\n"
 
 
 def render(abc: str, lyrics: str, style: str, out: Path, *, free: bool = False, seed: int = -1) -> dict:
@@ -35,12 +34,29 @@ def render(abc: str, lyrics: str, style: str, out: Path, *, free: bool = False, 
         score = Path(tmp) / "score.abc"
         score.write_text(melody_only(abc) if free else abc)
         cmd = [
-            str(AUDIOCPP), "--task", "gen", "--family", "yue2", "--model", str(YUE2),
-            "--backend", "vulkan", "--threads", "8", "--lyrics", lyrics,
-            "--request-option", f"style={style}",
-            "--request-option", f"cot={'melody' if free else 'full'}",
-            "--request-option", f"abc_file={score}",
-            "--seed", str(seed), "--out", str(out),
+            str(AUDIOCPP),
+            "--task",
+            "gen",
+            "--family",
+            "yue2",
+            "--model",
+            str(YUE2),
+            "--backend",
+            "vulkan",
+            "--threads",
+            "8",
+            "--lyrics",
+            lyrics,
+            "--request-option",
+            f"style={style}",
+            "--request-option",
+            f"cot={'melody' if free else 'full'}",
+            "--request-option",
+            f"abc_file={score}",
+            "--seed",
+            str(seed),
+            "--out",
+            str(out),
         ]
         done = subprocess.run(cmd, capture_output=True, text=True)
     if done.returncode != 0 or not out.exists():

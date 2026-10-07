@@ -121,8 +121,8 @@ def test_count_in_leads_to_the_first_downbeat():
 def test_add_clicks_only_touches_click_positions():
     silent = np.zeros((audio.SR, 2), np.float32)
     out = audio.add_clicks(silent, [(0.5, True), (-0.2, False), (5.0, False)])
-    assert not out[: int(0.49 * audio.SR)].any() and out[int(0.5 * audio.SR): int(0.53 * audio.SR)].any()
-    assert not out[int(0.6 * audio.SR):].any() and len(out) == len(silent)
+    assert not out[: int(0.49 * audio.SR)].any() and out[int(0.5 * audio.SR) : int(0.53 * audio.SR)].any()
+    assert not out[int(0.6 * audio.SR) :].any() and len(out) == len(silent)
 
 
 def test_normalize_reaches_the_target_without_clipping():

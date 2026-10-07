@@ -27,7 +27,7 @@ ORIGINAL = "source/original.flac"
 ANALYSIS = "analysis.json"
 SCORE = "score/score.abc"
 LYRICS = "lyrics.txt"
-ON_BEAT = 0.035     # un temps de la prise est « calé » s'il tombe à moins de 35 ms d'un temps de l'original
+ON_BEAT = 0.035  # un temps de la prise est « calé » s'il tombe à moins de 35 ms d'un temps de l'original
 MAX_STRETCH = 0.03  # au-delà de 3 % d'écart de tempo, une prise n'est plus la même interprétation
 
 
@@ -53,10 +53,7 @@ def reference(p: Project) -> Path:
 
 
 def render_mix(p: Project, without: tuple[str, ...] = (), only: tuple[str, ...] = ()) -> Path:
-    names = [
-        t for t in p.tracks
-        if t not in without and (t in only if only else not p.tracks[t].get("mute"))
-    ]
+    names = [t for t in p.tracks if t not in without and (t in only if only else not p.tracks[t].get("mute"))]
     if not names:
         raise ProjectError("aucune piste à mixer")
     parts = [(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0)) for t in names]
@@ -128,8 +125,12 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
     mine = analysis.beats(p.take_path(take))[0]
     speed = analysis.period(mine) / analysis.period(ref)
     if abs(speed - 1) > MAX_STRETCH:
-        typer.secho(f"attention : {take} est à un autre tempo que l'original ({1 / speed:.2f} fois) ; "
-                    "ses stems ne sont pas superposables", fg="yellow", err=True)
+        typer.secho(
+            f"attention : {take} est à un autre tempo que l'original ({1 / speed:.2f} fois) ; "
+            "ses stems ne sont pas superposables",
+            fg="yellow",
+            err=True,
+        )
         return stems, {"superposable": False}
     ref, mine = np.array(ref), np.array(mine) / speed
     offset = float(np.median([t - ref[np.abs(ref - t).argmin()] for t in mine]))
@@ -137,10 +138,18 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
     n = len(audio.load(original))
     aligned = {k: audio.fit(audio.shift(audio.stretch(v, speed), -offset), n) for k, v in stems.items()}
     if on_beat < 0.6:
-        typer.secho(f"attention : {take} ne suit pas la grille de l'original ({on_beat:.0%} des temps calés) ; "
-                    "la greffe sonnera décalée", fg="yellow", err=True)
-    return aligned, {"superposable": on_beat >= 0.6, "on_beat": round(on_beat, 2),
-                     "offset_ms": round(offset * 1000), "speed": round(speed, 5)}
+        typer.secho(
+            f"attention : {take} ne suit pas la grille de l'original ({on_beat:.0%} des temps calés) ; "
+            "la greffe sonnera décalée",
+            fg="yellow",
+            err=True,
+        )
+    return aligned, {
+        "superposable": on_beat >= 0.6,
+        "on_beat": round(on_beat, 2),
+        "offset_ms": round(offset * 1000),
+        "speed": round(speed, 5),
+    }
 
 
 @app.command()
@@ -268,8 +277,15 @@ def tracks(
         for v in all_versions:
             meta = p.meta(name, v)
             active = v == t["active"]
-            table.add_row("", "", f"▸ {v}" if active else f"  {v}", "", describe(meta), created(meta),
-                          style=style or (None if active else "dim"))
+            table.add_row(
+                "",
+                "",
+                f"▸ {v}" if active else f"  {v}",
+                "",
+                describe(meta),
+                created(meta),
+                style=style or (None if active else "dim"),
+            )
     Console().print(table)
 
     if not track:
@@ -282,7 +298,12 @@ def tracks(
 
 
 def confirm(question: str) -> bool:
-    return typer.prompt(f"{question} [o/N]", default="n", show_default=False).strip().lower() in ("o", "oui", "y", "yes")
+    return typer.prompt(f"{question} [o/N]", default="n", show_default=False).strip().lower() in (
+        "o",
+        "oui",
+        "y",
+        "yes",
+    )
 
 
 @app.command()
@@ -342,7 +363,9 @@ def pick(track: str, version: str) -> None:
 
 # Sans ignore_unknown_options, « arr gain bass -5 » prend -5 pour une option.
 @app.command(context_settings={"ignore_unknown_options": True})
-def gain(track: str, db: float = typer.Argument(..., help="Gain en dB, par rapport à la piste telle quelle : -5, 0, +3.")) -> None:
+def gain(
+    track: str, db: float = typer.Argument(..., help="Gain en dB, par rapport à la piste telle quelle : -5, 0, +3.")
+) -> None:
     """Règle le volume d'une piste dans le mix, en dB."""
     p = Project.find()
     p.version_path(track)
@@ -374,7 +397,9 @@ def mix(
 def play(
     name: Optional[str] = typer.Argument(None, help="Piste ou prise (ex. t001) ; sinon le mix."),
     version: Optional[str] = typer.Argument(None, help="Version d'une piste ; sinon la version active."),
-    without: list[str] = typer.Option([], "--without", "-w", help="Mix sans cette piste (ex. -w bass pour jouer par-dessus)."),
+    without: list[str] = typer.Option(
+        [], "--without", "-w", help="Mix sans cette piste (ex. -w bass pour jouer par-dessus)."
+    ),
     only: list[str] = typer.Option([], "--only", "-o", help="Mix de ces seules pistes."),
 ) -> None:
     """Écoute le mix (complet ou partiel), une piste ou une prise. Ctrl+C arrête."""
@@ -400,9 +425,13 @@ def slug(text: str) -> str:
 @app.command()
 def capture(
     name: Optional[str] = typer.Argument(None, help="Nom du projet à créer ; par défaut, le titre lu dans Spotify."),
-    play_: bool = typer.Option(False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."),
+    play_: bool = typer.Option(
+        False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."
+    ),
     silence: float = typer.Option(3.0, help="Secondes de silence qui terminent l'enregistrement."),
-    raw: bool = typer.Option(False, "--raw", help="Garde le niveau tel qu'enregistré, sans le ramener au volume cible."),
+    raw: bool = typer.Option(
+        False, "--raw", help="Garde le niveau tel qu'enregistré, sans le ramener au volume cible."
+    ),
 ) -> None:
     """Enregistre ce que joue l'ordinateur dans un nouveau projet.
 
@@ -478,8 +507,9 @@ def record(
     from arr import studio
 
     p = Project.find()
-    names = [t for t in p.tracks
-             if t != track and t not in without and (t in only if only else not p.tracks[t].get("mute"))]
+    names = [
+        t for t in p.tracks if t != track and t not in without and (t in only if only else not p.tracks[t].get("mute"))
+    ]
     if names:
         backing = audio.mix([(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0)) for t in names])
     elif (p.root / ORIGINAL).exists():
@@ -500,12 +530,15 @@ def record(
     playback = audio.add_clicks(np.concatenate([lead, backing]), [(t + pad, accent) for t, accent in ticks])
     typer.echo(f"playback : {', '.join(names) or 'morceau original'} ; joue après le décompte (Ctrl+C pour arrêter)")
     recorded, latency = studio.play_and_record(playback, channel)
-    take = audio.fit(recorded[len(lead) + int(round(latency * audio.SR)):], len(backing))
+    take = audio.fit(recorded[len(lead) + int(round(latency * audio.SR)) :], len(backing))
     if float(np.abs(take).max()) < audio.db(-60):
-        raise ProjectError("rien n'a été enregistré sur ce canal : la prise n'est pas gardée "
-                           "(arr levels montre le niveau de chaque canal)")
-    version = add_track(p, track, take, {"op": "record", "source": " + ".join(names) or ORIGINAL,
-                                         "latency_ms": round(latency * 1000)})
+        raise ProjectError(
+            "rien n'a été enregistré sur ce canal : la prise n'est pas gardée "
+            "(arr levels montre le niveau de chaque canal)"
+        )
+    version = add_track(
+        p, track, take, {"op": "record", "source": " + ".join(names) or ORIGINAL, "latency_ms": round(latency * 1000)}
+    )
     p.tracks[track]["mute"] = False
     p.save()
     typer.echo(f"{track} {version}  (latence compensée : {latency * 1000:.0f} ms)")
@@ -553,7 +586,9 @@ def verdict(db: float) -> str:
 @app.command()
 def levels(
     seconds: Optional[float] = typer.Option(None, help="Durée de la mesure ; sinon jusqu'à Ctrl+C."),
-    tone: bool = typer.Option(False, "--tone", help="Joue un son de référence à -12 dB sur la sortie pendant la mesure."),
+    tone: bool = typer.Option(
+        False, "--tone", help="Joue un son de référence à -12 dB sur la sortie pendant la mesure."
+    ),
     source: Optional[str] = typer.Option(None, help="Source PipeWire à mesurer ; sinon celle de arr capture."),
 ) -> None:
     """Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
@@ -577,13 +612,21 @@ def levels(
         out = cfg["output"]
         t = np.arange(audio.SR) / audio.SR
         wave = (audio.db(-12) * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
-        sd.play(np.stack([wave, wave], axis=1), audio.SR, loop=True, mapping=out["channels"],
-                device=studio.find_device(out["device"], "output", out["channels"]))
+        sd.play(
+            np.stack([wave, wave], axis=1),
+            audio.SR,
+            loop=True,
+            mapping=out["channels"],
+            device=studio.find_device(out["device"], "output", out["channels"]),
+        )
 
     def view(now, held) -> Text:
-        return Text("\n".join(
-            f"{'▶' if i + 1 in used else ' '} {i + 1:2d} {bar(now[i])} {now[i]:6.1f} dB  crête {held[i]:6.1f}"
-            for i in range(count)))
+        return Text(
+            "\n".join(
+                f"{'▶' if i + 1 in used else ' '} {i + 1:2d} {bar(now[i])} {now[i]:6.1f} dB  crête {held[i]:6.1f}"
+                for i in range(count)
+            )
+        )
 
     try:
         with Live(Text("en attente..."), refresh_per_second=10, transient=True) as live:
@@ -610,10 +653,14 @@ def devices() -> None:
     typer.echo(f"réglages ({studio.CONFIG}{'' if studio.CONFIG.exists() else ', absent : valeurs par défaut'})")
     typer.echo(f"  sortie    {cfg['output']['device'] or 'par défaut'}  canaux {cfg['output']['channels']}")
     measured = cfg["input"]["latency_ms"]
-    typer.echo(f"  entrée    {cfg['input']['device'] or 'par défaut'}  canaux {cfg['input']['channels']}  latence "
-               + (f"{measured} ms (mesurée)" if measured is not None else "non mesurée (arr calibrate)"))
-    typer.echo(f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}"
-               f"  volume cible {cfg['capture']['loudness']:g} LUFS")
+    typer.echo(
+        f"  entrée    {cfg['input']['device'] or 'par défaut'}  canaux {cfg['input']['channels']}  latence "
+        + (f"{measured} ms (mesurée)" if measured is not None else "non mesurée (arr calibrate)")
+    )
+    typer.echo(
+        f"  capture   {source}  canaux {cfg['capture']['channels'] or 'automatiques'}"
+        f"  volume cible {cfg['capture']['loudness']:g} LUFS"
+    )
     typer.echo("sources PipeWire (pour [capture] source)")
     for name, count in studio.sources():
         typer.echo(f"  {name}  ({count} canaux)")
@@ -676,8 +723,9 @@ def lyrics_fetch(
     else:
         target.write_text(found["plainLyrics"].strip() + "\n")
         why = "pas de sections (arr transcribe d'abord)" if not p.sections else "paroles non horodatées"
-        typer.secho(f"{LYRICS} : paroles brutes, {why} ; ajoute les balises [Verse], [Chorus]... à la main",
-                    fg="yellow")
+        typer.secho(
+            f"{LYRICS} : paroles brutes, {why} ; ajoute les balises [Verse], [Chorus]... à la main", fg="yellow"
+        )
 
 
 # --- prises
@@ -685,7 +733,9 @@ def lyrics_fetch(
 
 @app.command()
 def render(
-    style: str = typer.Option(..., "--style", "-s", help="Formation et couleur, en anglais : genre, instruments, voix."),
+    style: str = typer.Option(
+        ..., "--style", "-s", help="Formation et couleur, en anglais : genre, instruments, voix."
+    ),
     free: bool = typer.Option(False, "--free", help="Mélodie seule : accompagnement réinventé, tempo libre."),
     seed: int = typer.Option(-1, help="Graine ; -1 pour aléatoire."),
     n: int = typer.Option(1, "-n", help="Nombre de prises."),
@@ -727,8 +777,14 @@ def takes() -> None:
         table.add_column(column, no_wrap=column != "Style")
     for name in p.takes():
         m = p.take_meta(name)
-        table.add_row(name, "libre" if m["mode"] == "free" else "fidèle", str(m["seed"]),
-                      f"{audio.duration(p.take_path(name)):.0f} s", created(m), m["style"])
+        table.add_row(
+            name,
+            "libre" if m["mode"] == "free" else "fidèle",
+            str(m["seed"]),
+            f"{audio.duration(p.take_path(name)):.0f} s",
+            created(m),
+            m["style"],
+        )
     Console().print(table)
 
 
@@ -759,8 +815,11 @@ def share(track: str) -> None:
     """Prépare un dossier pour le musicien : sa partie seule, le mix, et le mix sans lui."""
     p = Project.find()
     part = audio.load(p.version_path(track))
-    others = [(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0))
-              for t in p.tracks if t != track and not p.tracks[t].get("mute")]
+    others = [
+        (audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0))
+        for t in p.tracks
+        if t != track and not p.tracks[t].get("mute")
+    ]
     if not others:
         raise ProjectError("aucune autre piste dans le mix")
     out = p.root / "export" / track
@@ -812,12 +871,19 @@ def sections_list() -> None:
 
 
 AUDIOCPP_RELEASE = (
-    "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.0/"
-    "audio-v0.9.0-bin-ubuntu-x64-vulkan-portable.tar.gz"
+    "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.0/audio-v0.9.0-bin-ubuntu-x64-vulkan-portable.tar.gz"
 )
 SS2_PACKAGES = [
-    "transformers==4.45.2", "huggingface-hub==0.36.0", "safetensors==0.5.3", "numpy==1.26.4", "scipy==1.13.1",
-    "mir_eval==0.8.2", "pretty_midi==0.2.10", "mido==1.3.3", "setuptools==78.1.1", "soundfile",
+    "transformers==4.45.2",
+    "huggingface-hub==0.36.0",
+    "safetensors==0.5.3",
+    "numpy==1.26.4",
+    "scipy==1.13.1",
+    "mir_eval==0.8.2",
+    "pretty_midi==0.2.10",
+    "mido==1.3.3",
+    "setuptools==78.1.1",
+    "soundfile",
 ]
 
 
@@ -833,8 +899,11 @@ def models_pull() -> None:
 
     from arr.engines.separation import MODELS
 
-    snapshot_download("audio-cpp/Yue2-3B-GGUF", local_dir=engines.YUE2,
-                      allow_patterns=["yue2-3b-q8_0.gguf", "yue2-vae-f16.gguf", "sidecars/*"])
+    snapshot_download(
+        "audio-cpp/Yue2-3B-GGUF",
+        local_dir=engines.YUE2,
+        allow_patterns=["yue2-3b-q8_0.gguf", "yue2-vae-f16.gguf", "sidecars/*"],
+    )
     typer.echo(f"YuE2 dans {engines.YUE2}")
 
     if not engines.AUDIOCPP.exists():
@@ -848,12 +917,29 @@ def models_pull() -> None:
     if not engines.SS2_PYTHON.exists():
         env = {**os.environ, "VIRTUAL_ENV": str(engines.SS2_PYTHON.parents[1])}
         subprocess.run(["uv", "venv", "-q", "--python", "3.11", env["VIRTUAL_ENV"]], check=True)
-        subprocess.run(["uv", "pip", "install", "-q", "torch==2.11.0", "torchaudio==2.11.0",
-                        "--index-url", "https://download.pytorch.org/whl/xpu"], check=True, env=env)
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "-q",
+                "torch==2.11.0",
+                "torchaudio==2.11.0",
+                "--index-url",
+                "https://download.pytorch.org/whl/xpu",
+            ],
+            check=True,
+            env=env,
+        )
         subprocess.run(["uv", "pip", "install", "-q", *SS2_PACKAGES], check=True, env=env)
-    subprocess.run([str(engines.SS2_PYTHON), "-c",
-                    "from transformers import AutoModel; "
-                    "AutoModel.from_pretrained('m-a-p/SheetSage2', trust_remote_code=True)"], check=True)
+    subprocess.run(
+        [
+            str(engines.SS2_PYTHON),
+            "-c",
+            "from transformers import AutoModel; AutoModel.from_pretrained('m-a-p/SheetSage2', trust_remote_code=True)",
+        ],
+        check=True,
+    )
     typer.echo(f"SheetSage2 dans {engines.SS2_PYTHON.parents[1]}")
 
     for name in MODELS:
@@ -874,6 +960,9 @@ def doctor() -> None:
     typer.echo(f"xpu: disponible ({torch.xpu.get_device_name(0)})")
     x = torch.randn(2048, 2048, device="xpu")
     typer.echo(f"calcul de test: {float((x @ x).abs().mean()):.3f}")
-    for label, path in (("audio.cpp", engines.AUDIOCPP), ("YuE2", engines.YUE2 / "yue2-3b-q8_0.gguf"),
-                        ("SheetSage2", engines.SS2_PYTHON)):
+    for label, path in (
+        ("audio.cpp", engines.AUDIOCPP),
+        ("YuE2", engines.YUE2 / "yue2-3b-q8_0.gguf"),
+        ("SheetSage2", engines.SS2_PYTHON),
+    ):
         typer.echo(f"{label}: {'présent' if path.exists() else 'absent (arr models pull)'}")

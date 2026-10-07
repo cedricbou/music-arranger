@@ -2,6 +2,7 @@
 
 usage : python _sheetsage2.py <audio> <dossier de sortie> <xpu|cpu>
 """
+
 import sys
 
 import soundfile as sf
