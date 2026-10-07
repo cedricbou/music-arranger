@@ -47,9 +47,17 @@ ce qui a été mesuré et ce qui reste à juger à l'oreille.
 
 ```
 src/arr/
-  cli.py                    toutes les commandes Typer ; point d'entrée `run()`
-  project.py                Project : song.toml, pistes versionnées, prises, sections
-  audio.py                  E/S et opérations numpy (mix, splice, fit, shift, scale_to, save_mp3)
+  cli.py                    point d'entrée : importe les modules de commandes, dans l'ordre de `arr --help`
+  app.py                    l'application Typer, ses sous-groupes, les constantes partagées, `run()`
+  commands/_common.py       aides partagées : render_mix, add_track, convert, confirm, describe...
+  commands/project.py       init, import
+  commands/score.py         analyze, transcribe, lyrics fetch, sections
+  commands/takes.py         render, takes, graft, share
+  commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix, play
+  commands/studio.py        capture, record, calibrate, levels
+  commands/system.py        devices, doctor, models pull
+  project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
+  audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
@@ -59,16 +67,22 @@ src/arr/
   engines/_sheetsage2.py    script exécuté par l'environnement SheetSage2, n'importe pas arr
   engines/separation.py     Demucs ; MODELS liste les modèles acceptés par `split`
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
-tests/test_core.py          projet et audio, sur signaux synthétiques
-tests/test_cli.py           commandes via CliRunner, moteurs factices
+tests/
+  helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
+  test_core.py              project.py et audio.py, sur signaux synthétiques
+  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_studio.py, test_system.py
+                            un fichier par module de commandes, via CliRunner
 ```
 
 Règles de structure :
 
-- Les commandes ne parlent aux modèles que par `engines/`.
-- Les imports lourds (`torch`, `demucs`) sont faits **dans** les fonctions, pour que
-  `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
+- Une commande est une fonction dans le module de son domaine (`commands/`). Un nouveau
+  domaine est un nouveau module, importé dans `cli.py` à la place voulue dans l'aide.
+- Les commandes ne parlent aux modèles que par `engines/`, et à la carte son que par `studio.py`.
+- Les imports lourds (`torch`, `demucs`, `sounddevice`) sont faits **dans** les fonctions,
+  pour que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
 - Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
+- Les tests remplacent moteurs et carte son par `monkeypatch` sur ces modules, jamais sur `cli`.
 
 ## Moteurs externes
 
@@ -120,7 +134,7 @@ le chargement depuis un dossier local échoue sur ses imports relatifs.
   `score`, `instrumental`). `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
 - **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`. Les stems de l'original s'appellent
   `drums`, `bass`... ; ceux d'une prise `t001.drums`... et naissent muets. Passer par
-  `add_track()` dans `cli.py`.
+  `add_track()` (`commands/_common.py`).
 - **Greffe** = gestion des sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`,
   coupe `<stem>`. Une nouvelle séparation de l'original ne touche pas aux pistes préfixées.
 - `analysis.json` (temps et mesures) est écrit par `transcribe` ou par `analyze` ; `split
@@ -133,6 +147,6 @@ le chargement depuis un dossier local échoue sur ses imports relatifs.
 
 - Messages, aides et docstrings en français ; identifiants en anglais.
 - Peu de commentaires : seulement pour une contrainte non évidente.
-- Pas d'abstraction sans deuxième usage. Une commande est une fonction dans `cli.py`.
+- Pas d'abstraction sans deuxième usage.
 - Tout ajout dans `audio.py` ou `project.py` vient avec un test sur signal synthétique ;
   toute commande avec un test `CliRunner` à moteur factice.

@@ -1,14 +1,11 @@
+"""Projet et audio : fonctions pures, sur signaux synthétiques."""
+
 import numpy as np
 import pytest
 
 from arr import audio
 from arr.project import Project, ProjectError, Section
-
-
-def tone(freq: float, seconds: float, amp: float = 0.5) -> np.ndarray:
-    t = np.arange(int(seconds * audio.SR)) / audio.SR
-    mono = (amp * np.sin(2 * np.pi * freq * t)).astype(np.float32)
-    return np.stack([mono, mono], axis=1)
+from tests.helpers import tone
 
 
 def test_versions_are_never_overwritten(tmp_path):
