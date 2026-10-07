@@ -29,8 +29,8 @@ import json
 import os
 import subprocess
 import tomllib
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
-from typing import Callable, Iterable, Iterator
 
 import numpy as np
 

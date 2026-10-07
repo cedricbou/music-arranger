@@ -81,8 +81,8 @@ def test_tracks_shows_mix_first_then_muted(tmp_path, monkeypatch):
     mixed_project(tmp_path, monkeypatch)
     out = runner.invoke(app, ["tracks"]).output
     lines = out.splitlines()
-    bass = next(l for l in lines if "bass" in l and "v002" in l)
-    guitar = next(l for l in lines if "guitar" in l and "v001" in l)
+    bass = next(line for line in lines if "bass" in line and "v002" in line)
+    guitar = next(line for line in lines if "guitar" in line and "v001" in line)
     assert lines.index(bass) < lines.index(guitar)
     assert "sur 2" in bass and "-3.0 dB" in bass and "takes/t001.flac" in bass
     assert "muette" in guitar and "htdemucs_6s" in guitar
@@ -484,7 +484,7 @@ def test_levels_reports_each_channel(monkeypatch):
     fake_studio(monkeypatch, heard)
     result = runner.invoke(app, ["levels", "--seconds", "0.5"])
     assert result.exit_code == 0, result.output
-    lines = [l for l in result.output.splitlines() if "canal" in l and "crête" in l]
+    lines = [line for line in result.output.splitlines() if "canal" in line and "crête" in line]
     assert "rien" in lines[0] and "-12.0 dB  bon niveau" in lines[2] and "SATURE" in lines[3]
     assert runner.invoke(app, ["levels", "--seconds", "0.2", "--source", "nope"]).exit_code != 0
 
