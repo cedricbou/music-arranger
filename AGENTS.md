@@ -1,49 +1,63 @@
-# Guide développeur pour agents
+# Guide pour agents
 
-`arr` est un CLI Python local pour réarranger des morceaux par **prises complètes**. Lire
-`README.md` pour l'usage et `HANDOFF.md` pour l'état du travail, les mesures et la suite.
+`arr` est un CLI Python local pour réarranger des morceaux avec un groupe, par **prises
+complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le reste :
+
+| Pour savoir | Lire |
+|---|---|
+| ce que fait l'outil, commande par commande | `README.md` |
+| pourquoi il est construit ainsi, et ce qui a déjà été essayé | `docs/decisions/` |
+| ce qui reste à faire | les issues GitHub (`gh issue list`) |
 
 ## Contraintes non négociables
 
 - **Local uniquement.** Aucun service distant ne reçoit l'audio de l'utilisateur.
-- **Enregistrer Spotify** reste local : `capture` écoute la sortie son de la machine.
-- **Réseau limité à deux commandes.** `arr models pull` (modèles et moteurs) et
-  `arr lyrics fetch` (artiste et titre envoyés à lrclib.net). Tout le reste tourne avec
-  `HF_HUB_OFFLINE=1` (voir `engines.offline()`).
-- **Intel Arc A770, 16 Go.** PyTorch XPU pour Demucs, beat_this et SheetSage2 ; Vulkan pour
-  YuE2. Pas de CUDA, pas de float64 sur le GPU, pas de bf16 en Vulkan.
-- **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version ; elle
-  n'écrase jamais un fichier audio. Seul `arr rm` retire, vers `trash/` par défaut, et
-  n'efface pour de bon qu'avec `--purge` et une confirmation.
+- **Réseau limité à deux commandes** : `arr models pull` et `arr lyrics fetch` (artiste et
+  titre envoyés à lrclib.net). Le reste tourne hors ligne (`engines.offline()`).
+- **Intel Arc A770, 16 Go.** PyTorch XPU et Vulkan ; pas de CUDA, pas de float64 ni de bf16
+  sur le GPU.
+- **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version, jamais
+  elle n'écrase un fichier audio. Seul `arr rm` retire, vers `trash/` par défaut.
 - **Usage non commercial** : YuE2 et SheetSage2 sont sous CC BY-NC 4.0.
 
-## Le principe à ne pas réapprendre
+## Avant de proposer une idée
 
-Générer une piste d'instrument cohérente sur une bande existante n'est pas faisable en local
-aujourd'hui. Trois approches ont été essayées et abandonnées, mesures à l'appui dans
-`HANDOFF.md` : ACE-Step (`cover`, `lego`, `complete`), Stable Audio 3, et le tri de riffs par
-groove. Ne pas les réintroduire sans élément nouveau.
+Générer une piste d'instrument cohérente sur une bande existante a été essayé de cinq
+façons et abandonné (`docs/decisions/001`). Ce qui marche : faire rejouer le morceau entier
+par YuE2 à partir de sa partition, puis séparer la prise en stems. Lire les fiches avant de
+toucher à la génération (001, 002), à la chaîne audio (003), au calage des prises (004) ou
+au volume (005).
 
-Ce qui marche : faire rejouer le **morceau entier** par YuE2 à partir de la partition, puis
-séparer la prise en stems. Une prise fidèle (`cot=full`, mélodie et accords) garde la
-tonalité et à peu près le tempo ; ses stems se greffent sur l'original **seulement** quand
-elle suit sa grille de mesures, ce qui n'arrive pas à chaque fois (voir `HANDOFF.md`).
+## Comment travailler ici
+
+1. **Une issue, une branche partie de `main`, une PR.** Jamais de commit direct sur `main`.
+2. **Langues** : interface, docstrings, commentaires et documentation en français ;
+   identifiants de code en anglais ; issues et PR en anglais.
+3. **Terminé** veut dire : tests ajoutés, `uv run pytest` et `uv run ruff check .` verts,
+   `uv run ruff format .` appliqué, `README.md` à jour si une commande change, carte du code
+   ci-dessous à jour si un fichier apparaît, fiche dans `docs/decisions/` si un choix
+   structurant est fait.
+4. **Un agent ne peut pas écouter.** Mesurer (durée, niveau, tempo, calage des temps, parts
+   des stems) et dire dans la PR ce qui est mesuré et ce qui reste à juger à l'oreille. Ne
+   jamais annoncer une qualité sonore.
+5. **Ne jamais jouer sur les enceintes ni piloter Spotify pour un test.** L'audio en direct
+   se teste sur une sortie PipeWire virtuelle (voir « Audio en direct »).
+6. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
+   ailleurs (`~/Musique/...`) et se lisent sans les modifier.
 
 ## Commandes de travail
 
 ```
-uv sync                 # environnement (Python 3.11 épinglé dans .python-version)
-uv run pytest -q        # tests rapides, sans GPU ni modèles
-uv run arr doctor       # XPU et présence des modèles
-uv run arr <commande>   # depuis un dossier de projet, ex. demo/gala-yue2
+uv sync                   # environnement (Python 3.11, épinglé dans .python-version)
+uv run pytest -q          # ~5 s, sans GPU, sans modèle, sans carte son
+uv run ruff check . && uv run ruff format .
+uv run arr doctor         # GPU et présence des moteurs
+uv run arr <commande>     # depuis un dossier de projet, ex. demo/gala-yue2 (hors git)
 ```
 
-Les tests ne chargent aucun modèle : les moteurs sont remplacés par `monkeypatch`. Pour
-valider une commande générative, la lancer sur un projet de `demo/` et **mesurer** (durée,
-tempo, calage des temps, tonalité, parts des stems). Un agent ne peut pas écouter : dire
-ce qui a été mesuré et ce qui reste à juger à l'oreille.
+La CI (`.github/workflows/ci.yml`) lance lint, format et tests sur chaque PR.
 
-## Architecture
+## Carte du code
 
 ```
 src/arr/
@@ -61,92 +75,73 @@ src/arr/
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
-  engines/__init__.py       chemins (HOME, AUDIOCPP, YUE2, SS2_PYTHON), device(), offline()
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
   engines/_sheetsage2.py    script exécuté par l'environnement SheetSage2, n'importe pas arr
   engines/separation.py     Demucs ; MODELS liste les modèles acceptés par `split`
-  engines/analysis.py       beat_this (temps), tempo, tonalité approximative
+  engines/analysis.py       beat_this (temps), période et tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py              project.py et audio.py, sur signaux synthétiques
+  test_docs.py              la documentation suit le code (commandes, carte du code, fiches)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_studio.py, test_system.py
                             un fichier par module de commandes, via CliRunner
 ```
 
 Règles de structure :
 
-- Une commande est une fonction dans le module de son domaine (`commands/`). Un nouveau
-  domaine est un nouveau module, importé dans `cli.py` à la place voulue dans l'aide.
-- Les commandes ne parlent aux modèles que par `engines/`, et à la carte son que par `studio.py`.
-- Les imports lourds (`torch`, `demucs`, `sounddevice`) sont faits **dans** les fonctions,
-  pour que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
+- Une commande est une fonction dans le module de son domaine. Un nouveau domaine est un
+  nouveau module, importé dans `cli.py` à la place voulue dans l'aide.
+- Un fichier qui dépasse 400 lignes est à découper.
+- Les commandes ne parlent aux modèles que par `engines/`, à la carte son que par `studio.py`.
+- Les imports lourds (`torch`, `demucs`, `sounddevice`) se font **dans** les fonctions, pour
+  que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
 - Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
-- Les tests remplacent moteurs et carte son par `monkeypatch` sur ces modules, jamais sur `cli`.
+- Les tests remplacent moteurs et carte son par `monkeypatch` sur `engines.*`, `studio`,
+  `spotify`, `lyrics`, jamais sur `cli`. Tout ajout dans `audio.py` ou `project.py` vient
+  avec un test sur signal synthétique ; toute commande avec un test `CliRunner`.
+- Peu de commentaires (une contrainte non évidente), pas d'abstraction sans deuxième usage.
 
-## Moteurs externes
+## Modèle de projet
 
-Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`) :
-
-| Élément | Où | Pourquoi à part |
-|---|---|---|
-| `audiocpp/audiocpp_cli` | binaire audio.cpp v0.9.0, variante **vulkan-portable** | la variante non portable plante (SIGILL) sur ce CPU |
-| `yue2/` | `yue2-3b-q8_0.gguf`, `yue2-vae-f16.gguf`, `sidecars/` | poids GGUF de YuE2 ; Q8 car Vulkan sur Arc n'a pas le bf16 |
-| `envs/ss2/` | environnement Python de SheetSage2 | il exige `transformers==4.45.2` et `numpy<2` |
-
-SheetSage2 se charge par son identifiant Hugging Face (`m-a-p/SheetSage2`, depuis le cache) :
-le chargement depuis un dossier local échoue sur ses imports relatifs.
-
-## Audio en direct (`studio.py`)
-
-- **Installation de Cédric** : l'ordinateur joue sur une PreSonus iTwo, dont les sorties
-  arrivent en analogique sur les voies 7/8 d'une Soundcraft Signature 12 MTK. On capture
-  donc sur les **entrées** 7/8 de la Soundcraft, et la lecture reste sur la sortie par
-  défaut. Ne pas confondre avec les sorties USB de la Soundcraft.
-- **Volume des captures** : `audio.normalize()` applique un seul gain vers la cible LUFS
-  (mesure `ebur128` de ffmpeg), plafonné à -1 dB de crête. Ne pas utiliser le filtre
-  `loudnorm` en une passe : il compresse la dynamique.
-- **Capture** : `parec` sur une source PipeWire (`capture_source()`), lu en continu ; `gate()` est
-  une fonction pure (démarrage au premier son, arrêt sur silence ou sur `should_stop`).
-- **Lecture et enregistrement** passent par `sounddevice` sur l'API JACK de PipeWire : un
-  seul flux en duplex, donc un décalage constant entre playback et prise (21,3 ms mesurés
-  en boucle logicielle, identiques d'un essai à l'autre).
-- **Ne pas se fier à la latence annoncée par PortAudio** : elle est aberrante ici. La
-  latence vient de `arr calibrate` (mesure par corrélation), sinon de `DEFAULT_LATENCY`.
-- **Tester sans bruit** : créer une sortie virtuelle (`pactl load-module module-null-sink
-  sink_name=arr_test sink_properties=device.description=arr_test`), pointer `ARR_AUDIO` vers
-  un audio.toml qui la désigne, puis la retirer (`pactl unload-module`). Ne jamais jouer sur
-  les enceintes de l'utilisateur ni piloter son Spotify pour un test.
+- `song.toml` : `[song]` (title, artist, bpm, key, duration), `[[sections]]` (name, start,
+  end), `[tracks.<nom>]` (active, gain, mute).
+- **Prises** : `takes/tNNN.flac` + `.json` (model, mode close/free, style, seed).
+  `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
+- **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`. Les stems de l'original s'appellent
+  `drums`, `bass`... ; ceux d'une prise `t001.drums`... et naissent muets. Passer par
+  `add_track()` (`commands/_common.py`).
+- **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
+- `analysis.json` (temps et mesures) vient de `transcribe` ou d'`analyze` ; `split tNNN`
+  s'en sert pour étirer et caler la prise, puis mesure `on_beat` (fiche 004).
+- Sections homonymes numérotées (`chorus`, `chorus2`...) ; `lyrics.tagged()` retire le numéro.
 
 ## Conventions audio
 
 - Partout : 48 kHz, stéréo, `float32`, forme `(échantillons, 2)`. `audio.convert()` normalise
   tout import et toute sortie de modèle ; `audio.load()` refuse un autre taux.
-- Les pistes d'un projet ont toutes la longueur de l'original (`audio.fit`). Les prises
-  gardent leur propre longueur ; leurs stems sont ajustés à celle de l'original par `split`.
+- Les pistes d'un projet ont toutes la longueur de l'original (`audio.fit`) ; les prises
+  gardent la leur, leurs stems sont ajustés par `split`.
 - Pour ne modifier qu'une plage : `audio.splice(base, patch, start, end)`.
+- Volume : `audio.normalize()` (un seul gain vers une cible LUFS), jamais `loudnorm`.
 
-## Modèle de projet
+## Moteurs externes
 
-- `song.toml` : `[song]` (title, bpm, key, duration), `[[sections]]` (name, start, end),
-  `[tracks.<nom>]` (active, gain, mute).
-- **Prises** : `takes/tNNN.flac` + `.json` (`model`, `mode` close/free, `style`, `seed`,
-  `score`, `instrumental`). `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
-- **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`. Les stems de l'original s'appellent
-  `drums`, `bass`... ; ceux d'une prise `t001.drums`... et naissent muets. Passer par
-  `add_track()` (`commands/_common.py`).
-- **Greffe** = gestion des sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`,
-  coupe `<stem>`. Une nouvelle séparation de l'original ne touche pas aux pistes préfixées.
-- `analysis.json` (temps et mesures) est écrit par `transcribe` ou par `analyze` ; `split
-  tNNN` s'en sert pour étirer et caler la prise, puis mesure `on_beat` (part des temps à
-  moins de 35 ms de ceux de l'original) ; sous 60 %, la prise est marquée non superposable.
-- Les sections homonymes sont numérotées (`chorus`, `chorus2`...) ; `lyrics.tagged()` retire
-  le numéro pour écrire la balise.
+Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`), lancés en
+sous-processus : `audiocpp/` (binaire audio.cpp, variante **vulkan-portable**), `yue2/`
+(poids GGUF Q8), `envs/ss2/` (environnement Python de SheetSage2). Raisons et pièges :
+fiche 002. Les tests ne les lancent jamais.
 
-## Style
+## Audio en direct
 
-- Messages, aides et docstrings en français ; identifiants en anglais.
-- Peu de commentaires : seulement pour une contrainte non évidente.
-- Pas d'abstraction sans deuxième usage.
-- Tout ajout dans `audio.py` ou `project.py` vient avec un test sur signal synthétique ;
-  toute commande avec un test `CliRunner` à moteur factice.
+L'ordinateur de Cédric joue sur une PreSonus iTwo, dont les sorties arrivent en analogique
+sur les voies 7/8 d'une Soundcraft Signature 12 MTK : on **capture sur les entrées 7/8 de la
+table**, on **joue sur la sortie par défaut** (fiche 003).
+
+- Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
+- Lecture et enregistrement : un seul flux duplex `sounddevice` sur l'API JACK de PipeWire,
+  entrée et sortie du même pilote (`studio.duplex_devices`).
+- La latence vient de `arr calibrate`, jamais de PortAudio (valeur aberrante ici).
+- **Tester sans bruit** : `pactl load-module module-null-sink sink_name=arr_test
+  sink_properties=device.description=arr_test`, un `audio.toml` qui désigne `arr_test`
+  passé par `ARR_AUDIO`, puis `pactl unload-module`.

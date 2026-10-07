@@ -194,6 +194,13 @@ d'un instrument note à note.
 | `arr play [PISTE] [VERSION]`, `arr play -w PISTE`, `arr play -o PISTE` | écoute le mix complet ou partiel, une piste, une version |
 | `arr share PISTE` | `export/PISTE/` : `partie.mp3`, `mix.mp3`, `sans.mp3` |
 
+### Machine
+
+| Commande | Effet |
+|---|---|
+| `arr models pull` | installe les modèles et leurs moteurs (réseau, une seule fois) |
+| `arr doctor` | vérifie le GPU et la présence des moteurs |
+
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).
 
