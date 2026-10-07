@@ -1,0 +1,4 @@
+# Commits purement mécaniques, à ignorer dans git blame :
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# ruff format sur tout le code
+63ecf4e332b29ec7c30e92776f604e241977f49f
