@@ -18,7 +18,15 @@ jobs:
 
       # ffmpeg : conversions, étirement, mesure de volume ; libportaudio2 : sounddevice
       - name: Paquets système
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg libportaudio2
+        timeout-minutes: 5
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # Sans cela, l'index des pages de manuel est reconstruit après l'installation
+          # et l'étape peut rester bloquée plusieurs minutes.
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg libportaudio2
 
       - uses: astral-sh/setup-uv@v5
         with:
