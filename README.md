@@ -200,6 +200,7 @@ d'un instrument note à note.
 |---|---|
 | `arr models pull` | installe les modèles et leurs moteurs (réseau, une seule fois) |
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
+| `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).

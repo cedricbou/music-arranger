@@ -35,7 +35,7 @@ from pathlib import Path
 
 import numpy as np
 
-from arr import audio
+from arr import audio, measure
 from arr.project import ProjectError
 
 CONFIG = Path(os.environ.get("ARR_AUDIO", Path.home() / ".config/arr/audio.toml"))
@@ -295,15 +295,12 @@ def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[n
 
 def measure_latency(played: np.ndarray, recorded: np.ndarray, longest: float = 0.5) -> float:
     """Retard de `recorded` sur `played`, en secondes, par corrélation (jusqu'à `longest`)."""
-    a, b = played[:, 0], recorded[:, 0]
-    if float(np.abs(b).max(initial=0.0)) < audio.db(-40):
+    if float(np.abs(recorded).max(initial=0.0)) < audio.db(-40):
         raise ProjectError(
             "rien n'est revenu sur l'entrée : relie la sortie à l'entrée de l'instrument "
             "(câble, ou retour de la table) et monte le gain"
         )
-    lags = np.arange(int(longest * audio.SR))
-    spectrum = np.fft.rfft(b, 2 * len(a)) * np.conj(np.fft.rfft(a, 2 * len(a)))
-    return float(lags[np.argmax(np.fft.irfft(spectrum)[: len(lags)])]) / audio.SR
+    return measure.delay(played, recorded, longest)
 
 
 def save_latency(seconds: float) -> None:

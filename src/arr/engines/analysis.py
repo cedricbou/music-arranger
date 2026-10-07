@@ -22,16 +22,6 @@ def beats(path: Path) -> tuple[list[float], list[float]]:
     return [float(x) for x in b], [float(x) for x in d]
 
 
-def period(beat_times: list[float]) -> float:
-    """Durée moyenne d'un temps, assez précise pour comparer deux tempos.
-
-    Les intervalles anormaux (temps manqué ou en trop) sont écartés avant de moyenner.
-    """
-    gaps = np.diff(beat_times)
-    median = np.median(gaps)
-    return float(gaps[np.abs(gaps - median) < 0.1 * median].mean())
-
-
 def tempo(beat_times: list[float]) -> float:
     return round(60.0 / float(np.median(np.diff(beat_times))), 1)
 

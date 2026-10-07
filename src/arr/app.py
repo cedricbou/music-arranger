@@ -20,7 +20,6 @@ ORIGINAL = "source/original.flac"
 ANALYSIS = "analysis.json"
 SCORE = "score/score.abc"
 LYRICS = "lyrics.txt"
-ON_BEAT = 0.035  # un temps de la prise est « calé » s'il tombe à moins de 35 ms d'un temps de l'original
 MAX_STRETCH = 0.03  # au-delà de 3 % d'écart de tempo, une prise n'est plus la même interprétation
 
 

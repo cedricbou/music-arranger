@@ -44,3 +44,35 @@ def test_doctor_fails_clearly_without_the_gpu(monkeypatch):
     monkeypatch.setattr(torch.xpu, "is_available", lambda: False)
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 1 and "xpu: indisponible" in result.output
+
+
+def test_check_reports_levels_and_anomalies(tmp_path, monkeypatch):
+    import shutil
+
+    import numpy as np
+    import pytest
+
+    from arr import audio
+    from arr.cli import add_track
+    from arr.project import Project
+    from tests.helpers import tone
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg absent")
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", tone(220, 2.0, amp=0.5))
+    add_track(p, "drums", tone(110, 2.0, amp=0.5), {"op": "split"})
+    add_track(p, "vide", np.zeros((2 * audio.SR, 2), np.float32), {"op": "record"})
+    add_track(p, "courte", tone(330, 1.0, amp=0.1), {"op": "import"})
+    add_track(p, "t001.guitar", tone(330, 2.0, amp=0.1), {"op": "split", "on_beat": 0.33, "superposable": False})
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "200")
+
+    result = runner.invoke(app, ["check"])
+    assert result.exit_code == 0, result.output
+    line = lambda name: next(row for row in result.output.splitlines() if row.startswith(name))
+    assert "2.0 s" in line("original") and "-6.0 dB" in line("original") and "LUFS" in line("original")
+    assert "silencieux" in line("vide") and "LUFS" not in line("vide")
+    assert "longueur différente de l'original (-1.00 s)" in line("courte")
+    assert "calage 33%, non superposable" in line("t001.guitar")
+    assert "silencieux" not in line("drums") and "longueur" not in line("drums")

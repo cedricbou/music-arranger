@@ -37,9 +37,9 @@ au volume (005).
    `uv run ruff format .` appliqué, `README.md` à jour si une commande change, carte du code
    ci-dessous à jour si un fichier apparaît, fiche dans `docs/decisions/` si un choix
    structurant est fait.
-4. **Un agent ne peut pas écouter.** Mesurer (durée, niveau, tempo, calage des temps, parts
-   des stems) et dire dans la PR ce qui est mesuré et ce qui reste à juger à l'oreille. Ne
-   jamais annoncer une qualité sonore.
+4. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure` (durée,
+   niveau, tempo, calage des temps, parts des stems) et dire dans la PR ce qui est mesuré
+   et ce qui reste à juger à l'oreille. Ne jamais annoncer une qualité sonore.
 5. **Ne jamais jouer sur les enceintes ni piloter Spotify pour un test.** L'audio en direct
    se teste sur une sortie PipeWire virtuelle (voir « Audio en direct »).
 6. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
@@ -69,9 +69,10 @@ src/arr/
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix, play
   commands/studio.py        capture, record, calibrate, levels
-  commands/system.py        devices, doctor, models pull
+  commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
+  measure.py                mesures sans écoute : période, calage sur une grille, retard, niveaux, parts des stems
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
@@ -79,11 +80,13 @@ src/arr/
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
   engines/_sheetsage2.py    script exécuté par l'environnement SheetSage2, n'importe pas arr
   engines/separation.py     Demucs ; MODELS liste les modèles acceptés par `split`
-  engines/analysis.py       beat_this (temps), période et tempo, tonalité approximative
+  engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py              project.py et audio.py, sur signaux synthétiques
   test_docs.py              la documentation suit le code (commandes, carte du code, fiches)
+  test_measure.py           measure.py
+  test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_studio.py, test_system.py
                             un fichier par module de commandes, via CliRunner
 ```
@@ -142,6 +145,5 @@ table**, on **joue sur la sortie par défaut** (fiche 003).
 - Lecture et enregistrement : un seul flux duplex `sounddevice` sur l'API JACK de PipeWire,
   entrée et sortie du même pilote (`studio.duplex_devices`).
 - La latence vient de `arr calibrate`, jamais de PortAudio (valeur aberrante ici).
-- **Tester sans bruit** : `pactl load-module module-null-sink sink_name=arr_test
-  sink_properties=device.description=arr_test`, un `audio.toml` qui désigne `arr_test`
-  passé par `ARR_AUDIO`, puis `pactl unload-module`.
+- **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
+  virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.

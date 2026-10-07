@@ -35,6 +35,7 @@ def analyze() -> None:
 @app.command()
 def transcribe() -> None:
     """Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections."""
+    from arr import measure
     from arr.engines import analysis, transcription
 
     p = Project.find()
@@ -48,7 +49,7 @@ def transcribe() -> None:
     # Le tempo de la partition fixe celui des prises : on le mesure sur l'audio, au BPM près,
     # car SheetSage2 peut se tromper d'une unité et les prises dériveraient.
     beats, downbeats = analysis.beats(original)
-    bpm = round(60 / analysis.period(beats))
+    bpm = round(60 / measure.period(beats))
     transcription.set_tempo(out, bpm)
     (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
     p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))

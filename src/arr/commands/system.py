@@ -4,11 +4,60 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 
 import typer
 
-from arr import engines
-from arr.app import app, models_app
+from arr import audio, engines
+from arr.app import ORIGINAL, app, models_app
+from arr.project import Project
+
+
+@app.command()
+def check() -> None:
+    """Mesure chaque fichier audio du projet : durée, niveaux, volume, anomalies.
+
+    Sert à vérifier un résultat sans l'écouter (et à remplir une PR) : une piste silencieuse,
+    saturée, de la mauvaise longueur ou mal calée se voit ici.
+    """
+    from rich.console import Console
+    from rich.table import Table
+
+    from arr import measure
+
+    p = Project.find()
+    original = p.root / ORIGINAL
+    length = len(audio.load(original)) if original.exists() else None
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    for column in ("Fichier", "Durée", "Crête", "Moyen", "Volume", "Remarques"):
+        table.add_column(
+            column, no_wrap=column != "Remarques", justify="left" if column in ("Fichier", "Remarques") else "right"
+        )
+
+    def row(label: str, path: Path, meta: dict | None = None, same_length: bool = False) -> None:
+        data = audio.load(path)
+        peak, rms = measure.level(data)
+        notes = []
+        if peak < -60:
+            notes.append("silencieux")
+        elif peak >= -0.1:
+            notes.append("sature")
+        if same_length and length is not None and len(data) != length:
+            notes.append(f"longueur différente de l'original ({(len(data) - length) / audio.SR:+.2f} s)")
+        if meta and "on_beat" in meta:
+            notes.append(f"calage {meta['on_beat']:.0%}" + ("" if meta.get("superposable") else ", non superposable"))
+        volume = f"{audio.loudness(data):.1f} LUFS" if peak >= -60 else "-"
+        table.add_row(
+            label, f"{len(data) / audio.SR:.1f} s", f"{peak:.1f} dB", f"{rms:.1f} dB", volume, " ; ".join(notes)
+        )
+
+    if original.exists():
+        row("original", original)
+    for name, t in p.tracks.items():
+        row(f"{name} {t['active']}", p.version_path(name), p.meta(name, t["active"]), same_length=True)
+    for name in p.takes():
+        row(name, p.take_path(name))
+    Console().print(table)
 
 
 @app.command()

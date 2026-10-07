@@ -8,7 +8,7 @@ import numpy as np
 import typer
 
 from arr import audio
-from arr.app import MAX_STRETCH, ON_BEAT, ORIGINAL, app
+from arr.app import MAX_STRETCH, ORIGINAL, app
 from arr.commands._common import (
     add_track,
     confirm,
@@ -25,14 +25,15 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
 
     Un écart de tempo de 0,1 % suffit à décaler la fin du morceau : on étire toujours.
     """
+    from arr import measure
     from arr.engines import analysis
 
     ref = original_beats(p)
     original = p.root / ORIGINAL
     if ref is None or not original.exists():
         return stems, {}
-    mine = analysis.beats(p.take_path(take))[0]
-    speed = analysis.period(mine) / analysis.period(ref)
+    fit = measure.beat_fit(analysis.beats(p.take_path(take))[0], ref)
+    speed, offset, on_beat = fit["speed"], fit["offset"], fit["on_beat"]
     if abs(speed - 1) > MAX_STRETCH:
         typer.secho(
             f"attention : {take} est à un autre tempo que l'original ({1 / speed:.2f} fois) ; "
@@ -41,9 +42,6 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
             err=True,
         )
         return stems, {"superposable": False}
-    ref, mine = np.array(ref), np.array(mine) / speed
-    offset = float(np.median([t - ref[np.abs(ref - t).argmin()] for t in mine]))
-    on_beat = float(np.mean([np.abs(ref - (t - offset)).min() < ON_BEAT for t in mine]))
     n = len(audio.load(original))
     aligned = {k: audio.fit(audio.shift(audio.stretch(v, speed), -offset), n) for k, v in stems.items()}
     if on_beat < 0.6:
