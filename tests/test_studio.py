@@ -215,3 +215,15 @@ def test_capture_brings_every_song_to_the_same_loudness(tmp_path, monkeypatch):
     fake_studio(monkeypatch, tone(220, 3.0, amp=0.02))
     assert runner.invoke(app, ["capture", "brut", "--raw"]).exit_code == 0
     assert level("brut") < -30  # niveau d'origine conservé
+
+
+def test_loop_block_wraps_to_the_loop_start():
+    from arr import studio
+
+    data = np.arange(10, dtype=np.float32)[:, None].repeat(2, axis=1)  # 4 de décompte, boucle sur 4..9
+    block, position = studio.loop_block(data, 0, 8, loop_from=4)
+    assert block[:, 0].tolist() == [0, 1, 2, 3, 4, 5, 6, 7] and position == 8
+    block, position = studio.loop_block(data, position, 8, loop_from=4)
+    assert block[:, 0].tolist() == [8, 9, 4, 5, 6, 7, 8, 9] and position == 10
+    block, position = studio.loop_block(data, position, 15, loop_from=4)  # un bloc plus long que la boucle
+    assert block[:, 0].tolist() == [4, 5, 6, 7, 8, 9] * 2 + [4, 5, 6] and position == 7

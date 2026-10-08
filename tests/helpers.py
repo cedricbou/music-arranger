@@ -98,7 +98,13 @@ def fake_studio(monkeypatch, heard):
     monkeypatch.setattr(studio, "capture_source", lambda: ("fake.monitor", heard.shape[1]))
     monkeypatch.setattr(studio, "sources", lambda: [("fake.monitor", heard.shape[1]), ("other", 2)])
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
-    monkeypatch.setattr(studio, "play", lambda data: calls["played"].append(data))
+    calls["looped"] = []
+
+    def play(data, loop=None):
+        calls["played"].append(data)
+        calls["looped"].append(loop)
+
+    monkeypatch.setattr(studio, "play", play)
     monkeypatch.setattr(spotify, "now_playing", lambda playing_only=False: track)
     monkeypatch.setattr(spotify, "restart", lambda tid: calls["restart"].append(tid))
     monkeypatch.setattr(spotify, "pause", lambda: calls.__setitem__("pause", calls["pause"] + 1))

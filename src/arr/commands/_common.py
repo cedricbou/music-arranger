@@ -51,6 +51,16 @@ def original_beats(p: Project) -> Optional[list[float]]:
     return json.loads(f.read_text())["beats"] if f.exists() else None
 
 
+def lead_in(backing: np.ndarray, ticks: list[tuple[float, bool]]) -> tuple[np.ndarray, int]:
+    """Ajoute les clics à `backing`, précédé du silence qu'il faut pour ceux d'avant son début.
+
+    Renvoie le playback et la longueur de ce silence, en échantillons.
+    """
+    pad = max(0.0, -min((t for t, _ in ticks), default=0.0))
+    lead = np.zeros((int(round(pad * audio.SR)), 2), np.float32)
+    return audio.add_clicks(np.concatenate([lead, backing]), [(t + pad, accent) for t, accent in ticks]), len(lead)
+
+
 def describe(meta: dict) -> str:
     """Origine d'une version, en quelques mots."""
     op = meta["op"]

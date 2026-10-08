@@ -245,19 +245,45 @@ def stereo(captured: np.ndarray, channels: list[int]) -> np.ndarray:
 # --- lecture et enregistrement synchronisés
 
 
-def play(data: np.ndarray) -> None:
-    """Joue sur la sortie configurée ; Ctrl+C arrête."""
+def loop_block(data: np.ndarray, position: int, frames: int, loop_from: int) -> tuple[np.ndarray, int]:
+    """`frames` échantillons à partir de `position`, en reprenant à `loop_from` après la fin.
+
+    Renvoie aussi la position suivante.
+    """
+    index = position + np.arange(frames)
+    over = index >= len(data)
+    index[over] = loop_from + (index[over] - len(data)) % (len(data) - loop_from)
+    return data[index], int(index[-1]) + 1
+
+
+def play(data: np.ndarray, loop: np.ndarray | None = None) -> None:
+    """Joue `data` sur la sortie configurée, puis `loop` sans fin s'il est donné ; Ctrl+C arrête."""
+    import threading
+
     import sounddevice as sd
 
     out = config()["output"]
+    device = find_device(out["device"], "output", out["channels"])
     try:
-        sd.play(
-            data,
-            audio.SR,
-            device=find_device(out["device"], "output", out["channels"]),
-            mapping=out["channels"],
-            blocking=True,
-        )
+        if loop is None:
+            sd.play(data, audio.SR, device=device, mapping=out["channels"], blocking=True)
+            return
+        if not len(loop):
+            raise ProjectError("rien à jouer en boucle")
+        # Un seul flux pour le décompte et la boucle : deux lectures à la suite perdraient le tempo.
+        whole, position = np.concatenate([data, loop]), 0
+        columns = [c - 1 for c in out["channels"]]
+
+        def callback(outdata, frames, time, status):
+            nonlocal position
+            block, position = loop_block(whole, position, frames, len(data))
+            outdata.fill(0)
+            outdata[:, columns] = block
+
+        with sd.OutputStream(
+            samplerate=audio.SR, device=device, channels=max(out["channels"]), dtype="float32", callback=callback
+        ):
+            threading.Event().wait()
     except KeyboardInterrupt:
         sd.stop()
 
