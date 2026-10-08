@@ -1,0 +1,79 @@
+"""Partition, paroles et analyse : transcribe, lyrics, analyze."""
+
+import json
+
+from arr import audio
+from arr.cli import app
+from arr.project import Project, Section
+from tests.helpers import runner, song_project, tone
+
+
+def test_transcribe_fills_song_sections_and_beats(tmp_path, monkeypatch):
+    song_project(tmp_path, monkeypatch)
+    result = runner.invoke(app, ["transcribe"])
+    assert result.exit_code == 0, result.output
+    p = Project.find()
+    assert p.song["bpm"] == 120 and p.song["key"] == "D minor" and p.song["duration"] == 4.0
+    assert [(s.name, s.start, s.end) for s in p.sections] == [
+        ("intro", 0.0, 1.0),
+        ("chorus", 1.0, 2.0),
+        ("chorus2", 2.0, 4.0),
+    ]
+    assert "Q:1/4=120\n" in (p.root / "score/score.abc").read_text()  # tempo mesuré, pas celui de SheetSage2
+    assert (
+        runner.invoke(app, ["sections", "set", "a:1-1 b:2-2"]).exit_code == 0
+    )  # les mesures viennent de la transcription
+
+
+def test_lyrics_are_sorted_into_sections(tmp_path, monkeypatch):
+    from arr import lyrics
+
+    p = song_project(tmp_path, monkeypatch)
+    synced = "[00:00.20] one\n[00:01.10] two\n[00:01.60] three\n[00:02.50] four\n[00:09.00] five\n"
+    monkeypatch.setattr(lyrics, "fetch", lambda artist, title: {"plainLyrics": "one\ntwo", "syncedLyrics": synced})
+    assert runner.invoke(app, ["lyrics", "fetch", "Artist", "Title"]).exit_code == 0
+    assert (p.root / "lyrics.txt").read_text() == "one\ntwo\n"  # pas encore de sections : paroles brutes
+    assert runner.invoke(app, ["lyrics", "fetch", "Artist", "Title"]).exit_code != 0  # n'écrase pas
+
+    runner.invoke(app, ["transcribe"])
+    assert runner.invoke(app, ["lyrics", "fetch", "Artist", "Title", "--force"]).exit_code == 0
+    assert (p.root / "lyrics.txt").read_text() == "[Intro]\none\n\n[Chorus]\ntwo\nthree\n\n[Chorus]\nfour\nfive\n"
+
+
+def test_lyrics_timestamps_are_shifted_to_the_recording():
+    from arr import lyrics
+
+    sections = [Section("intro", 0.0, 3.0), Section("verse", 3.0, 6.0)]
+    synced = "[00:01.00] one\n[00:02.00] two\n"
+    assert lyrics.tagged(synced, sections) == "[Intro]\none\ntwo\n\n[Verse]\n"
+    # la voix entre à 3,5 s dans l'enregistrement : tout glisse de 2,5 s
+    assert lyrics.tagged(synced, sections, first_sung=3.5) == "[Intro]\n\n[Verse]\none\ntwo\n"
+
+
+def test_lyrics_fetch_defaults_to_the_project_song(tmp_path, monkeypatch):
+    from arr import lyrics
+
+    p = Project.create(tmp_path / "song", "Freed From Desire")
+    monkeypatch.chdir(p.root)
+    asked = []
+    monkeypatch.setattr(lyrics, "fetch", lambda artist, title: asked.append((artist, title)) or {"plainLyrics": "la"})
+    assert runner.invoke(app, ["lyrics", "fetch"]).exit_code != 0  # pas d'artiste connu
+    p.song["artist"] = "Gala"
+    p.save()
+    assert runner.invoke(app, ["lyrics", "fetch"]).exit_code == 0
+    assert asked == [("Gala", "Freed From Desire")]
+
+
+def test_analyze_writes_tempo_key_and_beat_grid(tmp_path, monkeypatch):
+    from arr.engines import analysis
+
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", tone(440, 4.0))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setattr(analysis, "beats", lambda path: ([0.5 * i for i in range(8)], [0.0, 2.0]))
+    result = runner.invoke(app, ["analyze"])
+    assert result.exit_code == 0, result.output
+    p = Project.find()
+    assert p.song["bpm"] == 120.0 and p.song["duration"] == 4.0
+    assert p.song["key"].split()[0] == "A"  # un la à 440 Hz
+    assert json.loads((p.root / "analysis.json").read_text())["downbeats"] == [0.0, 2.0]

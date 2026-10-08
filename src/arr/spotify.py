@@ -1,4 +1,5 @@
 """Pilotage du lecteur Spotify local par D-Bus (MPRIS) : rien ne passe par Internet."""
+
 from __future__ import annotations
 
 import json

@@ -1,4 +1,5 @@
 """Paroles : téléchargement depuis LRCLIB et rangement dans les sections du morceau."""
+
 from __future__ import annotations
 
 import json

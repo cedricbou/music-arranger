@@ -1,4 +1,5 @@
 """Projet sur disque : song.toml, pistes versionnées, provenance."""
+
 from __future__ import annotations
 
 import json
@@ -30,7 +31,7 @@ class Project:
         self.data = tomllib.loads((root / SONG_FILE).read_text())
 
     @classmethod
-    def create(cls, root: Path, title: str) -> "Project":
+    def create(cls, root: Path, title: str) -> Project:
         if (root / SONG_FILE).exists():
             raise ProjectError(f"{root} contient déjà un projet")
         for d in ("source", "score", "takes", "tracks", "mix", "export"):
@@ -39,7 +40,7 @@ class Project:
         return cls(root)
 
     @classmethod
-    def find(cls, start: Path | None = None) -> "Project":
+    def find(cls, start: Path | None = None) -> Project:
         here = (start or Path.cwd()).resolve()
         for d in (here, *here.parents):
             if (d / SONG_FILE).exists():

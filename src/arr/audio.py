@@ -1,4 +1,5 @@
 """Audio en 48 kHz stéréo float32, forme (échantillons, 2)."""
+
 from __future__ import annotations
 
 import subprocess
@@ -36,18 +37,54 @@ def save_mp3(path: Path, audio: np.ndarray) -> None:
     """Pour partager avec les musiciens : MP3 lisible partout."""
     path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
-         "-codec:a", "libmp3lame", "-q:a", "2", str(path)],
-        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), check=True,
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "f32le",
+            "-ar",
+            str(SR),
+            "-ac",
+            "2",
+            "-i",
+            "-",
+            "-codec:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
+            str(path),
+        ],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(),
+        check=True,
     )
 
 
 def stretch(audio: np.ndarray, speed: float) -> np.ndarray:
     """Change la durée sans changer la hauteur : speed 1.01 raccourcit de 1 %."""
     done = subprocess.run(
-        ["ffmpeg", "-v", "error", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
-         "-filter:a", f"atempo={speed:.6f}", "-f", "f32le", "-"],
-        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), capture_output=True, check=True,
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-f",
+            "f32le",
+            "-ar",
+            str(SR),
+            "-ac",
+            "2",
+            "-i",
+            "-",
+            "-filter:a",
+            f"atempo={speed:.6f}",
+            "-f",
+            "f32le",
+            "-",
+        ],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(),
+        capture_output=True,
+        check=True,
     )
     return np.frombuffer(done.stdout, dtype=np.float32).reshape(-1, 2).copy()
 
@@ -55,9 +92,27 @@ def stretch(audio: np.ndarray, speed: float) -> np.ndarray:
 def loudness(audio: np.ndarray) -> float:
     """Volume perçu sur tout le morceau, en LUFS (EBU R128)."""
     done = subprocess.run(
-        ["ffmpeg", "-nostdin", "-hide_banner", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
-         "-af", "ebur128", "-f", "null", "-"],
-        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), capture_output=True, check=True,
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-f",
+            "f32le",
+            "-ar",
+            str(SR),
+            "-ac",
+            "2",
+            "-i",
+            "-",
+            "-af",
+            "ebur128",
+            "-f",
+            "null",
+            "-",
+        ],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(),
+        capture_output=True,
+        check=True,
     )
     summary = done.stderr.decode(errors="replace").rsplit("Integrated loudness:", 1)[-1]
     return float(summary.split("I:")[1].split("LUFS")[0])
@@ -95,7 +150,7 @@ def add_clicks(audio: np.ndarray, ticks: list[tuple[float, bool]]) -> np.ndarray
         start = int(round(time * SR))
         if 0 <= start < len(out) - n:
             blip = 0.5 * decay * np.sin(2 * np.pi * (1600 if accent else 1000) * np.arange(n) / SR)
-            out[start: start + n] += blip[:, None].astype(np.float32)
+            out[start : start + n] += blip[:, None].astype(np.float32)
     return out
 
 
@@ -121,7 +176,7 @@ def fit(audio: np.ndarray, n: int) -> np.ndarray:
 def scale_to(x: np.ndarray, ref: np.ndarray, where: np.ndarray | None = None) -> np.ndarray:
     """Met x à l'échelle pour que x[where] (tout x par défaut) ait le niveau RMS moyen de ref."""
     rms = float(np.sqrt(((x if where is None else x[where]) ** 2).mean()))
-    return x if rms < 1e-6 else x * float(np.sqrt((ref ** 2).mean())) / rms
+    return x if rms < 1e-6 else x * float(np.sqrt((ref**2).mean())) / rms
 
 
 def db(gain_db: float) -> float:

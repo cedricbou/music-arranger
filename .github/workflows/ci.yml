@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # ffmpeg : conversions, étirement, mesure de volume ; libportaudio2 : sounddevice
+      - name: Paquets système
+        timeout-minutes: 8
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # Le miroir Ubuntu des machines GitHub répond parfois très lentement : délais
+          # courts et nouvelles tentatives, plutôt qu'une étape qui reste bloquée.
+          sudo rm -f /var/lib/man-db/auto-update
+          apt_get() { sudo apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 "$@"; }
+          for attempt in 1 2 3; do
+            apt_get update && apt_get install -y --no-install-recommends ffmpeg libportaudio2 && exit 0
+            echo "tentative $attempt échouée, nouvel essai dans 15 s" && sleep 15
+          done
+          exit 1
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Dépendances
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      # Les tests n'utilisent ni GPU ni modèles : les moteurs sont remplacés par des faux.
+      - name: Tests
+        run: uv run pytest -q
