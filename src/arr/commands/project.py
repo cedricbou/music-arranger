@@ -17,7 +17,10 @@ from arr.project import Project
 
 
 @app.command()
-def init(name: str, source: Optional[Path] = typer.Option(None, "--from", help="Morceau à importer.")) -> None:
+def init(
+    name: str = typer.Argument(..., help="Nom du projet : un dossier de ce nom est créé ici."),
+    source: Optional[Path] = typer.Option(None, "--from", help="Morceau à importer."),
+) -> None:
     """Crée un projet dans le dossier NAME."""
     p = Project.create(Path(name), name)
     typer.echo(f"projet créé : {p.root}")
@@ -28,7 +31,7 @@ def init(name: str, source: Optional[Path] = typer.Option(None, "--from", help="
 
 @app.command("import")
 def import_(
-    source: Path,
+    source: Path = typer.Argument(..., help="Fichier audio à importer (tout format lu par ffmpeg)."),
     track: Optional[str] = typer.Option(None, "--as", help="Importer comme piste (stem ou idée), ex. bass."),
 ) -> None:
     """Ajoute un morceau complet, ou une piste avec --as."""

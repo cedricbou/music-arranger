@@ -5,7 +5,8 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 
 | Pour savoir | Lire |
 |---|---|
-| ce que fait l'outil, commande par commande | `README.md` |
+| ce que fait l'outil, en aperçu | `README.md` |
+| le mode d'emploi complet : parcours, configuration audio, dépannage | `docs/manual/` |
 | pourquoi il est construit ainsi, et ce qui a déjà été essayé | `docs/decisions/` |
 | ce qui reste à faire, et dans quel état sont les choses | les issues GitHub (`gh issue list`) |
 
@@ -22,28 +23,34 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 
 ## Avant de proposer une idée
 
-Générer une piste d'instrument cohérente sur une bande existante a été essayé de cinq
-façons et abandonné (`docs/decisions/001`). Ce qui marche : faire rejouer le morceau entier
-par YuE2 à partir de sa partition, puis séparer la prise en stems. Lire les fiches avant de
-toucher à la génération (001, 002), à la chaîne audio (003), au calage des prises (004) ou
-au volume (005).
+Générer une piste d'instrument qui s'accorde à une bande existante a été essayé de cinq
+façons et abandonné. Ce qui marche : faire rejouer le morceau entier par YuE2 à partir de sa
+partition, puis séparer la prise. Lire les fiches avant de toucher à la génération (001,
+002), à la chaîne audio (003), au calage des prises (004) ou au volume (005).
 
 ## Comment travailler ici
 
 1. **Une issue, une branche partie de `main`, une PR.** Jamais de commit direct sur `main`.
-2. **Langues** : interface, docstrings, commentaires et documentation en français ;
-   identifiants de code en anglais ; issues et PR en anglais.
+2. **Langues** : interface, docstrings et docs en français ; identifiants, issues et PR en anglais.
 3. **Terminé** veut dire : tests ajoutés, `uv run pytest` et `uv run ruff check .` verts,
-   `uv run ruff format .` appliqué, `README.md` à jour si une commande change, carte du code
-   ci-dessous à jour si un fichier apparaît, fiche dans `docs/decisions/` si un choix
-   structurant est fait.
-4. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure` (durée,
-   niveau, tempo, calage des temps, parts des stems) et dire dans la PR ce qui est mesuré
-   et ce qui reste à juger à l'oreille. Ne jamais annoncer une qualité sonore.
+   `uv run ruff format .` appliqué, documentation à jour (ci-dessous), carte du code à jour
+   si un fichier apparaît, fiche dans `docs/decisions/` si un choix structurant est fait.
+4. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure`, dire dans la
+   PR ce qui est mesuré et ce qui reste à juger à l'oreille. Ne jamais annoncer une qualité sonore.
 5. **Ne jamais jouer sur les enceintes ni piloter Spotify pour un test.** L'audio en direct
    se teste sur une sortie PipeWire virtuelle (voir « Audio en direct »).
 6. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
    ailleurs (`~/Musique/...`) et se lisent sans les modifier.
+
+## Tenir la documentation à jour
+
+Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue s'il dérive.
+
+- **Une commande ou une option change** : écrire sa docstring et ses `help=` (la référence
+  en sort), puis `uv run python scripts/gen_reference.py`. Ne jamais éditer `reference.md`.
+- **Un comportement change** : `parcours.md` pour l'usage, `README.md` pour l'aperçu.
+- **Un réglage d'`audio.toml` ou une variable `ARR_*` apparaît** : `audio.md`, `installation.md`.
+- **Un message d'erreur pour l'utilisateur apparaît ou change** : `depannage.md`.
 
 ## Commandes de travail
 
@@ -84,7 +91,7 @@ src/arr/
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py              project.py et audio.py, sur signaux synthétiques
-  test_docs.py              la documentation suit le code (commandes, carte du code, fiches)
+  test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
   test_measure.py           measure.py
   test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_studio.py, test_system.py
@@ -101,19 +108,16 @@ Règles de structure :
   que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
 - Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
 - Les tests remplacent moteurs et carte son par `monkeypatch` sur `engines.*`, `studio`,
-  `spotify`, `lyrics`, jamais sur `cli`. Tout ajout dans `audio.py` ou `project.py` vient
-  avec un test sur signal synthétique ; toute commande avec un test `CliRunner`.
+  `spotify`, `lyrics`. Tout ajout vient avec son test : signal synthétique ou `CliRunner`.
 - Peu de commentaires (une contrainte non évidente), pas d'abstraction sans deuxième usage.
 
 ## Modèle de projet
 
-- `song.toml` : `[song]` (title, artist, bpm, key, duration), `[[sections]]` (name, start,
-  end), `[tracks.<nom>]` (active, gain, mute).
+- `song.toml` : `[song]`, `[[sections]]` (name, start, end), `[tracks.<nom>]` (active, gain, mute).
 - **Prises** : `takes/tNNN.flac` + `.json` (model, mode close/free, style, seed).
   `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
-- **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`. Les stems de l'original s'appellent
-  `drums`, `bass`... ; ceux d'une prise `t001.drums`... et naissent muets. Passer par
-  `add_track()` (`commands/_common.py`).
+- **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
+  l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
 - **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
 - `analysis.json` (temps et mesures) vient de `transcribe` ou d'`analyze` ; `split tNNN`
   s'en sert pour étirer et caler la prise, puis mesure `on_beat` (fiche 004).
@@ -125,25 +129,22 @@ Règles de structure :
   tout import et toute sortie de modèle ; `audio.load()` refuse un autre taux.
 - Les pistes d'un projet ont toutes la longueur de l'original (`audio.fit`) ; les prises
   gardent la leur, leurs stems sont ajustés par `split`.
-- Pour ne modifier qu'une plage : `audio.splice(base, patch, start, end)`.
-- Volume : `audio.normalize()` (un seul gain vers une cible LUFS), jamais `loudnorm`.
+- Une plage seulement : `audio.splice()`. Volume : `audio.normalize()`, jamais `loudnorm`.
 
 ## Moteurs externes
 
 Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`), lancés en
-sous-processus : `audiocpp/` (binaire audio.cpp, variante **vulkan-portable**), `yue2/`
-(poids GGUF Q8), `envs/ss2/` (environnement Python de SheetSage2). Raisons et pièges :
-fiche 002. Les tests ne les lancent jamais.
+sous-processus : `audiocpp/` (variante **vulkan-portable**), `yue2/` (poids GGUF Q8),
+`envs/ss2/` (SheetSage2). Raisons et pièges : fiche 002. Les tests ne les lancent jamais.
 
 ## Audio en direct
 
-L'ordinateur de Cédric joue sur une PreSonus iTwo, dont les sorties arrivent en analogique
-sur les voies 7/8 d'une Soundcraft Signature 12 MTK : on **capture sur les entrées 7/8 de la
-table**, on **joue sur la sortie par défaut** (fiche 003).
+L'ordinateur de Cédric joue sur une PreSonus iTwo, reliée en analogique aux voies 7/8 d'une
+Soundcraft Signature 12 MTK : **capture sur les entrées 7/8 de la table**, **lecture sur la
+sortie par défaut** (fiche 003). Les autres installations sont décrites dans `docs/manual/audio.md`.
 
 - Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
-- Lecture et enregistrement : un seul flux duplex `sounddevice` sur l'API JACK de PipeWire,
-  entrée et sortie du même pilote (`studio.duplex_devices`).
-- La latence vient de `arr calibrate`, jamais de PortAudio (valeur aberrante ici).
+- Lecture et enregistrement : un flux duplex `sounddevice` sur l'API JACK de PipeWire, entrée
+  et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
 - **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
   virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.

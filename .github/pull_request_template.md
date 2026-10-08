@@ -3,6 +3,15 @@ Closes #
 ## What changes
 
 
+## Documentation
+
+<!-- Tick what applies; delete the rest. tests/test_docs.py checks most of it. -->
+
+- [ ] `uv run python scripts/gen_reference.py` after changing a command, an option or a help text
+- [ ] `docs/manual/` updated (parcours, audio, depannage) for a behaviour, setting or error message change
+- [ ] `README.md` overview still accurate
+- [ ] no user-facing change
+
 ## Testing
 
 - `uv run pytest`: 

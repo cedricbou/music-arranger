@@ -226,7 +226,10 @@ def rm(
 
 
 @app.command()
-def pick(track: str, version: str) -> None:
+def pick(
+    track: str = typer.Argument(..., help="Piste dont on change la version active."),
+    version: str = typer.Argument(..., help="Version à rendre active (ex. v002) ; arr tracks PISTE les liste."),
+) -> None:
     """Choisit la version active d'une piste."""
     p = Project.find()
     p.version_path(track, version)
@@ -237,7 +240,8 @@ def pick(track: str, version: str) -> None:
 # Sans ignore_unknown_options, « arr gain bass -5 » prend -5 pour une option.
 @app.command(context_settings={"ignore_unknown_options": True})
 def gain(
-    track: str, db: float = typer.Argument(..., help="Gain en dB, par rapport à la piste telle quelle : -5, 0, +3.")
+    track: str = typer.Argument(..., help="Piste à régler."),
+    db: float = typer.Argument(..., help="Gain en dB, par rapport à la piste telle quelle : -5, 0, +3."),
 ) -> None:
     """Règle le volume d'une piste dans le mix, en dB."""
     p = Project.find()
@@ -248,7 +252,10 @@ def gain(
 
 
 @app.command()
-def mute(track: str, off: bool = typer.Option(False, "--off", help="Réactive la piste.")) -> None:
+def mute(
+    track: str = typer.Argument(..., help="Piste à sortir du mix."),
+    off: bool = typer.Option(False, "--off", help="Réactive la piste."),
+) -> None:
     """Sort une piste du mix sans la supprimer."""
     p = Project.find()
     p.version_path(track)
