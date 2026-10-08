@@ -52,6 +52,29 @@ def stretch(audio: np.ndarray, speed: float) -> np.ndarray:
     return np.frombuffer(done.stdout, dtype=np.float32).reshape(-1, 2).copy()
 
 
+def loudness(audio: np.ndarray) -> float:
+    """Volume perçu sur tout le morceau, en LUFS (EBU R128)."""
+    done = subprocess.run(
+        ["ffmpeg", "-nostdin", "-hide_banner", "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "-",
+         "-af", "ebur128", "-f", "null", "-"],
+        input=np.ascontiguousarray(audio, dtype=np.float32).tobytes(), capture_output=True, check=True,
+    )
+    summary = done.stderr.decode(errors="replace").rsplit("Integrated loudness:", 1)[-1]
+    return float(summary.split("I:")[1].split("LUFS")[0])
+
+
+def normalize(audio: np.ndarray, target: float, ceiling_db: float = -1.0) -> tuple[np.ndarray, float]:
+    """Amène l'audio à `target` LUFS par un seul gain global ; renvoie aussi ce gain, en dB.
+
+    Le gain est réduit si les crêtes dépasseraient `ceiling_db` : la dynamique n'est pas touchée.
+    """
+    peak = float(np.abs(audio).max(initial=0.0))
+    if peak < db(-60):
+        return audio, 0.0
+    gain = min(target - loudness(audio), ceiling_db - 20 * float(np.log10(peak)))
+    return audio * db(gain), gain
+
+
 def count_in(beats: list[float], downbeats: list[float], bars: int) -> list[tuple[float, bool]]:
     """Clics de décompte menant au premier temps fort : (instant, accentué).
 

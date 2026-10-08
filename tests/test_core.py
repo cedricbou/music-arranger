@@ -123,3 +123,24 @@ def test_add_clicks_only_touches_click_positions():
     out = audio.add_clicks(silent, [(0.5, True), (-0.2, False), (5.0, False)])
     assert not out[: int(0.49 * audio.SR)].any() and out[int(0.5 * audio.SR): int(0.53 * audio.SR)].any()
     assert not out[int(0.6 * audio.SR):].any() and len(out) == len(silent)
+
+
+def test_normalize_reaches_the_target_without_clipping():
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg absent")
+    quiet, loud = tone(440, 4.0, amp=0.02), tone(440, 4.0, amp=0.6)
+    a, gain_a = audio.normalize(quiet, -16.0)
+    b, gain_b = audio.normalize(loud, -16.0)
+    assert gain_a > 15 and gain_b < 0
+    assert abs(audio.loudness(a) - -16.0) < 0.5 and abs(audio.loudness(b) - -16.0) < 0.5
+    assert np.allclose(a / np.abs(a).max(), quiet / np.abs(quiet).max(), atol=1e-4)  # un seul gain, forme intacte
+
+    # un son très dynamique : le plafond de crête limite le gain
+    spiky = tone(440, 4.0, amp=0.01)
+    spiky[1000:1010] = 0.9
+    out, _ = audio.normalize(spiky, -16.0)
+    assert np.abs(out).max() <= audio.db(-1.0) + 1e-4
+    silent, gain = audio.normalize(np.zeros_like(quiet), -16.0)
+    assert gain == 0.0 and not silent.any()
