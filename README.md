@@ -75,7 +75,7 @@ arr split
 arr play --without bass            # le morceau sans la basse, pour jouer par-dessus
 arr play -o drums -o vocals        # seulement batterie et voix
 arr play -s chorus --loop --count-in 1   # le refrain en boucle, après une mesure de décompte
-arr play -s verse -s chorus -w bass      # couplet puis refrain, sans la basse
+arr play -s verse,chorus -w bass         # couplet puis refrain, sans la basse
 
 arr calibrate                      # une fois : mesure la latence de ton installation
 arr record bass                    # décompte d'une mesure, puis tu joues sur le playback
@@ -194,7 +194,7 @@ d'un instrument note à note.
 | `arr pick PISTE VERSION`, `arr gain PISTE DB`, `arr mute PISTE [--off]` | réglages du mix |
 | `arr mix [-w PISTE] [-o PISTE]` | écrit `mix/mix.flac` |
 | `arr play [PISTE] [VERSION]`, `arr play -w PISTE`, `arr play -o PISTE` | écoute le mix complet ou partiel, une piste, une version |
-| `arr play -s SECTION... [--loop] [--count-in N]` | ne joue que ces sections, enchaînées dans l'ordre donné ; `--loop` rejoue jusqu'à Ctrl+C ; `--count-in` clique N mesures avant de commencer, une seule fois |
+| `arr play -s SECTION[,SECTION...] [--loop] [--count-in N]` | ne joue que ces sections, enchaînées dans l'ordre donné (`-s a,b` ou `-s a -s b`) ; `--loop` rejoue jusqu'à Ctrl+C ; `--count-in` clique N mesures avant de commencer, une seule fois |
 | `arr share PISTE` | `export/PISTE/` : `partie.mp3`, `mix.mp3`, `sans.mp3` |
 
 ### Machine

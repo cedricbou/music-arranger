@@ -139,12 +139,16 @@ def test_play_sections_in_series_looped_after_a_count_in(tmp_path, monkeypatch):
     assert np.array_equal(played[2 * sr :], looped)
     assert np.allclose(looped[inside], song[2 * sr : 4 * sr][inside], atol=1e-3)
 
+    # même enchaînement écrit avec des virgules
+    assert runner.invoke(app, ["play", "guitar", "--section", "outro,verse"]).exit_code == 0
+    assert np.array_equal(calls["played"][3], calls["played"][1])
+
     assert runner.invoke(app, ["play", "-s", "nope"]).exit_code != 0
     # une prise brute n'est pas calée sur l'original
     result = runner.invoke(app, ["play", "t001", "-s", "chorus"])
     assert result.exit_code != 0 and "arr split t001" in str(result.exception)
     assert runner.invoke(app, ["play", "t001", "--loop"]).exit_code == 0
-    assert len(calls["played"]) == 4
+    assert len(calls["played"]) == 5
 
 
 def test_play_count_in_without_a_known_tempo_only_warns(tmp_path, monkeypatch):

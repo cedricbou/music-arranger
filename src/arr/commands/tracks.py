@@ -275,7 +275,10 @@ def play(
     ),
     only: list[str] = typer.Option([], "--only", "-o", help="Mix de ces seules pistes."),
     sections: list[str] = typer.Option(
-        [], "--section", "-s", help="Section à jouer ; répétée, les sections s'enchaînent dans l'ordre donné."
+        [],
+        "--section",
+        "-s",
+        help="Sections à jouer, enchaînées dans l'ordre donné : -s verse,chorus ou -s verse -s chorus.",
     ),
     loop: bool = typer.Option(False, "--loop", "-l", help="Rejoue en boucle jusqu'à Ctrl+C."),
     bars: int = typer.Option(0, "--count-in", help="Mesures de décompte avant de commencer (pas à chaque boucle)."),
@@ -287,6 +290,7 @@ def play(
     from arr import studio
 
     p = Project.find()
+    sections = [name.strip() for given in sections for name in given.split(",") if name.strip()]
     ranges = [(s.start, s.end) for s in map(p.section, sections)]
     if name is None:
         path = render_mix(p, tuple(without), tuple(only))
