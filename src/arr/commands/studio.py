@@ -14,6 +14,7 @@ from arr import audio
 from arr.app import ANALYSIS, ORIGINAL, app
 from arr.commands._common import (
     add_track,
+    lead_in,
     slug,
 )
 from arr.project import Project, ProjectError
@@ -122,12 +123,10 @@ def record(
             ticks += [(b, b in grid["downbeats"]) for b in grid["beats"]]
     elif bars or click:
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
-    pad = max(0.0, -min((t for t, _ in ticks), default=0.0))
-    lead = np.zeros((int(round(pad * audio.SR)), 2), np.float32)
-    playback = audio.add_clicks(np.concatenate([lead, backing]), [(t + pad, accent) for t, accent in ticks])
+    playback, lead = lead_in(backing, ticks)
     typer.echo(f"playback : {', '.join(names) or 'morceau original'} ; joue après le décompte (Ctrl+C pour arrêter)")
     recorded, latency = studio.play_and_record(playback, channel)
-    take = audio.fit(recorded[len(lead) + int(round(latency * audio.SR)) :], len(backing))
+    take = audio.fit(recorded[lead + int(round(latency * audio.SR)) :], len(backing))
     if float(np.abs(take).max()) < audio.db(-60):
         raise ProjectError(
             "rien n'a été enregistré sur ce canal : la prise n'est pas gardée "

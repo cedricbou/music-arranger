@@ -154,6 +154,29 @@ def add_clicks(audio: np.ndarray, ticks: list[tuple[float, bool]]) -> np.ndarray
     return out
 
 
+def cut(audio: np.ndarray, ranges: list[tuple[float, float]], fade: float = 0.005) -> np.ndarray:
+    """Met bout à bout des plages (début, fin) en secondes, avec un court fondu à chaque coupe.
+
+    Deux plages qui se suivent dans le morceau sont réunies : pas de fondu entre elles.
+    """
+    merged: list[list[float]] = []
+    for start, end in ranges:
+        if merged and abs(merged[-1][1] - start) < 1e-6:
+            merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    n = int(fade * SR)
+    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)[:, None]
+    parts = []
+    for start, end in merged:
+        part = audio[max(0, int(round(start * SR))) : int(round(end * SR))].copy()
+        if len(part) >= 2 * n:
+            part[:n] *= ramp
+            part[-n:] *= ramp[::-1]
+        parts.append(part)
+    return np.concatenate(parts) if parts else audio[:0]
+
+
 def shift(audio: np.ndarray, seconds: float) -> np.ndarray:
     """Retarde (seconds > 0) ou avance l'audio, à longueur constante."""
     k = int(round(seconds * SR))

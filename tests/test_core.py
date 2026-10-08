@@ -122,6 +122,20 @@ def test_add_clicks_only_touches_click_positions():
     assert not out[int(0.6 * audio.SR) :].any() and len(out) == len(silent)
 
 
+def test_cut_joins_ranges_in_the_given_order_with_short_fades():
+    song = np.concatenate([tone(110, 1.0), tone(220, 1.0), tone(440, 1.0)])
+    out = audio.cut(song, [(2.0, 3.0), (0.0, 1.0)])
+    assert len(out) == 2 * audio.SR
+    middle = slice(audio.SR // 10, -audio.SR // 10)
+    assert np.array_equal(out[: audio.SR][middle], song[2 * audio.SR :][middle])
+    assert np.array_equal(out[audio.SR :][middle], song[: audio.SR][middle])
+    # chaque coupe part de zéro et y revient : pas de claquement au raccord ni au retour de boucle
+    assert not out[0].any() and not out[-1].any() and not out[audio.SR - 1].any() and not out[audio.SR].any()
+    # deux plages voisines dans le morceau restent intactes au raccord
+    assert np.array_equal(audio.cut(song, [(0.5, 1.0), (1.0, 1.5)])[1000:-1000], song[audio.SR // 2 :][1000:47000])
+    assert len(audio.cut(song, [(5.0, 6.0)])) == 0
+
+
 def test_normalize_reaches_the_target_without_clipping():
     import shutil
 
