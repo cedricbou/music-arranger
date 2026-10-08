@@ -7,7 +7,7 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 |---|---|
 | ce que fait l'outil, commande par commande | `README.md` |
 | pourquoi il est construit ainsi, et ce qui a déjà été essayé | `docs/decisions/` |
-| ce qui reste à faire | les issues GitHub (`gh issue list`) |
+| ce qui reste à faire, et dans quel état sont les choses | les issues GitHub (`gh issue list`) |
 
 ## Contraintes non négociables
 

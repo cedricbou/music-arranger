@@ -18,15 +18,19 @@ jobs:
 
       # ffmpeg : conversions, étirement, mesure de volume ; libportaudio2 : sounddevice
       - name: Paquets système
-        timeout-minutes: 5
+        timeout-minutes: 8
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          # Sans cela, l'index des pages de manuel est reconstruit après l'installation
-          # et l'étape peut rester bloquée plusieurs minutes.
+          # Le miroir Ubuntu des machines GitHub répond parfois très lentement : délais
+          # courts et nouvelles tentatives, plutôt qu'une étape qui reste bloquée.
           sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends ffmpeg libportaudio2
+          apt_get() { sudo apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 "$@"; }
+          for attempt in 1 2 3; do
+            apt_get update && apt_get install -y --no-install-recommends ffmpeg libportaudio2 && exit 0
+            echo "tentative $attempt échouée, nouvel essai dans 15 s" && sleep 15
+          done
+          exit 1
 
       - uses: astral-sh/setup-uv@v5
         with:
