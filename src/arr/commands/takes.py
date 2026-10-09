@@ -71,7 +71,7 @@ def takes() -> None:
 
 @app.command()
 def graft(
-    take: str,
+    take: str = typer.Argument(..., help="Prise dont viennent les stems (ex. t001), déjà séparée par arr split."),
     stems: list[str] = typer.Argument(..., help="Stems de la prise à faire entendre : guitar, drums..."),
     replace: bool = typer.Option(False, "--replace", help="Coupe les mêmes stems de l'original."),
 ) -> None:
@@ -92,7 +92,7 @@ def graft(
 
 
 @app.command()
-def share(track: str) -> None:
+def share(track: str = typer.Argument(..., help="Piste du musicien (ex. bass, ou t001.guitar).")) -> None:
     """Prépare un dossier pour le musicien : sa partie seule, le mix, et le mix sans lui."""
     p = Project.find()
     part = audio.load(p.version_path(track))

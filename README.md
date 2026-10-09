@@ -8,6 +8,10 @@ Tout tourne sur la machine (Intel Arc). Rien de tes morceaux ne sort : seuls `ar
 (téléchargement des modèles) et `arr lyrics fetch` (recherche des paroles par titre) utilisent
 le réseau.
 
+Ce fichier est un aperçu. Le **[manuel](docs/manual/README.md)** est la documentation
+complète : installation, notions, parcours, configuration audio selon le matériel, référence
+de chaque commande et dépannage.
+
 ## L'idée
 
 Les modèles actuels savent très bien générer un **morceau complet**, et très mal ajouter une
