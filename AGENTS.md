@@ -74,7 +74,8 @@ src/arr/
   commands/project.py       init, import
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
-  commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix, play
+  commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
+  commands/play.py          play, et son écran : ce qui joue, la section en cours, le calage appliqué
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
@@ -91,11 +92,10 @@ src/arr/
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
-  test_core.py              project.py et audio.py, sur signaux synthétiques
+  test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
   test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
-  test_measure.py           measure.py
   test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
-  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_align.py, test_studio.py, test_system.py
+  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py, test_studio.py, test_system.py
                             un fichier par module de commandes, via CliRunner
 ```
 
