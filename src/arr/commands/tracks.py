@@ -1,21 +1,19 @@
-"""Pistes et mix : séparer, fusionner, lister, retirer, régler, écouter."""
+"""Pistes et mix : séparer, fusionner, lister, retirer, régler."""
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 
 import numpy as np
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, MAX_STRETCH, ORIGINAL, app
+from arr.app import MAX_STRETCH, ORIGINAL, app
 from arr.commands._common import (
     add_track,
     confirm,
     created,
     describe,
-    lead_in,
     load_track,
     original_beats,
     render_mix,
@@ -269,60 +267,3 @@ def mix(
     """Mixe les versions actives dans mix/mix.flac."""
     p = Project.find()
     typer.echo(render_mix(p, tuple(without), tuple(only)))
-
-
-@app.command()
-def play(
-    name: Optional[str] = typer.Argument(None, help="Piste ou prise (ex. t001) ; sinon le mix."),
-    version: Optional[str] = typer.Argument(None, help="Version d'une piste ; sinon la version active."),
-    without: list[str] = typer.Option(
-        [], "--without", "-w", help="Mix sans cette piste (ex. -w bass pour jouer par-dessus)."
-    ),
-    only: list[str] = typer.Option([], "--only", "-o", help="Mix de ces seules pistes."),
-    sections: list[str] = typer.Option(
-        [],
-        "--section",
-        "-s",
-        help="Sections à jouer, enchaînées dans l'ordre donné : -s verse,chorus ou -s verse -s chorus.",
-    ),
-    loop: bool = typer.Option(False, "--loop", "-l", help="Rejoue en boucle jusqu'à Ctrl+C."),
-    bars: int = typer.Option(0, "--count-in", help="Mesures de décompte avant de commencer (pas à chaque boucle)."),
-) -> None:
-    """Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
-
-    Ctrl+C arrête.
-    """
-    from arr import studio
-
-    p = Project.find()
-    sections = [name.strip() for given in sections for name in given.split(",") if name.strip()]
-    ranges = [(s.start, s.end) for s in map(p.section, sections)]
-    if name is None:
-        path = render_mix(p, tuple(without), tuple(only))
-    elif name in p.takes():
-        if sections or bars:
-            raise ProjectError(
-                f"une prise brute n'est pas calée sur l'original : ni section ni décompte "
-                f"(arr split {name}, puis arr play {name}.<stem>)"
-            )
-        path = p.take_path(name)
-    else:
-        path = None
-    body = audio.load(path) if path else load_track(p, name, version)
-    if ranges:
-        body = audio.cut(body, ranges)
-        if not len(body):
-            raise ProjectError("rien à jouer : ces sections sont hors du morceau")
-    ticks: list[tuple[float, bool]] = []
-    if bars:
-        start = ranges[0][0] if ranges else 0.0
-        grid = json.loads(f.read_text()) if (f := p.root / ANALYSIS).exists() else {"beats": [], "downbeats": []}
-        beats, strong = ([t - start for t in grid[k] if t >= start - 0.05] for k in ("beats", "downbeats"))
-        if len(beats) > 1:
-            ticks = audio.count_in(beats, strong, bars)
-        else:
-            typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
-    playback, _ = lead_in(body, ticks)
-    what = " → ".join(sections) or "morceau entier"
-    typer.echo(f"{what}  ({len(body) / audio.SR:.1f} s){', en boucle' if loop else ''} ; Ctrl+C arrête")
-    studio.play(playback, loop=body if loop else None)

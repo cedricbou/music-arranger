@@ -7,7 +7,8 @@ from arr import audio
 from arr.cli import add_track
 from arr.project import Project
 
-runner = CliRunner()
+# Une couleur forcée par le terminal de celui qui lance les tests fausserait les sorties comparées.
+runner = CliRunner(env={"FORCE_COLOR": "", "NO_COLOR": "1"})
 
 
 def tone(freq: float, seconds: float, amp: float = 0.5) -> np.ndarray:
@@ -100,7 +101,7 @@ def fake_studio(monkeypatch, heard):
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
     calls["looped"] = []
 
-    def play(data, loop=None):
+    def play(data, loop=None, watch=None):
         calls["played"].append(data)
         calls["looped"].append(loop)
 

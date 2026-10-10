@@ -273,7 +273,7 @@ arr play [OPTIONS] [NAME] [VERSION]
 
 Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
-Ctrl+C arrête.
+Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en cours et le calage qui s'y applique. Ctrl+C arrête.
 
 | Argument | Défaut | Rôle |
 |---|---|---|

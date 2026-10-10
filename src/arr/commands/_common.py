@@ -28,8 +28,13 @@ def load_track(p: Project, track: str, version: Optional[str] = None) -> np.ndar
     return audio.nudged(audio.load(p.version_path(track, version)), base, ranges)
 
 
+def mix_tracks(p: Project, without: tuple[str, ...] = (), only: tuple[str, ...] = ()) -> list[str]:
+    """Les pistes qui entrent dans le mix : `only` l'emporte sur les sourdines."""
+    return [t for t in p.tracks if t not in without and (t in only if only else not p.tracks[t].get("mute"))]
+
+
 def render_mix(p: Project, without: tuple[str, ...] = (), only: tuple[str, ...] = ()) -> Path:
-    names = [t for t in p.tracks if t not in without and (t in only if only else not p.tracks[t].get("mute"))]
+    names = mix_tracks(p, without, only)
     if not names:
         raise ProjectError("aucune piste à mixer")
     parts = [(load_track(p, t), p.tracks[t].get("gain", 0.0)) for t in names]

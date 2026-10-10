@@ -256,36 +256,52 @@ def loop_block(data: np.ndarray, position: int, frames: int, loop_from: int) -> 
     return data[index], int(index[-1]) + 1
 
 
-def play(data: np.ndarray, loop: np.ndarray | None = None) -> None:
-    """Joue `data` sur la sortie configurée, puis `loop` sans fin s'il est donné ; Ctrl+C arrête."""
+def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
+    """Joue `data` sur la sortie configurée, puis `loop` sans fin s'il est donné ; Ctrl+C arrête.
+
+    `watch(secondes)` est appelé dix fois par seconde avec la position de lecture, comptée
+    depuis le début de `data` ; en boucle elle revient à la fin de `data` à chaque tour.
+    """
     import threading
 
     import sounddevice as sd
 
     out = config()["output"]
     device = find_device(out["device"], "output", out["channels"])
-    try:
-        if loop is None:
-            sd.play(data, audio.SR, device=device, mapping=out["channels"], blocking=True)
-            return
-        if not len(loop):
-            raise ProjectError("rien à jouer en boucle")
-        # Un seul flux pour le décompte et la boucle : deux lectures à la suite perdraient le tempo.
-        whole, position = np.concatenate([data, loop]), 0
-        columns = [c - 1 for c in out["channels"]]
+    if loop is not None and not len(loop):
+        raise ProjectError("rien à jouer en boucle")
+    # Un seul flux pour le décompte et la boucle : deux lectures à la suite perdraient le tempo.
+    whole = data if loop is None else np.concatenate([data, loop])
+    columns = [c - 1 for c in out["channels"]]
+    position, done = 0, threading.Event()
 
-        def callback(outdata, frames, time, status):
-            nonlocal position
+    def callback(outdata, frames, time, status):
+        nonlocal position
+        outdata.fill(0)
+        if loop is None:
+            block = whole[position : position + frames]
+            outdata[: len(block), columns] = block
+            position += len(block)
+            if len(block) < frames:
+                raise sd.CallbackStop
+        else:
             block, position = loop_block(whole, position, frames, len(data))
-            outdata.fill(0)
             outdata[:, columns] = block
 
+    try:
         with sd.OutputStream(
-            samplerate=audio.SR, device=device, channels=max(out["channels"]), dtype="float32", callback=callback
+            samplerate=audio.SR,
+            device=device,
+            channels=max(out["channels"]),
+            dtype="float32",
+            callback=callback,
+            finished_callback=done.set,
         ):
-            threading.Event().wait()
+            while not done.wait(0.1):
+                if watch:
+                    watch(position / audio.SR)
     except KeyboardInterrupt:
-        sd.stop()
+        pass
 
 
 def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[np.ndarray, float]:
