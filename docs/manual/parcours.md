@@ -16,6 +16,9 @@ arr tracks                    # ce qui joue dans le mix
 arr play --without bass       # le morceau sans la basse
 ```
 
+- `arr play` annonce ce qu'il joue avant de commencer : le mix (chaque piste avec sa version,
+  son gain et son calage, et les pistes laissées de côté), une piste seule, ou une prise
+  telle que rendue. Une piste écoutée seule joue sans son gain de mix ; une prise, sans calage.
 - Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel
   lecteur. L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence.
 - Avec un fichier que vous avez déjà : `arr init mon-projet --from morceau.flac`.

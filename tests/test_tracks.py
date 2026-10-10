@@ -101,6 +101,36 @@ def test_play_partial_mix(tmp_path, monkeypatch):
     assert np.allclose(calls["played"][2], total(330), atol=1e-3)
 
 
+def test_play_says_what_it_plays_and_what_is_applied(tmp_path, monkeypatch):
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    for name, f in (("drums", 110), ("bass", 55), ("guitar", 330), ("piano", 440)):
+        add_track(p, name, tone(f, 0.5, amp=0.1), {"op": "split"})
+    p.tracks["bass"]["gain"] = -5.0
+    p.tracks["piano"]["mute"] = True
+    p.set_nudge("guitar", "track", 40.0)
+    p.save()
+    _, path = p.new_take({"model": "yue2", "mode": "close", "style": "funk", "seed": 1})
+    audio.save(path, tone(220, 0.5, amp=0.1))
+    monkeypatch.chdir(p.root)
+    line = lambda out, start: next(row for row in out.splitlines() if row.strip().startswith(start))
+
+    out = runner.invoke(app, ["play", "-w", "drums"]).output
+    assert "mix de 2 piste(s)" in out
+    assert "v001" in line(out, "bass") and "gain -5.0 dB" in line(out, "bass")
+    assert "calage +40 ms" in line(out, "guitar") and "gain" not in line(out, "guitar")
+    assert "drums (écartée)" in line(out, "hors du mix") and "piano (muette)" in line(out, "hors du mix")
+
+    out = runner.invoke(app, ["play", "drums"]).output
+    assert "piste drums v001, seule : telle quelle" in out
+
+    out = runner.invoke(app, ["play", "bass"]).output
+    assert "piste bass v001, seule" in out and "(-5.0 dB) n'est pas appliqué" in out
+
+    out = runner.invoke(app, ["play", "t001"]).output
+    assert "prise t001, telle que rendue (fidèle)" in out and "ni calage ni gain" in out
+
+
 def test_play_sections_in_series_looped_after_a_count_in(tmp_path, monkeypatch):
     calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
     p = Project.create(tmp_path / "song", "song")

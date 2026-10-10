@@ -17,6 +17,7 @@ from arr.commands._common import (
     describe,
     lead_in,
     load_track,
+    mix_tracks,
     original_beats,
     render_mix,
 )
@@ -271,6 +272,46 @@ def mix(
     typer.echo(render_mix(p, tuple(without), tuple(only)))
 
 
+def treatments(p: Project, track: str, with_gain: bool = True) -> str:
+    """Ce qui est appliqué à une piste à l'écoute : gain du mix et calage."""
+    from arr.commands.align import amount, beat_period
+
+    parts = []
+    gain = p.tracks[track].get("gain", 0.0)
+    if gain and with_gain:
+        parts.append(f"gain {gain:+.1f} dB")
+    rules = p.nudges(track)
+    whole = [n["ms"] for n in rules if n["scope"] == "track"]
+    if whole:
+        parts.append(f"calage {amount(whole[0], beat_period(p))}")
+    if len(rules) > len(whole):
+        parts.append(f"{len(rules) - len(whole)} section(s) recalée(s)")
+    return ", ".join(parts) or "telle quelle"
+
+
+def announce(p: Project, name: Optional[str], version: Optional[str], without: tuple, only: tuple) -> None:
+    """Dit ce que `play` va jouer et avec quels traitements."""
+    if name is None:
+        names = mix_tracks(p, without, only)
+        width = max(map(len, names), default=0)
+        typer.echo(f"mix de {len(names)} piste(s) :")
+        for t in names:
+            typer.echo(f"  {t:<{width}}  {p.tracks[t]['active']}  {treatments(p, t)}")
+        out = [f"{t} ({'écartée' if t in without or only else 'muette'})" for t in p.tracks if t not in names]
+        if out:
+            typer.echo(f"hors du mix : {', '.join(out)}")
+    elif name in p.takes():
+        m = p.take_meta(name)
+        typer.echo(f"prise {name}, telle que rendue ({'libre' if m.get('mode') == 'free' else 'fidèle'}) :")
+        typer.echo(f"  ni calage ni gain ; ses stems calés se jouent un par un (arr play {name}.<stem>)")
+    else:
+        typer.echo(
+            f"piste {name} {version or p.tracks[name]['active']}, seule : {treatments(p, name, with_gain=False)}"
+        )
+        if gain := p.tracks[name].get("gain", 0.0):
+            typer.echo(f"  son gain dans le mix ({gain:+.1f} dB) n'est pas appliqué à l'écoute seule")
+
+
 @app.command()
 def play(
     name: Optional[str] = typer.Argument(None, help="Piste ou prise (ex. t001) ; sinon le mix."),
@@ -290,6 +331,7 @@ def play(
 ) -> None:
     """Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
+    Annonce d'abord ce qui est joué : les pistes, leur version, leur gain et leur calage.
     Ctrl+C arrête.
     """
     from arr import studio
@@ -309,6 +351,7 @@ def play(
     else:
         path = None
     body = audio.load(path) if path else load_track(p, name, version)
+    announce(p, name, version, tuple(without), tuple(only))
     if ranges:
         body = audio.cut(body, ranges)
         if not len(body):
