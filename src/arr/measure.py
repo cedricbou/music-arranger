@@ -59,3 +59,130 @@ def shares(stems: dict[str, np.ndarray]) -> dict[str, float]:
     energy = {name: float((data**2).sum()) for name, data in stems.items()}
     total = sum(energy.values()) or 1.0
     return {name: value / total for name, value in energy.items()}
+
+
+# --- carte de calage : où un signal se place-t-il par rapport à une référence ?
+
+_RATE = 12000  # les mesures se font à 12 kHz : assez pour l'harmonie et les attaques
+_ONSET_HOP = 0.01  # secondes
+_CHROMA_HOP = 0.05
+
+
+def _mono(data: np.ndarray) -> np.ndarray:
+    return data.mean(axis=1)[:: audio.SR // _RATE]
+
+
+def _onsets(x: np.ndarray) -> np.ndarray:
+    """Force des attaques, une valeur toutes les 10 ms."""
+    hop = int(_ONSET_HOP * _RATE)
+    n = len(x) // hop * hop
+    energy = np.log1p(50 * np.sqrt((x[:n].reshape(-1, hop) ** 2).mean(axis=1)))
+    return np.maximum(np.diff(energy, prepend=energy[:1]), 0)
+
+
+def _chroma(x: np.ndarray, size: int = 4096) -> np.ndarray:
+    """Répartition de l'énergie sur les douze notes, une ligne toutes les 50 ms."""
+    hop = int(_CHROMA_HOP * _RATE)
+    frames = np.lib.stride_tricks.sliding_window_view(np.pad(x, (size // 2, size // 2)), size)[::hop]
+    spectrum = np.abs(np.fft.rfft(frames * np.hanning(size), axis=1))
+    freqs = np.fft.rfftfreq(size, 1 / _RATE)
+    keep = (freqs > 60) & (freqs < 2000)
+    note = np.round(12 * np.log2(freqs[keep] / 440) + 69).astype(int) % 12
+    chroma = np.log1p(10 * np.stack([spectrum[:, keep][:, note == i].sum(axis=1) for i in range(12)], axis=1))
+    chroma -= chroma.mean(axis=1, keepdims=True)
+    return chroma / (np.linalg.norm(chroma, axis=1, keepdims=True) + 1e-9)
+
+
+def _scores(a: np.ndarray, b: np.ndarray, center: float, half: float, lags: np.ndarray, hop: float):
+    """Ressemblance de `b` à `a` autour de `center`, pour chaque décalage de `lags` (en pas de `hop`)."""
+    i0, i1 = int((center - half) / hop), int((center + half) / hop)
+    if i0 < 0 or i1 > len(a):
+        return None
+    window, scores = a[i0:i1], []
+    for lag in lags:
+        j0, j1 = i0 + lag, i1 + lag
+        if j0 < 0 or j1 > len(b):
+            scores.append(-1.0)
+        elif a.ndim == 2:  # chroma : lignes déjà normées
+            scores.append(float((window * b[j0:j1]).sum() / len(window)))
+        else:
+            x, y = window - window.mean(), b[j0:j1] - b[j0:j1].mean()
+            scores.append(float((x * y).sum() / (np.linalg.norm(x) * np.linalg.norm(y) + 1e-9)))
+    return np.array(scores)
+
+
+def time_map(reference: np.ndarray, signal: np.ndarray, step: float = 4.0, span: float = 3.0) -> list[dict]:
+    """Décalage de `signal` par rapport à `reference`, fenêtre par fenêtre.
+
+    Les attaques proposent des placements précis à 10 ms, mais elles se ressemblent d'un
+    temps à l'autre ; l'harmonie, qui ne se répète pas d'un temps à l'autre, choisit entre
+    eux. Une comparaison des seuls temps serait aveugle à un décalage d'un temps entier.
+
+    Chaque entrée : `time` (centre de la fenêtre), `lag` (secondes, > 0 si le signal est en
+    retard), `confidence` (corrélation des attaques) et `harmony` (corrélation de l'harmonie).
+    """
+    # Une marge de silence aux deux bouts : sans elle, la première fenêtre ne peut pas
+    # essayer un décalage négatif (ni la dernière un positif), et sa mesure est fausse.
+    margin = np.zeros(int(span * _RATE), dtype=np.float32)
+    ref = np.concatenate([margin, _mono(reference), margin])
+    sig = np.concatenate([margin, _mono(signal), margin])
+    ref_chroma, sig_chroma = _chroma(ref), _chroma(sig)
+    ref_onsets, sig_onsets = _onsets(ref), _onsets(sig)
+    coarse = np.arange(-int(span / _CHROMA_HOP), int(span / _CHROMA_HOP) + 1)
+    fine = np.arange(-int(span / _ONSET_HOP), int(span / _ONSET_HOP) + 1)
+    out = []
+    for center in np.arange(span + 8.0, len(ref) / _RATE - span - 8.0, step):
+        harmony = _scores(ref_chroma, sig_chroma, center, 8.0, coarse, _CHROMA_HOP)
+        attacks = _scores(ref_onsets, sig_onsets, center, 6.0, fine, _ONSET_HOP)
+        if harmony is None or attacks is None:
+            continue
+        harmony = np.interp(fine * _ONSET_HOP, coarse * _CHROMA_HOP, harmony)
+        peaks = np.flatnonzero((attacks[1:-1] >= attacks[:-2]) & (attacks[1:-1] >= attacks[2:])) + 1
+        peaks = peaks[attacks[peaks] >= 0.5 * attacks.max()] if attacks.max() > 0 else peaks[:0]
+        best = int(peaks[np.argmax(harmony[peaks] + 0.25 * attacks[peaks])]) if len(peaks) else int(np.argmax(harmony))
+        out.append(
+            {
+                "time": float(center - span),
+                "lag": float(fine[best] * _ONSET_HOP),
+                "confidence": float(attacks[best]),
+                "harmony": float(harmony[best]),
+            }
+        )
+    return out
+
+
+def by_section(windows: list[dict], sections: list[tuple[str, float, float]], minimum: float = 0.15) -> list[dict]:
+    """Un décalage par section : la médiane de ses fenêtres fiables.
+
+    Chaque entrée : `name`, `lag` (secondes, ou None sans fenêtre fiable), `windows` (leur
+    nombre), `spread` (écart entre elles), `ambiguous` et `guessed`.
+
+    Une fenêtre à cheval sur un changement de décalage donne une valeur mélangée : la section
+    est sûre dès que 60 % de ses fenêtres s'accordent avec la médiane à 100 ms près. Sinon le
+    passage se répète et plusieurs placements se valent : on retient les fenêtres qui
+    prolongent la section précédente (`guessed`, une supposition à vérifier à l'oreille), et
+    à défaut la section reste `ambiguous`.
+    """
+    out, previous = [], None
+    for name, start, end in sections:
+        lags = np.array([w["lag"] for w in windows if start <= w["time"] < end and w["confidence"] >= minimum])
+        entry = {"name": name, "lag": None, "windows": len(lags), "spread": 0.0, "ambiguous": False, "guessed": False}
+        if len(lags):
+            median = float(np.median(lags))
+            entry.update(lag=median, spread=float(lags.max() - lags.min()))
+            if np.mean(np.abs(lags - median) <= 0.1) < 0.6:
+                near = lags[np.abs(lags - previous) <= 0.1] if previous is not None else []
+                if len(near) >= 2:
+                    entry.update(lag=float(np.median(near)), guessed=True)
+                else:
+                    entry["ambiguous"] = True
+            if not entry["ambiguous"]:
+                previous = entry["lag"]
+        out.append(entry)
+    return out
+
+
+def within(windows: list[dict], tolerance: float = 0.03, minimum: float = 0.15) -> float:
+    """Part des fenêtres fiables où le signal est à moins de `tolerance` de la référence."""
+    lags = [abs(w["lag"]) for w in windows if w["confidence"] >= minimum]
+    return float(np.mean([lag < tolerance for lag in lags])) if lags else 0.0

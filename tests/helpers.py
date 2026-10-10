@@ -109,3 +109,23 @@ def fake_studio(monkeypatch, heard):
     monkeypatch.setattr(spotify, "restart", lambda tid: calls["restart"].append(tid))
     monkeypatch.setattr(spotify, "pause", lambda: calls.__setitem__("pause", calls["pause"] + 1))
     return calls
+
+
+def chord_song(bars: int = 24, bpm: float = 120.0) -> np.ndarray:
+    """Un « morceau » dont l'harmonie change à chaque mesure et ne se répète jamais.
+
+    Un accord par mesure, réattaqué à chaque temps : l'harmonie situe un passage à la mesure
+    près, les attaques au centième de seconde. C'est ce qu'il faut pour tester un calage.
+    """
+    beat = 60 / bpm
+    n = int(beat * audio.SR)
+    t = np.arange(n) / audio.SR
+    decay = np.exp(-t / 0.15).astype(np.float32)
+    out = []
+    for bar in range(bars):
+        root = 110.0 * 2 ** (((bar * 7) % 12 + (bar // 12)) / 12)  # quintes successives, décalées à chaque tour
+        third = 5 / 4 if bar % 3 else 6 / 5
+        chord = sum(np.sin(2 * np.pi * root * r * t) for r in (1, third, 3 / 2, 2))
+        out += [(0.1 * chord * decay).astype(np.float32)] * 4
+    mono = np.concatenate(out)
+    return np.stack([mono, mono], axis=1)

@@ -1,6 +1,6 @@
 # 004 — Mesurer le calage d'une prise au lieu de le supposer
 
-Date : 4 octobre 2026. État : en vigueur, amélioration prévue (issue #5).
+Date : 4 octobre 2026. État : la mesure décrite ici est remplacée par la fiche 006.
 
 ## Contexte
 

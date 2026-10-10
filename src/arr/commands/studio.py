@@ -15,6 +15,7 @@ from arr.app import ANALYSIS, ORIGINAL, app
 from arr.commands._common import (
     add_track,
     lead_in,
+    load_track,
     slug,
 )
 from arr.project import Project, ProjectError
@@ -109,7 +110,7 @@ def record(
         t for t in p.tracks if t != track and t not in without and (t in only if only else not p.tracks[t].get("mute"))
     ]
     if names:
-        backing = audio.mix([(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0)) for t in names])
+        backing = audio.mix([(load_track(p, t), p.tracks[t].get("gain", 0.0)) for t in names])
     elif (p.root / ORIGINAL).exists():
         backing = audio.load(p.root / ORIGINAL)
     else:

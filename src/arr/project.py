@@ -148,6 +148,40 @@ class Project:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(f), str(target))
 
+    # --- calage : décalages mémorisés par piste, appliqués à l'écoute (les fichiers ne changent pas)
+
+    def nudges(self, track: str) -> list[dict]:
+        """Réglages de calage d'une piste : {scope, ms, by}.
+
+        `scope` vaut "track" (toute la piste) ou le nom d'une section ; `ms` > 0 joue plus tard.
+        """
+        return list(self.tracks.get(track, {}).get("nudges", []))
+
+    def set_nudge(self, track: str, scope: str, ms: float, by: str = "manual") -> None:
+        """Pose un réglage ; il remplace celui de la même portée."""
+        self.version_path(track)
+        if scope != "track":
+            self.section(scope)
+        kept = [n for n in self.nudges(track) if n["scope"] != scope]
+        self.tracks[track]["nudges"] = [*kept, {"scope": scope, "ms": round(float(ms), 1), "by": by}]
+
+    def clear_nudges(self, track: str, scope: str | None = None, by: str | None = None) -> int:
+        """Retire des réglages (tous, ou ceux d'une portée ou d'une origine) ; renvoie leur nombre."""
+        self.version_path(track)
+        before = self.nudges(track)
+        kept = [n for n in before if (scope and n["scope"] != scope) or (by and n["by"] != by)]
+        if kept:
+            self.tracks[track]["nudges"] = kept
+        else:
+            self.tracks[track].pop("nudges", None)
+        return len(before) - len(kept)
+
+    def offsets(self, track: str) -> tuple[float, list[tuple[float, float, float]]]:
+        """Décalages effectifs d'une piste, en secondes : celui de fond, et (début, fin, décalage) par section."""
+        rules = {n["scope"]: n["ms"] / 1000 for n in self.nudges(track)}
+        base = rules.get("track", 0.0)
+        return base, [(s.start, s.end, base + rules[s.name]) for s in self.sections if s.name in rules]
+
     # --- prises : rendus complets du morceau (voix et groupe)
 
     def takes(self) -> list[str]:

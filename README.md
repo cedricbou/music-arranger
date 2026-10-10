@@ -58,7 +58,9 @@ arr takes
 arr play t001
 
 arr split                               # stems de l'original
-arr split t001                          # stems de la prise ; dit si elle est greffable
+arr split t001                          # stems de la prise, calés sur l'original section par section
+arr nudge t001                          # le calage posé par arr split, section par section
+arr nudge t001.vocals -s chorus --ms=-20   # l'ajuster à la main ; --reset pour l'annuler
 arr graft t001 guitar piano             # ajoute guitare et claviers de la prise à l'original
 arr graft t001 drums bass --replace     # remplace batterie et basse de l'original
 arr tracks                              # ce qui joue dans le mix
@@ -192,6 +194,8 @@ d'un instrument note à note.
 | `arr split [--model htdemucs_ft]` | stems de l'original : `drums`, `bass`, `guitar`... |
 | `arr split t001` | stems d'une prise : `t001.drums`..., muets et calés sur l'original |
 | `arr graft t001 STEM... [--replace]` | fait entendre des stems d'une prise, en plus ou à la place de l'original |
+| `arr align t001 [--report]` | mesure le décalage d'une prise par section et le corrige par des réglages de calage |
+| `arr nudge [PISTE] [-s SECTION] [--beats=N] [--ms=N] [--add] [--reset]` | montre, règle ou annule le calage d'une piste, en entier ou par section |
 | `arr merge PISTE PISTE... --as NOM` | fusionne des pistes |
 | `arr rm NOM... [-v VERSION] [--purge]` | retire des pistes, une version ou une prise ; corbeille du projet par défaut |
 | `arr tracks [-v]`, `arr tracks PISTE` | ce qui joue (●), ce qui est muet (○), l'historique |
@@ -232,10 +236,11 @@ ouvrir dans MuseScore ou un séquenceur pour les partager avec le groupe.
 ## À savoir
 
 - **Durées** pour 3 min 40 : transcription 3 à 12 min (plus long la première fois) ; une prise ~4 min 30 ; séparation ~20 s.
-- **Greffe** : elle ne marche que si la prise suit la grille de l'original. `arr split tNNN`
-  étire et cale la prise, mesure la part de temps qui tombent juste et prévient en dessous
-  de 60 %. Sur Gala, une prise fidèle sur trois était greffable : c'est la limite actuelle
-  la plus gênante. En cas d'échec, rendre une autre prise ou relancer `arr transcribe`.
+- **Greffe et calage** : une prise n'a jamais exactement la structure de l'original (un
+  temps d'avance ici, une mesure en trop là). `arr split tNNN` mesure son décalage section
+  par section et le corrige par des réglages de calage, que `arr nudge` montre, ajuste ou
+  annule ; les fichiers audio ne sont pas modifiés. Une section ambiguë est signalée et se
+  règle à la main.
 - **Paroles** : sans `lyrics.txt`, la prise est instrumentale. Le découpage automatique par
   section est approximatif, à relire.
 - **Licence** : les poids de YuE2 et SheetSage2 sont sous CC BY-NC 4.0 (usage non commercial).
