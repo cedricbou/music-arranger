@@ -45,7 +45,13 @@ les trois commandes de diagnostic.
 | `piste inconnue` ou `prise inconnue` | faute de frappe, ou piste retirée | le message liste les noms connus ; `arr tracks`, `arr takes` |
 | le mix sonne doublé | deux pistes du même instrument jouent ensemble | `arr tracks`, puis `arr mute` |
 | du piano ou du synthé dans la guitare | le modèle à six pistes confond ces instruments | `arr split --model htdemucs_ft`, ou `arr merge` |
-| `tNNN ne suit pas la grille de l'original` | la prise a dérivé en tempo ou en nombre de mesures | rendre une autre prise ; ses parties restent écoutables seules |
+| une partie greffée sonne décalée | la prise n'a pas la structure de l'original (temps d'avance, mesure en trop) | `arr align tNNN --report` pour voir le décalage par section, `arr align tNNN` pour le corriger |
+| une section reste décalée après `arr align` | section « ambiguë » ou « sans mesure fiable » dans le rapport | la régler à la main : `arr nudge tNNN -s SECTION --beats=N` |
+| le décalage change au milieu d'une section | le calage se fait par section entière | redécouper la section : `arr sections set` |
+| `le tempo est inconnu : utilise --ms` | `--beats` sans grille de temps | `--ms`, ou `arr transcribe` / `arr analyze` d'abord |
+| `No such option: -20` avec `arr nudge` | un nombre négatif pris pour une option | coller la valeur : `--ms=-20`, `--beats=-1` |
+| `indique la piste ou la prise à décaler` | `arr nudge` avec une valeur mais sans nom | `arr nudge PISTE --ms=N` |
+| je ne sais plus ce qui a été décalé | les réglages sont mémorisés | `arr nudge` les liste ; `--reset` les annule |
 | `tNNN est à un autre tempo que l'original` | prise libre (`--free`) | une prise libre ne se greffe pas |
 | `pas de partition (arr transcribe)` | `arr render` sans transcription | `arr transcribe` |
 | `la prise sera instrumentale` | pas de `lyrics.txt` | `arr lyrics fetch`, ou écrire le fichier |

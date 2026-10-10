@@ -64,7 +64,8 @@ def test_check_reports_levels_and_anomalies(tmp_path, monkeypatch):
     add_track(p, "drums", tone(110, 2.0, amp=0.5), {"op": "split"})
     add_track(p, "vide", np.zeros((2 * audio.SR, 2), np.float32), {"op": "record"})
     add_track(p, "courte", tone(330, 1.0, amp=0.1), {"op": "import"})
-    add_track(p, "t001.guitar", tone(330, 2.0, amp=0.1), {"op": "split", "on_beat": 0.33, "superposable": False})
+    add_track(p, "t001.guitar", tone(330, 2.0, amp=0.1), {"op": "split", "superposable": False})
+    add_track(p, "t001.bass", tone(110, 2.0, amp=0.1), {"op": "split", "superposable": False, "on_beat": 0.26})
     monkeypatch.chdir(p.root)
     monkeypatch.setenv("COLUMNS", "200")
 
@@ -74,5 +75,6 @@ def test_check_reports_levels_and_anomalies(tmp_path, monkeypatch):
     assert "2.0 s" in line("original") and "-6.0 dB" in line("original") and "LUFS" in line("original")
     assert "silencieux" in line("vide") and "LUFS" not in line("vide")
     assert "longueur différente de l'original (-1.00 s)" in line("courte")
-    assert "calage 33%, non superposable" in line("t001.guitar")
+    assert "non superposable" in line("t001.guitar")
+    assert "non superposable" not in line("t001.bass")
     assert "silencieux" not in line("drums") and "longueur" not in line("drums")

@@ -8,6 +8,7 @@ from arr import audio
 from arr.app import LYRICS, SCORE, app
 from arr.commands._common import (
     created,
+    load_track,
 )
 from arr.project import Project, ProjectError
 
@@ -95,11 +96,9 @@ def graft(
 def share(track: str = typer.Argument(..., help="Piste du musicien (ex. bass, ou t001.guitar).")) -> None:
     """Prépare un dossier pour le musicien : sa partie seule, le mix, et le mix sans lui."""
     p = Project.find()
-    part = audio.load(p.version_path(track))
+    part = load_track(p, track)
     others = [
-        (audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0))
-        for t in p.tracks
-        if t != track and not p.tracks[t].get("mute")
+        (load_track(p, t), p.tracks[t].get("gain", 0.0)) for t in p.tracks if t != track and not p.tracks[t].get("mute")
     ]
     if not others:
         raise ProjectError("aucune autre piste dans le mix")

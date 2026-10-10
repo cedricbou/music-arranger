@@ -16,6 +16,7 @@ from arr.commands._common import (
     created,
     describe,
     lead_in,
+    load_track,
     original_beats,
     render_mix,
 )
@@ -23,9 +24,11 @@ from arr.project import Project, ProjectError
 
 
 def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
-    """Met les stems d'une prise au tempo exact de l'original et les cale sur ses temps.
+    """Met les stems d'une prise au tempo exact de l'original, à la longueur de l'original.
 
-    Un écart de tempo de 0,1 % suffit à décaler la fin du morceau : on étire toujours.
+    Un écart de tempo de 0,1 % suffit à décaler la fin du morceau : on étire toujours. Le
+    placement lui-même (un temps d'avance, une mesure en trop) est l'affaire de `arr align`,
+    qui mesure section par section : comparer les seuls temps ne voit pas un temps entier.
     """
     from arr import measure
     from arr.engines import analysis
@@ -35,7 +38,7 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
     if ref is None or not original.exists():
         return stems, {}
     fit = measure.beat_fit(analysis.beats(p.take_path(take))[0], ref)
-    speed, offset, on_beat = fit["speed"], fit["offset"], fit["on_beat"]
+    speed, offset = fit["speed"], fit["offset"]
     if abs(speed - 1) > MAX_STRETCH:
         typer.secho(
             f"attention : {take} est à un autre tempo que l'original ({1 / speed:.2f} fois) ; "
@@ -46,19 +49,7 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
         return stems, {"superposable": False}
     n = len(audio.load(original))
     aligned = {k: audio.fit(audio.shift(audio.stretch(v, speed), -offset), n) for k, v in stems.items()}
-    if on_beat < 0.6:
-        typer.secho(
-            f"attention : {take} ne suit pas la grille de l'original ({on_beat:.0%} des temps calés) ; "
-            "la greffe sonnera décalée",
-            fg="yellow",
-            err=True,
-        )
-    return aligned, {
-        "superposable": on_beat >= 0.6,
-        "on_beat": round(on_beat, 2),
-        "offset_ms": round(offset * 1000),
-        "speed": round(speed, 5),
-    }
+    return aligned, {"superposable": True, "offset_ms": round(offset * 1000), "speed": round(speed, 5)}
 
 
 @app.command()
@@ -90,6 +81,11 @@ def split(
             p.tracks[track].setdefault("mute", True)
             typer.echo(f"{track} {version}")
         p.save()
+        if alignment.get("superposable"):
+            from arr.commands.align import align_take, print_report
+
+            print_report(p, take, align_take(p, take, write=True))
+            typer.echo(f"calage inscrit sur les stems de {take} : arr nudge {take} pour le voir ou l'ajuster")
         return
     for name, data in stems.items():
         version = add_track(p, name, data, meta)
@@ -113,7 +109,7 @@ def merge(
     p = Project.find()
     if len(tracks) < 2:
         raise ProjectError("il faut au moins deux pistes à fusionner")
-    parts = [audio.load(p.version_path(t)) for t in tracks]
+    parts = [load_track(p, t) for t in tracks]
     parents = [f"{t}/{p.tracks[t]['active']}" for t in tracks]
     version = add_track(p, as_, np.sum(parts, axis=0), {"op": "merge", "source": " + ".join(parents)})
     typer.echo(f"{as_} {version}")
@@ -149,6 +145,8 @@ def tracks(
         all_versions = p.versions(name)
         mark = "[dim]○[/]" if muted else "[green]●[/]"
         level = "muette" if muted else f"{t.get('gain', 0.0):+.1f} dB"
+        if p.nudges(name):
+            level += " · calée"
         style = "dim" if muted else None
         if not history:
             meta = p.meta(name, t["active"])
@@ -309,8 +307,8 @@ def play(
             )
         path = p.take_path(name)
     else:
-        path = p.version_path(name, version)
-    body = audio.load(path)
+        path = None
+    body = audio.load(path) if path else load_track(p, name, version)
     if ranges:
         body = audio.cut(body, ranges)
         if not len(body):

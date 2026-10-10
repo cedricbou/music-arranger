@@ -75,6 +75,7 @@ src/arr/
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix, play
+  commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
@@ -94,15 +95,14 @@ tests/
   test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
   test_measure.py           measure.py
   test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
-  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_studio.py, test_system.py
+  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_align.py, test_studio.py, test_system.py
                             un fichier par module de commandes, via CliRunner
 ```
 
 Règles de structure :
 
-- Une commande est une fonction dans le module de son domaine. Un nouveau domaine est un
-  nouveau module, importé dans `cli.py` à la place voulue dans l'aide.
-- Un fichier qui dépasse 400 lignes est à découper.
+- Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
+  nouveau module, importé dans `cli.py`. Un fichier de plus de 400 lignes se découpe.
 - Les commandes ne parlent aux modèles que par `engines/`, à la carte son que par `studio.py`.
 - Les imports lourds (`torch`, `demucs`, `sounddevice`) se font **dans** les fonctions, pour
   que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
@@ -119,8 +119,8 @@ Règles de structure :
 - **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
   l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
 - **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
-- `analysis.json` (temps et mesures) vient de `transcribe` ou d'`analyze` ; `split tNNN`
-  s'en sert pour étirer et caler la prise, puis mesure `on_beat` (fiche 004).
+- **Calage** : `nudges` d'une piste dans `song.toml` (scope, ms, by) ; `load_track()` les
+  applique à toute écoute. Les fichiers ne changent pas ; `align` n'écrase rien de manuel (fiche 006).
 - Sections homonymes numérotées (`chorus`, `chorus2`...) ; `lyrics.tagged()` retire le numéro.
 
 ## Conventions audio

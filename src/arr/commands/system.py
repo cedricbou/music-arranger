@@ -44,8 +44,9 @@ def check() -> None:
             notes.append("sature")
         if same_length and length is not None and len(data) != length:
             notes.append(f"longueur différente de l'original ({(len(data) - length) / audio.SR:+.2f} s)")
-        if meta and "on_beat" in meta:
-            notes.append(f"calage {meta['on_beat']:.0%}" + ("" if meta.get("superposable") else ", non superposable"))
+        # Les stems d'avant le calage par sections portent `on_beat` : leur verdict ne vaut plus.
+        if meta and meta.get("superposable") is False and "on_beat" not in meta:
+            notes.append("autre tempo que l'original : non superposable")
         volume = f"{audio.loudness(data):.1f} LUFS" if peak >= -60 else "-"
         table.add_row(
             label, f"{len(data) / audio.SR:.1f} s", f"{peak:.1f} dB", f"{rms:.1f} dB", volume, " ; ".join(notes)
@@ -58,6 +59,17 @@ def check() -> None:
     for name in p.takes():
         row(name, p.take_path(name))
     Console().print(table)
+    if length is None:
+        return
+    from arr.commands.align import TOLERANCE, take_mix
+
+    reference = audio.load(original)
+    for name in p.takes():
+        if any(t.startswith(f"{name}.") for t in p.tracks):
+            placed = measure.within(measure.time_map(reference, take_mix(p, name, nudged=True)), TOLERANCE)
+            typer.echo(
+                f"{name} : {placed:.0%} du morceau à moins de {TOLERANCE * 1000:.0f} ms de l'original (arr nudge {name})"
+            )
 
 
 @app.command()

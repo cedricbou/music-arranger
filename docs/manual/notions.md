@@ -68,9 +68,23 @@ rendue par `arr render` à partir de la partition, des paroles et d'un texte de 
 - Une prise **fidèle** (par défaut) suit la mélodie et les accords de la partition.
 - Une prise **libre** (`--free`) ne garde que la mélodie : l'accompagnement est réinventé.
 - `arr split t001` sépare une prise en pistes `t001.drums`, `t001.guitar`..., créées muettes.
-- `arr graft` fait entendre ces pistes dans le mix, en plus de l'original ou à sa place. La
-  greffe ne sonne juste que si la prise suit la grille de temps de l'original ; `arr split
-  t001` le mesure et prévient.
+- `arr graft` fait entendre ces pistes dans le mix, en plus de l'original ou à sa place.
+
+## Le calage
+
+Une prise n'a jamais exactement la structure de l'original : elle peut avoir un temps
+d'avance sur tout un passage, ou jouer une mesure de plus. Le **calage** corrige cela sans
+toucher aux fichiers : chaque piste porte une liste de décalages, pour toute la piste ou
+pour une section, gardée dans `song.toml` et appliquée à chaque écoute, mix ou export.
+
+- `arr split t001` et `arr align t001` mesurent le décalage de la prise section par section
+  et posent les réglages correspondants (origine « automatique »).
+- `arr nudge` les montre, en pose d'autres à la main (origine « manuel »), les ajuste ou les
+  annule. Un réglage de section s'ajoute à celui de la piste.
+- Un décalage positif joue plus tard, un négatif plus tôt. Il s'exprime en temps (`--beats`)
+  ou en millisecondes (`--ms`).
+- `arr align` ne remplace jamais un réglage posé à la main.
+- `arr tracks` marque « calée » toute piste qui porte un réglage.
 
 L'outil ne sait pas générer une piste isolée qui s'accorde à un morceau existant : c'est
 pourquoi il passe par des prises complètes.

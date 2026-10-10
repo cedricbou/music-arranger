@@ -23,6 +23,8 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr mute`](#arr-mute) : Sort une piste du mix sans la supprimer.
 - [`arr mix`](#arr-mix) : Mixe les versions actives dans mix/mix.flac.
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
+- [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
+- [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -285,6 +287,46 @@ Ctrl+C arrête.
 | `--section`, `-s` |  | Sections à jouer, enchaînées dans l'ordre donné : -s verse,chorus ou -s verse -s chorus. (répétable) |
 | `--loop`, `-l` | non | Rejoue en boucle jusqu'à Ctrl+C. |
 | `--count-in` | `0` | Mesures de décompte avant de commencer (pas à chaque boucle). |
+
+## `arr nudge`
+
+```
+arr nudge [OPTIONS] [NAME]
+```
+
+Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
+
+Sans valeur, affiche ce qui est appliqué. Une valeur remplace celle de la même portée (--add pour l'ajuster) ; --reset l'annule. Les réglages sont gardés dans song.toml.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` |  | Piste, ou prise (ex. t001) pour tous ses stems ; sinon tout afficher. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--section`, `-s` |  | Ne décale que cette section ; sinon toute la piste. |
+| `--beats` |  | Décalage en temps : --beats=+1 joue un temps plus tard, --beats=-0.5 plus tôt. |
+| `--ms` |  | Décalage en millisecondes : --ms=-20 joue 20 ms plus tôt. |
+| `--add` | non | Ajoute à la valeur existante au lieu de la remplacer. |
+| `--reset` | non | Annule le calage : de la section donnée, sinon de toute la piste. |
+
+## `arr align`
+
+```
+arr align [OPTIONS] TAKE
+```
+
+Cale les stems d'une prise sur l'original, section par section.
+
+Mesure le décalage de la prise (harmonie, puis attaques) et l'inscrit comme réglages de calage sur chacun de ses stems : arr nudge les montre, les ajuste ou les annule. Relancer remplace les réglages automatiques, jamais ceux posés à la main.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `TAKE` | obligatoire | Prise à caler (ex. t001), déjà séparée par arr split. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--report` | non | Mesure et affiche le décalage par section, sans rien régler. |
 
 ## `arr capture`
 

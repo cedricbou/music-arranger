@@ -177,6 +177,32 @@ def cut(audio: np.ndarray, ranges: list[tuple[float, float]], fade: float = 0.00
     return np.concatenate(parts) if parts else audio[:0]
 
 
+def nudged(audio: np.ndarray, base: float, ranges: list[tuple[float, float, float]], fade: float = 0.005) -> np.ndarray:
+    """Applique des décalages par plage : (début, fin, secondes), `base` partout ailleurs.
+
+    Un décalage positif fait jouer plus tard. Chaque plage du résultat est lue dans la source
+    à la position décalée ; là où le décalage change, un fondu court évite le claquement.
+    """
+    if not base and not ranges:
+        return audio
+    out = shift(audio, base)
+    n = int(fade * SR)
+    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)[:, None]
+    for start, end, seconds in ranges:
+        a, b = max(0, int(round(start * SR))), min(len(audio), int(round(end * SR)))
+        if b - a < 2 * n or abs(seconds - base) < 1e-6:
+            continue
+        part = shift(audio, seconds)[a:b].copy()
+        part[:n] *= ramp
+        part[-n:] *= ramp[::-1]
+        out[a:b] = part
+        # la plage voisine s'efface elle aussi au raccord
+        lo, hi = max(0, a - n), min(len(out), b + n)
+        out[lo:a] *= ramp[::-1][n - (a - lo) :]
+        out[b:hi] *= ramp[: hi - b]
+    return out
+
+
 def shift(audio: np.ndarray, seconds: float) -> np.ndarray:
     """Retarde (seconds > 0) ou avance l'audio, à longueur constante."""
     k = int(round(seconds * SR))

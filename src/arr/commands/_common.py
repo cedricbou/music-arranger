@@ -22,11 +22,17 @@ def reference(p: Project) -> Path:
     return original if original.exists() else render_mix(p)
 
 
+def load_track(p: Project, track: str, version: Optional[str] = None) -> np.ndarray:
+    """Une piste telle qu'elle joue : sa version active (ou `version`), avec son calage (arr nudge)."""
+    base, ranges = p.offsets(track)
+    return audio.nudged(audio.load(p.version_path(track, version)), base, ranges)
+
+
 def render_mix(p: Project, without: tuple[str, ...] = (), only: tuple[str, ...] = ()) -> Path:
     names = [t for t in p.tracks if t not in without and (t in only if only else not p.tracks[t].get("mute"))]
     if not names:
         raise ProjectError("aucune piste à mixer")
-    parts = [(audio.load(p.version_path(t)), p.tracks[t].get("gain", 0.0)) for t in names]
+    parts = [(load_track(p, t), p.tracks[t].get("gain", 0.0)) for t in names]
     out = p.root / "mix" / "mix.flac"
     audio.save(out, audio.mix(parts))
     return out

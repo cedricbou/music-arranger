@@ -60,7 +60,7 @@ def test_split_take_then_graft(tmp_path, monkeypatch):
     audible = lambda: {n for n, t in Project.find().tracks.items() if not t.get("mute")}
     assert audible() == {"drums", "bass", "guitar", "vocals"}  # les stems de la prise arrivent muets
     meta = p.meta("t001.guitar", "v001")
-    assert meta["superposable"] and meta["on_beat"] == 1.0 and meta["offset_ms"] == 100 and meta["speed"] == 1.0
+    assert meta["superposable"] and meta["offset_ms"] == 100 and meta["speed"] == 1.0
     # la prise était en retard de 100 ms sur l'original : ses stems sont avancés d'autant
     got = audio.load(p.version_path("t001.guitar"))
     k = audio.SR // 10
@@ -91,24 +91,6 @@ def test_split_take_stretches_to_the_original_tempo(tmp_path, monkeypatch):
     assert runner.invoke(app, ["split", "t001"]).exit_code == 0
     meta = Project.find().meta("t001.guitar", "v001")
     assert meta["superposable"] and meta["speed"] == 0.99 and meta["offset_ms"] == 0
-
-
-def test_split_take_off_the_grid_is_flagged(tmp_path, monkeypatch):
-    from arr.engines import analysis
-
-    song_project(tmp_path, monkeypatch)
-    runner.invoke(app, ["transcribe"])
-    runner.invoke(app, ["render", "-s", "funk"])
-    original = analysis.beats
-    # même tempo, mais la seconde moitié a glissé de 200 ms (une mesure en trop, par exemple)
-    drifting = [0.5 * i + (0.2 if i >= 4 else 0.0) for i in range(8)]
-    monkeypatch.setattr(
-        analysis, "beats", lambda path: original(path) if path.name == "original.flac" else (drifting, [0.0, 2.0])
-    )
-    result = runner.invoke(app, ["split", "t001"])
-    assert result.exit_code == 0, result.output
-    meta = Project.find().meta("t001.guitar", "v001")
-    assert meta["superposable"] is False and meta["on_beat"] <= 0.5
 
 
 def test_split_take_at_another_tempo_is_flagged(tmp_path, monkeypatch):

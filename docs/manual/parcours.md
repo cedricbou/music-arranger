@@ -84,16 +84,41 @@ Comptez 3 à 12 minutes pour la transcription et environ 5 minutes par prise.
 ## Tirer des parties d'une prise, ou les greffer sur l'original
 
 ```
-arr split t001                        # pistes t001.drums, t001.guitar... ; dit si la prise est greffable
+arr split t001                        # pistes t001.drums, t001.guitar..., calées sur l'original
 arr play t001.guitar                  # une partie de la prise, seule
 arr graft t001 guitar piano           # ajoute ces parties à l'original
 arr graft t001 drums bass --replace   # remplace batterie et basse de l'original
 arr share t001.guitar                 # pour le guitariste
 ```
 
-`arr split t001` mesure si la prise suit la grille de temps de l'original. S'il prévient
-que la prise n'est pas superposable, ses parties restent écoutables seules, mais la greffe
-sonnera décalée : rendez une autre prise.
+`arr split t001` cale la prise sur l'original et affiche le décalage trouvé dans chaque
+section, avant et après. Une prise libre (`--free`), à un autre tempo, n'est pas calée : ses
+parties restent écoutables seules.
+
+## Caler une prise ou une piste
+
+Quand une partie greffée sonne décalée, ou pour vérifier ce qui a été appliqué :
+
+```
+arr align t001 --report                       # le décalage mesuré par section, sans rien changer
+arr nudge t001                                # les réglages en place sur tous les stems de la prise
+arr nudge t001.vocals -s chorus7 --beats=-4   # cette section, quatre temps plus tôt
+arr nudge t001.vocals -s verse2 --ms=-20      # un ajustement fin
+arr nudge t001.vocals -s verse2 --add --ms=5  # ajouter 5 ms à la valeur en place
+arr nudge t001.vocals -s chorus7 --reset      # annuler le réglage de cette section
+arr nudge t001 --reset                        # tout annuler sur la prise
+arr align t001                                # refaire le calage automatique
+```
+
+- Un décalage positif joue plus tard, un négatif plus tôt. Écrivez la valeur collée à
+  l'option (`--ms=-20`), pour qu'un nombre négatif ne soit pas pris pour une option.
+- Nommer une prise (`t001`) règle tous ses stems d'un coup ; nommer une piste n'en règle qu'une.
+- `arr nudge` vaut pour n'importe quelle piste, y compris une que vous avez enregistrée.
+- Dans son rapport, `arr align` signale les sections « ambiguës » (un passage qui se répète :
+  plusieurs placements se valent) et celles « sans mesure fiable » (trop courtes, ou sans
+  attaques nettes). Ce sont elles qu'il faut écouter et régler à la main.
+- Le calage se fait par section. Si le décalage change au milieu d'une section, redécoupez-la
+  d'abord avec `arr sections set`.
 
 ## Vérifier un projet sans l'écouter
 
