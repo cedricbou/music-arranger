@@ -1,6 +1,6 @@
 # 002 — YuE2 et SheetSage2 tournent hors du processus d'arr
 
-Date : 4 octobre 2026. État : en vigueur.
+Date : 4 octobre 2026. État : en vigueur ; la version d'audio.cpp n'est plus figée (fiche 007).
 
 ## Contexte
 

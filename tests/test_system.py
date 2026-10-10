@@ -1,4 +1,4 @@
-"""Machine et modèles : devices, doctor. `models pull` installe depuis le réseau : non testé ici."""
+"""Machine et modèles : devices, doctor, et l'installation d'audio.cpp sur une fausse release."""
 
 from arr.cli import app
 from tests.helpers import runner
@@ -78,3 +78,129 @@ def test_check_reports_levels_and_anomalies(tmp_path, monkeypatch):
     assert "non superposable" in line("t001.guitar")
     assert "non superposable" not in line("t001.bass")
     assert "silencieux" not in line("drums") and "longueur" not in line("drums")
+
+
+def audiocpp_archive(tmp_path, monkeypatch, releases):
+    """Une fausse release par version : l'archive est locale, l'API GitHub ne répond que ce qu'on lui a donné."""
+    import hashlib
+    import tarfile
+    import urllib.request
+
+    from arr import engines
+    from arr.commands import system
+
+    monkeypatch.setattr(engines, "AUDIOCPP", tmp_path / "home/audiocpp/current/audiocpp_cli")
+    asked = []
+
+    def release(version):
+        asked.append(version)
+        version = version or releases[-1]
+        binary = tmp_path / "audiocpp_cli"
+        binary.write_text(version)
+        archive = tmp_path / f"{version}.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(binary, arcname="audiocpp_cli")
+        return version, str(archive), hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    monkeypatch.setattr(system, "audiocpp_release", release)
+    monkeypatch.setattr(urllib.request, "urlretrieve", lambda url: (url, None))
+    return asked
+
+
+def test_audiocpp_follows_the_latest_release_and_keeps_the_others(tmp_path, monkeypatch):
+    from arr import engines
+    from arr.commands import system
+    from arr.engines import yue2
+
+    asked = audiocpp_archive(tmp_path, monkeypatch, ["v0.9.0", "v0.9.1"])
+    assert system.install_audiocpp("v0.9.0") == "v0.9.0"
+    assert system.install_audiocpp() == "v0.9.1"
+    monkeypatch.setattr(yue2, "AUDIOCPP", engines.AUDIOCPP)
+    assert engines.AUDIOCPP.read_text() == "v0.9.1" and yue2.version() == "v0.9.1"
+    assert engines.AUDIOCPP.stat().st_mode & 0o111
+
+    # revenir à une version déjà installée ne demande rien au réseau
+    asked.clear()
+    assert system.install_audiocpp("v0.9.0") == "v0.9.0"
+    assert asked == [] and engines.AUDIOCPP.read_text() == "v0.9.0"
+    assert (engines.AUDIOCPP.parents[1] / "v0.9.1/audiocpp_cli").exists()
+
+
+def test_audiocpp_with_another_checksum_is_refused(tmp_path, monkeypatch):
+    import pytest
+
+    from arr import engines
+    from arr.commands import system
+    from arr.project import ProjectError
+
+    audiocpp_archive(tmp_path, monkeypatch, ["v0.9.0", "v0.9.1"])
+    system.install_audiocpp("v0.9.0")
+    honest = system.audiocpp_release
+    monkeypatch.setattr(system, "audiocpp_release", lambda version: (*honest(version)[:2], "0" * 64))
+    with pytest.raises(ProjectError, match="empreinte inattendue"):
+        system.install_audiocpp()
+    assert engines.AUDIOCPP.read_text() == "v0.9.0"
+    assert not (engines.AUDIOCPP.parents[1] / "v0.9.1").exists()
+
+
+def test_audiocpp_release_reads_the_portable_vulkan_archive(monkeypatch):
+    import io
+    import json
+    import urllib.request
+
+    import pytest
+
+    from arr.commands import system
+    from arr.project import ProjectError
+
+    assets = [
+        {"name": "audio-v0.9.1-bin-ubuntu-x64-vulkan.tar.gz", "browser_download_url": "non", "digest": "sha256:aa"},
+        {
+            "name": "audio-v0.9.1-bin-ubuntu-x64-vulkan-portable.tar.gz",
+            "browser_download_url": "oui",
+            "digest": "sha256:bb",
+        },
+    ]
+    urls = []
+
+    def urlopen(url):
+        urls.append(url)
+        return io.BytesIO(json.dumps({"tag_name": "v0.9.1", "assets": assets}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    assert system.audiocpp_release("") == ("v0.9.1", "oui", "bb")
+    assert system.audiocpp_release("v0.9.1")[0] == "v0.9.1"
+    assert [u.rsplit("releases/")[1] for u in urls] == ["latest", "tags/v0.9.1"]
+    del assets[1]
+    with pytest.raises(ProjectError, match="pas d'archive"):
+        system.audiocpp_release("")
+
+
+def test_doctor_reports_each_engine(tmp_path, monkeypatch):
+    import torch
+
+    from arr import engines
+    from arr.engines import analysis, yue2
+    from arr.project import ProjectError
+
+    def absent():
+        raise ProjectError("poids de beat_this absents (arr models pull)")
+
+    cli = tmp_path / "audiocpp/v0.9.1/audiocpp_cli"
+    cli.parent.mkdir(parents=True)
+    cli.touch()
+    (tmp_path / "audiocpp/current").symlink_to("v0.9.1")
+    monkeypatch.setattr(engines, "AUDIOCPP", tmp_path / "audiocpp/current/audiocpp_cli")
+    monkeypatch.setattr(yue2, "AUDIOCPP", engines.AUDIOCPP)
+    monkeypatch.setattr(engines, "YUE2", tmp_path / "yue2")
+    monkeypatch.setattr(analysis, "checkpoint", absent)
+    randn = torch.randn
+    monkeypatch.setattr(torch.xpu, "is_available", lambda: True)
+    monkeypatch.setattr(torch.xpu, "get_device_name", lambda i: "Arc")
+    monkeypatch.setattr(torch, "randn", lambda *shape, device: randn(*shape))
+
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 0, result.output
+    assert "audio.cpp: présent (v0.9.1)" in result.output
+    assert "YuE2: absent (arr models pull)" in result.output
+    assert "beat_this: absent (arr models pull)" in result.output

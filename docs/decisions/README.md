@@ -16,3 +16,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [004](004-calage-des-prises.md) | Mesurer le calage d'une prise au lieu de le supposer |
 | [005](005-volume-des-captures.md) | Un seul gain vers une cible de volume pour chaque capture |
 | [006](006-calage-par-sections.md) | Caler une prise par section, avec des réglages mémorisés (remplace la mesure de 004) |
+| [007](007-provenance-des-modeles.md) | Les poids viennent de Hugging Face ; audio.cpp suit sa release officielle, version fixable |

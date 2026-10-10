@@ -114,7 +114,7 @@ Règles de structure :
 ## Modèle de projet
 
 - `song.toml` : `[song]`, `[[sections]]` (name, start, end), `[tracks.<nom>]` (active, gain, mute).
-- **Prises** : `takes/tNNN.flac` + `.json` (model, mode close/free, style, seed).
+- **Prises** : `takes/tNNN.flac` + `.json` (model, engine, mode close/free, style, seed).
   `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
 - **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
   l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
@@ -133,9 +133,9 @@ Règles de structure :
 
 ## Moteurs externes
 
-Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`), lancés en
-sous-processus : `audiocpp/` (variante **vulkan-portable**), `yue2/` (poids GGUF Q8),
-`envs/ss2/` (SheetSage2). Raisons et pièges : fiche 002. Les tests ne les lancent jamais.
+Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`), lancés en sous-processus :
+`audiocpp/<version>/` (**vulkan-portable**, lien `current`), `yue2/` (GGUF Q8), `envs/ss2/` (SheetSage2).
+Les poids viennent de Hugging Face, audio.cpp de sa release GitHub : fiches 002 et 007. Jamais lancés en test.
 
 ## Audio en direct
 

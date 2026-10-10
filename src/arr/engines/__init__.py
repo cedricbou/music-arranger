@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 HOME = Path(os.environ.get("ARR_HOME", Path.home() / ".local/share/arr"))
-AUDIOCPP = HOME / "audiocpp" / "audiocpp_cli"  # moteur de YuE2 (Vulkan)
+AUDIOCPP = HOME / "audiocpp" / "current" / "audiocpp_cli"  # moteur de YuE2 (Vulkan) ; `current` vise une version
 YUE2 = HOME / "yue2"  # poids GGUF de YuE2
 SS2_PYTHON = HOME / "envs" / "ss2" / "bin" / "python"  # environnement isolé de SheetSage2
 

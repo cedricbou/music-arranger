@@ -21,6 +21,11 @@ def melody_only(abc: str) -> str:
     return "\n".join(line if HEADER.match(line) else re.sub(r'"[^"]*"', "", line) for line in abc.splitlines()) + "\n"
 
 
+def version() -> str:
+    """Version d'audio.cpp en service : le dossier que vise le lien `current`."""
+    return AUDIOCPP.resolve().parent.name
+
+
 def render(abc: str, lyrics: str, style: str, out: Path, *, free: bool = False, seed: int = -1) -> dict:
     """Écrit la prise dans `out` (WAV 48 kHz stéréo) et renvoie les réglages utilisés.
 
@@ -61,4 +66,10 @@ def render(abc: str, lyrics: str, style: str, out: Path, *, free: bool = False, 
         done = subprocess.run(cmd, capture_output=True, text=True)
     if done.returncode != 0 or not out.exists():
         raise RuntimeError(f"YuE2 a échoué (code {done.returncode}) : {(done.stderr or done.stdout)[-400:]}")
-    return {"model": "yue2-3b-q8", "mode": "free" if free else "close", "style": style, "seed": seed}
+    return {
+        "model": "yue2-3b-q8",
+        "engine": f"audio.cpp {version()}",
+        "mode": "free" if free else "close",
+        "style": style,
+        "seed": seed,
+    }

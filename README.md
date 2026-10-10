@@ -29,7 +29,7 @@ pilotes Intel (`intel-compute-runtime`, `level-zero-loader`, `vulkan-intel`).
 ```
 cd ~/dev/music-arranger
 uv sync
-uv run arr models pull   # modèles et moteurs, une seule fois (~6 Go)
+uv run arr models pull   # modèles et moteurs (~6 Go) ; à relancer pour les mettre à jour
 uv run arr doctor        # tout doit être « présent »
 ```
 
@@ -209,7 +209,7 @@ d'un instrument note à note.
 
 | Commande | Effet |
 |---|---|
-| `arr models pull` | installe les modèles et leurs moteurs (réseau, une seule fois) |
+| `arr models pull` | installe les modèles et leurs moteurs, et les met à jour (réseau) |
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
 

@@ -35,7 +35,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr sections set`](#arr-sections-set) : Définit les sections en numéros de mesure (inclusifs, à partir de 1).
 - [`arr sections list`](#arr-sections-list) : Affiche les sections.
 - [`arr lyrics fetch`](#arr-lyrics-fetch) : Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
-- [`arr models pull`](#arr-models-pull) : Installe les modèles et leurs moteurs (seule commande qui télécharge des modèles).
+- [`arr models pull`](#arr-models-pull) : Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
 
 ## `arr init`
 
@@ -468,7 +468,13 @@ Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
 ## `arr models pull`
 
 ```
-arr models pull
+arr models pull [OPTIONS]
 ```
 
-Installe les modèles et leurs moteurs (seule commande qui télécharge des modèles).
+Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
+
+Les poids viennent de Hugging Face. Le moteur audio.cpp vient de sa release GitHub : la dernière à chaque appel, ou celle de `--audiocpp` pour rester sur une version ou y revenir.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--audiocpp` | `` | Version d'audio.cpp à mettre en service (ex. v0.9.0) ; par défaut la dernière release. |
