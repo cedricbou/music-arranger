@@ -11,13 +11,14 @@ import numpy as np
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, ORIGINAL, app
+from arr.app import ANALYSIS, ORIGINAL, SCORE, app
 from arr.commands._common import (
     add_track,
     lead_in,
     load_track,
     slug,
 )
+from arr.commands._screen import chart, live, timeline, view
 from arr.project import Project, ProjectError
 
 
@@ -101,9 +102,12 @@ def record(
 ) -> None:
     """Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 
-    Le playback est le mix courant sans la piste enregistrée. Ctrl+C arrête et garde la prise.
+    Le playback est le mix courant sans la piste enregistrée. L'écran est celui d'`arr play` :
+    les pistes du playback, la section en cours et sa grille d'accords, l'accord du moment surligné.
+    Ctrl+C arrête et garde la prise.
     """
     from arr import studio
+    from arr.engines import transcription
 
     p = Project.find()
     names = [
@@ -125,8 +129,26 @@ def record(
     elif bars or click:
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, lead = lead_in(backing, ticks)
-    typer.echo(f"playback : {', '.join(names) or 'morceau original'} ; joue après le décompte (Ctrl+C pour arrêter)")
-    recorded, latency = studio.play_and_record(playback, channel)
+    score = (p.root / SCORE).parent
+    marks, bars = timeline(p, None, [], []), chart(transcription.chords(score), transcription.beats(score))
+    notes = [] if names else ["[dim]playback : morceau original[/]"]
+
+    def screen(seconds: float):
+        return view(
+            p,
+            f"Enregistrement de {track}",
+            names,
+            marks,
+            len(backing) / audio.SR,
+            "Ctrl+C arrête et garde la prise",
+            seconds - lead / audio.SR,
+            bars=bars,
+            notes=notes,
+            recording=True,
+        )
+
+    with live(screen) as shown:
+        recorded, latency = studio.play_and_record(playback, channel, lambda seconds: shown.update(screen(seconds)))
     take = audio.fit(recorded[lead + int(round(latency * audio.SR)) :], len(backing))
     if float(np.abs(take).max()) < audio.db(-60):
         raise ProjectError(

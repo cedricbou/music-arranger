@@ -69,7 +69,7 @@ def test_play_shows_what_plays_and_what_is_applied(tmp_path, monkeypatch):
 def test_play_view_follows_the_position(tmp_path):
     from rich.console import Console
 
-    from arr.commands.play import position, timeline, view
+    from arr.commands._screen import position, timeline, view
 
     p = Project.create(tmp_path / "song", "song")
     add_track(p, "guitar", tone(330, 6.0, amp=0.1), {"op": "split"})
@@ -79,12 +79,12 @@ def test_play_view_follows_the_position(tmp_path):
 
     # sections jouées dans le désordre : l'horloge suit la lecture, pas le morceau
     marks = timeline(p, None, ["outro", "verse"], [(4.0, 6.0), (0.0, 2.0)])
-    assert marks == [(0.0, 2.0, "outro"), (2.0, 4.0, "verse")]
-    assert timeline(p, None, [], [])[1] == (2.0, 4.0, "chorus")
+    assert marks == [(0.0, 2.0, "outro", 4.0), (2.0, 4.0, "verse", 0.0)]
+    assert timeline(p, None, [], [])[1] == (2.0, 4.0, "chorus", 2.0)
 
     def text(t):
         console = Console(width=200, record=True, file=open("/dev/null", "w"), color_system=None)
-        console.print(view(p, None, None, (), (), marks, 4.0, False, t))
+        console.print(view(p, "Mix · 1 piste", ["guitar"], marks, 4.0, "Ctrl+C arrête", t))
         return console.export_text()
 
     assert "outro (1/2)" in text(0.5) and "+500 ms" in text(0.5) and "puis verse" in text(0.5)
@@ -158,3 +158,154 @@ def test_play_count_in_without_a_known_tempo_only_warns(tmp_path, monkeypatch):
     result = runner.invoke(app, ["play", "--count-in", "1"])
     assert result.exit_code == 0 and "pas de décompte" in result.output
     assert len(calls["played"][0]) == audio.SR // 2
+
+
+def test_chord_names_read_like_a_lead_sheet():
+    from arr.commands._screen import chord_name
+
+    given = ["D:min", "C:maj", "F:maj7", "E:min7", "A:sus4", "C:maj6", "C:7", "N", "G:min/b3", "Bb"]
+    assert [chord_name(c) for c in given] == ["Dm", "C", "Fmaj7", "Em7", "Asus4", "C6", "C7", "–", "Gm/b3", "Bb"]
+
+
+def test_chart_puts_each_chord_on_its_beat():
+    from arr.commands._screen import chart
+
+    # 4/4, un temps par seconde ; Dm sur quatre temps, puis F et C sur deux temps chacun, puis G tenu six temps
+    beats = [(float(i), i % 4 + 1) for i in range(12)]
+    chords = [(0.0, 4.0, "D:min"), (4.0, 6.0, "F:maj"), (6.0, 8.0, "C:maj"), (8.0, 14.0, "G:maj")]
+    bars = chart(chords, beats)
+    assert [(b[0], b[1], b[2]) for b in bars] == [(0.0, 4.0, 4), (4.0, 8.0, 4), (8.0, 14.0, 4)]
+    assert bars[0][3] == [(0, 4, "D:min", 0.0, 4.0)]
+    assert bars[1][3] == [(0, 2, "F:maj", 4.0, 6.0), (2, 2, "C:maj", 6.0, 8.0)]
+
+    # un accord tenu au-delà de la barre est réécrit ; une levée de deux temps fait une mesure courte
+    pickup = [(0.0, 3), (1.0, 4)] + [(2.0 + i, i % 4 + 1) for i in range(8)]
+    bars = chart([(0.0, 4.0, "A:min"), (4.0, 10.0, "E:7")], pickup)
+    assert [b[2] for b in bars] == [2, 4, 4]
+    assert [c[:3] for c in bars[1][3]] == [(0, 2, "A:min"), (2, 2, "E:7")] and bars[2][3][0][:3] == (0, 4, "E:7")
+
+    # sans accord à cet endroit : « N » ; sans grille de temps : un accord par mesure
+    assert chart([(2.0, 4.0, "C:maj")], [(0.0, 1), (1.0, 2), (2.0, 3), (3.0, 4)])[0][3][0][:3] == (0, 2, "N")
+    assert chart(chords[:2], []) == [
+        (0.0, 4.0, 1, [(0, 1, "D:min", 0.0, 4.0)]),
+        (4.0, 6.0, 1, [(0, 1, "F:maj", 4.0, 6.0)]),
+    ]
+
+
+def test_chord_page_follows_the_section_being_played():
+    from arr.commands._screen import chart, chord_page
+
+    # mesures de quatre secondes ; couplet de 0 à 8 s, refrain de 8 à 16 s, deux accords dans la mesure 2 du refrain
+    beats = [(float(i), i % 4 + 1) for i in range(20)]
+    chords = [
+        (0.0, 8.0, "D:min"),
+        (8.0, 12.0, "F:maj"),
+        (12.0, 14.0, "G:maj"),
+        (14.0, 16.0, "C:maj"),
+        (16.0, 20.0, "A:min"),
+    ]
+    bars = chart(chords, beats)
+    whole = [(0.0, 8.0, "verse", 0.0), (8.0, 16.0, "chorus", 8.0)]
+
+    name, page, current, upcoming = chord_page(bars, whole, 5.0)
+    assert name == "verse" and page == bars[:2] and current == (1, 0)
+    assert upcoming == ("chorus", bars[2:4])
+    assert chord_page(bars, whole, 13.0)[2] == (1, 0) and chord_page(bars, whole, 14.5)[2] == (1, 1)
+    assert chord_page(bars, whole, 14.5)[3] == ()
+
+    # refrain puis couplet : à 6,5 s de lecture on est à 14,5 s du morceau
+    swapped = [(0.0, 8.0, "chorus", 8.0), (8.0, 16.0, "verse", 0.0)]
+    name, page, current, upcoming = chord_page(bars, swapped, 6.5)
+    assert name == "chorus" and page[current[0]][3][current[1]][2] == "C:maj" and upcoming[0] == "verse"
+
+    # en boucle, la suite de la dernière section est la première ; une section seule n'annonce rien
+    assert chord_page(bars, swapped, 9.0)[3] == () and chord_page(bars, swapped, 9.0, loop=True)[3][0] == "chorus"
+    assert chord_page(bars, swapped[:1], 1.0, loop=True)[3] == ()
+
+    # décompte : la première section, sans accord surligné
+    name, page, current, _ = chord_page(bars, swapped, -1.0)
+    assert name == "chorus" and page == bars[2:4] and current is None
+
+    # hors section, ou projet sans sections : une page de huit mesures autour de la position
+    name, page, current, upcoming = chord_page(bars, whole, 17.0)
+    assert name is None and page == bars and current == (4, 0) and upcoming == ()
+    assert chord_page(bars, [], 13.0)[1:3] == (bars, (3, 0))
+
+    # une section redéfinie à la main, qui ne tombe pas sur les barres : chaque mesure va où est son milieu
+    assert chord_page(bars, [(0.0, 9.5, "verse", 0.0)], 0.0)[1] == bars[:2]
+    assert chord_page([], whole, 1.0)[1] == []
+
+
+def test_chord_grid_shows_how_long_each_chord_lasts(tmp_path, monkeypatch):
+    from rich.console import Console
+
+    from arr.commands._screen import chart, view
+
+    p = Project.create(tmp_path / "song", "song")
+    p.set_sections([Section("verse", 0.0, 16.0), Section("chorus", 16.0, 20.0)])
+    beats = [(float(i), i % 4 + 1) for i in range(20)]
+    chords = [
+        (0.0, 4.0, "D:min"),
+        (4.0, 6.0, "F:maj7"),
+        (6.0, 8.0, "C:maj"),
+        (8.0, 11.0, "Bb:maj"),
+        (11.0, 20.0, "A:7"),
+    ]
+    bars = chart(chords, beats)
+    marks = [(0.0, 16.0, "verse", 0.0), (16.0, 20.0, "chorus", 16.0)]
+
+    def lines(t, columns):
+        monkeypatch.setenv("COLUMNS", str(columns))
+        console = Console(width=columns, record=True, file=open("/dev/null", "w"), color_system=None)
+        console.print(view(p, "Mix", [], marks, 20.0, "", t, bars=bars))
+        return [line.rstrip() for line in console.export_text().splitlines()]
+
+    out = lines(5.0, 120)
+    row = out[out.index("Accords · verse") + 1]
+    # six colonnes par temps (« Fmaj7 » et une espace) : chaque temps tenu est un « / » sous les autres temps
+    assert row == (
+        "│ Dm    /     /     /     │ Fmaj7 /     C     /     │ Bb    /     /     A7    │ A7    /     /     /     │"
+    )
+    # sous un séparateur, la première rangée de la section suivante, sur les mêmes colonnes
+    at = out.index("── puis chorus ──")
+    assert out[at + 1] == "│ A7    /     /     /     │" and at == out.index("Accords · verse") + 2
+    # terminal étroit : deux mesures par rangée, sans rien couper
+    narrow = lines(5.0, 80)
+    at = narrow.index("Accords · verse")
+    assert narrow[at + 1] == "│ Dm    /     /     /     │ Fmaj7 /     C     /     │"
+    assert narrow[at + 2] == "│ Bb    /     /     A7    │ A7    /     /     /     │"
+    assert narrow[at + 3 : at + 5] == ["── puis chorus ──", "│ A7    /     /     /     │"]
+
+    # l'accord qui sonne, et lui seul, est surligné sur toute sa durée
+    def highlighted(t):
+        monkeypatch.setenv("COLUMNS", "120")
+        console = Console(
+            width=120, record=True, file=open("/dev/null", "w"), color_system="standard", force_terminal=True
+        )
+        console.print(view(p, "Mix", [], marks, 20.0, "", t, bars=bars))
+        spans = [s for s in console.export_text(styles=True).split("\x1b[") if s.startswith("1;7m")]
+        return [s.split("m", 1)[1].rstrip() for s in spans]
+
+    assert highlighted(5.0) == ["Fmaj7 /"] and highlighted(7.5) == ["C     /"]
+    assert highlighted(11.2) == ["A7"] and highlighted(-1.0) == []
+
+
+def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
+    from tests.helpers import song_project
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    song_project(tmp_path, monkeypatch)
+    assert "Accords" not in runner.invoke(app, ["play", "-o", "x"]).output  # pas de piste : erreur, pas d'écran
+    assert runner.invoke(app, ["split"]).exit_code == 0
+    assert "Accords" not in runner.invoke(app, ["play"]).output  # pas encore de transcription
+    assert runner.invoke(app, ["transcribe"]).exit_code == 0
+
+    monkeypatch.setenv("COLUMNS", "120")
+    out = runner.invoke(app, ["play", "-s", "chorus2"]).output  # de 2 à 4 s : une mesure, Fmaj7 puis C
+    assert "Accords · chorus2" in out and "│ Fmaj7 /     C     /     │" in out and "Dm" not in out
+    out = runner.invoke(app, ["play"]).output  # l'écran de départ : l'intro, puis le refrain
+    assert "Accords · intro" in out and "── puis chorus ──" in out and out.count("│ –   /   Dm  /   │") == 2
+
+    assert runner.invoke(app, ["render", "-s", "funk"]).exit_code == 0
+    out = runner.invoke(app, ["play", "t001"]).output
+    assert "Prise t001" in out and "Accords" not in out  # une prise brute n'est pas calée sur l'original

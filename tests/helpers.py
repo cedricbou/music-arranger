@@ -46,6 +46,7 @@ def fake_transcription(src, out_dir):
     (out_dir / "score.abc").write_text(ABC)
     (out_dir / "beat.lab").write_text("".join(f"{0.5 * i:.2f}\t{i % 4 + 1}\t4\t4\n" for i in range(8)))
     (out_dir / "downbeat.lab").write_text("0.00\n2.00\n")
+    (out_dir / "chord.lab").write_text("0.0\t1.0\tN\n1.0\t2.0\tD:min\n2.0\t3.0\tF:maj7\n3.0\t4.0\tC:maj\n")
     (out_dir / "key.lab").write_text("0.0\t4.0\tD:minor\n")
     (out_dir / "structure.lab").write_text("0.0\t1.0\tintro\n1.0\t2.0\tchorus\n2.0\t4.0\tchorus\n")
 

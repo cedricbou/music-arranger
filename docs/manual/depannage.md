@@ -39,6 +39,9 @@ les trois commandes de diagnostic.
 | `rien n'est revenu sur l'entrée` pendant `arr calibrate` | la sortie ne revient sur aucune entrée | relier une sortie à l'entrée, ou `--channel` vers la voie où revient le son |
 | `pas de décompte : le tempo est inconnu` | le projet n'a pas encore de grille de temps | `arr transcribe` ou `arr analyze` |
 | le décompte tombe sur la musique | la section ne commence pas sur un temps fort | redéfinir les sections en mesures : `arr sections set` |
+| pas d'accords à l'écran pendant `arr play` ou `arr record` | le projet n'a pas de transcription, ou c'est une prise brute (`arr play t001`), qui n'est pas calée sur l'original | `arr transcribe` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
+| les accords affichés ne sont pas ceux que j'ai écrits dans `score/score.abc` | l'écran montre les accords transcrits de l'original (`score/chord.lab`), pas la partition modifiée | pas de remède pour l'instant : se fier à la partition |
+| l'accord surligné change un peu avant ou après le temps | le moment du changement est celui que la transcription a trouvé, pas la grille des temps | lire l'accord suivant d'avance ; la grille entière de la section est affichée pour cela |
 | je n'entends rien avec `arr play` | la sortie configurée n'est pas celle de vos enceintes | `arr devices` ; régler `[output]` |
 | le fichier `mix/mix.flac` semble muet dans un lecteur | le lecteur joue sur une autre sortie | `arr play` joue le même mix sur la sortie configurée ; `arr check` montre son niveau |
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 import tomllib
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
@@ -304,8 +305,11 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
         pass
 
 
-def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[np.ndarray, float]:
+def play_and_record(playback: np.ndarray, channel: int | None = None, watch=None) -> tuple[np.ndarray, float]:
     """Joue `playback` et enregistre l'instrument dans le même flux, donc à décalage constant.
+
+    `watch(secondes)` est appelé dix fois par seconde avec le temps écoulé, lu sur l'horloge :
+    assez juste pour un affichage, et le flux n'est pas touché.
 
     Renvoie l'enregistrement (stéréo) et son retard sur le playback, en secondes : la valeur
     mesurée par `arr calibrate`, sinon le minimum du système (la latence annoncée par
@@ -327,7 +331,11 @@ def play_and_record(playback: np.ndarray, channel: int | None = None) -> tuple[n
         )
     except sd.PortAudioError as e:
         raise ProjectError(f"impossible d'ouvrir l'entrée et la sortie ensemble : {e} (arr devices)")
+    started = time.monotonic()
     try:
+        while watch and sd.get_stream().active:
+            watch(time.monotonic() - started)
+            time.sleep(0.1)
         sd.wait()
     except KeyboardInterrupt:
         sd.stop()
