@@ -38,6 +38,10 @@ def test_code_map_matches_the_source_tree():
 
 def test_agents_guide_stays_short():
     assert len(AGENTS.splitlines()) <= 150, "AGENTS.md doit rester sous 150 lignes : déplacer le détail dans docs/"
+    wide = [i for i, line in enumerate(AGENTS.splitlines(), 1) if len(line) > 110]
+    assert not wide, (
+        f"AGENTS.md, lignes de plus de 110 caractères : {wide} (allonger les lignes ne raccourcit pas le guide)"
+    )
 
 
 def test_every_decision_is_indexed():

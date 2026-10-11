@@ -130,7 +130,7 @@ def record(
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, lead = lead_in(backing, ticks)
     score = (p.root / SCORE).parent
-    marks, bars = timeline(p, None, [], []), chart(transcription.chords(score), transcription.beats(score))
+    marks, measures = timeline(p, None, [], []), chart(transcription.chords(score), transcription.beats(score))
     notes = [] if names else ["[dim]playback : morceau original[/]"]
 
     def screen(seconds: float):
@@ -142,7 +142,7 @@ def record(
             len(backing) / audio.SR,
             "Ctrl+C arrête et garde la prise",
             seconds - lead / audio.SR,
-            bars=bars,
+            bars=measures,
             notes=notes,
             recording=True,
         )

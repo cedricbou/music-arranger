@@ -35,8 +35,8 @@ arr play --without bass       # le morceau sans la basse
   ```
 - Pendant la lecture, **Espace** met en pause et reprend, **←** revient au début de la
   mesure d'avant (plusieurs appuis : plusieurs mesures) et **→** passe à la suivante, y
-  compris en pause. Sans `arr transcribe` ni `arr analyze`, les flèches avancent par pas de
-  cinq secondes.
+  compris en pause. En boucle, → sur la dernière mesure revient à la première. Sans
+  `arr transcribe` ni `arr analyze`, les flèches avancent par pas de cinq secondes.
 - Une piste écoutée seule joue sans son gain de mix ; une prise brute, sans calage.
 - Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel
   lecteur. L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence.

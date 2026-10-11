@@ -70,9 +70,14 @@ def bar_stops(starts: list[float], ranges: list[tuple[float, float]], length: fl
     return [s for i, s in enumerate(stops) if s < length and (i == 0 or s - stops[i - 1] > 0.2)]
 
 
-def neighbour(stops: list[float], t: float, step: int) -> Optional[float]:
-    """Le début de la mesure d'avant (`step` -1) ou d'après (+1) celle où l'on est ; None après la dernière."""
+def neighbour(stops: list[float], t: float, step: int, loop: bool = False) -> Optional[float]:
+    """Le début de la mesure d'avant (`step` -1) ou d'après (+1) celle où l'on est.
+
+    Après la dernière : None, ou la première si la lecture est en boucle.
+    """
     here = max((i for i, s in enumerate(stops) if s <= t + 0.05), default=0)
+    if loop and here + step >= len(stops):
+        return stops[0]
     return stops[max(here + step, 0)] if here + step < len(stops) else None
 
 
@@ -181,7 +186,7 @@ def play(
             for key in pressed():
                 if key == "pause":
                     paused = not paused
-                elif (target := neighbour(stops, max(t, 0.0), -1 if key == "back" else 1)) is not None:
+                elif (target := neighbour(stops, max(t, 0.0), -1 if key == "back" else 1, loop)) is not None:
                     t = jump = target
             shown.update(screen(seconds if jump is None else base + jump))
             return paused, None if jump is None else base + jump
