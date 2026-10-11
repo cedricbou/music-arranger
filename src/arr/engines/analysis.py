@@ -8,6 +8,11 @@ import numpy as np
 
 from arr import audio
 from arr.engines import device
+from arr.project import ProjectError
+
+# Miroir d'un tiers du fichier publié par les auteurs (cloud de la JKU) : la révision fige son contenu.
+BEAT_THIS_REPO = "oulianov/beat_this"
+BEAT_THIS_REVISION = "fea475438eb3b8e509c7661a44f1ca97ffbe9829"
 
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 # Profils de Krumhansl-Kessler
@@ -15,10 +20,21 @@ MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.
 MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
 
+def checkpoint() -> Path:
+    """Poids de beat_this dans le cache Hugging Face ; seul `arr models pull` les télécharge."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    try:
+        return Path(hf_hub_download(BEAT_THIS_REPO, "final0.ckpt", revision=BEAT_THIS_REVISION))
+    except LocalEntryNotFoundError:
+        raise ProjectError("poids de beat_this absents (arr models pull)") from None
+
+
 def beats(path: Path) -> tuple[list[float], list[float]]:
     from beat_this.inference import File2Beats
 
-    b, d = File2Beats(checkpoint_path="final0", device=device(), dbn=False)(str(path))
+    b, d = File2Beats(checkpoint_path=str(checkpoint()), device=device(), dbn=False)(str(path))
     return [float(x) for x in b], [float(x) for x in d]
 
 

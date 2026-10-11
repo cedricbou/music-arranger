@@ -121,3 +121,24 @@ def test_share_exports_part_mix_and_backing(tmp_path, monkeypatch):
     out = p.root / "export/guitar"
     assert {f.name for f in out.iterdir()} == {"partie.mp3", "mix.mp3", "sans.mp3"}
     assert abs(audio.duration(out / "sans.mp3") - 4.0) < 0.1
+
+
+def test_a_take_records_the_engine_version_that_rendered_it(tmp_path, monkeypatch):
+    import subprocess
+
+    from arr.engines import yue2
+
+    cli = tmp_path / "audiocpp/v0.9.1/audiocpp_cli"
+    cli.parent.mkdir(parents=True)
+    cli.touch()
+    (tmp_path / "audiocpp/current").symlink_to("v0.9.1")
+    monkeypatch.setattr(yue2, "AUDIOCPP", tmp_path / "audiocpp/current/audiocpp_cli")
+    out = tmp_path / "rendu.wav"
+
+    def run(cmd, **kwargs):
+        out.touch()
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    meta = yue2.render("X:1\n", "", "funk", out, seed=3)
+    assert meta["engine"] == "audio.cpp v0.9.1" and meta["seed"] == 3

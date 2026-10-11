@@ -45,6 +45,30 @@ arr doctor
 
 `arr doctor` doit afficher `xpu: disponible` et « présent » pour chaque moteur.
 
+### D'où vient chaque élément
+
+| Élément | Source | Version |
+|---|---|---|
+| YuE2, SheetSage2, Demucs | Hugging Face, dépôts de leurs auteurs ou du projet audio.cpp | la dernière publiée |
+| beat_this | Hugging Face, copie identique du fichier des auteurs | une révision fixe |
+| audio.cpp (un programme, pas un modèle) | sa release officielle sur GitHub, empreinte sha256 vérifiée | la dernière release |
+
+### Mettre à jour audio.cpp, ou rester sur une version
+
+Chaque `arr models pull` met en service la dernière release d'audio.cpp. Les versions déjà
+installées restent sur le disque, dans `~/.local/share/arr/audiocpp/<version>/` : revenir à
+l'une d'elles est immédiat.
+
+```
+arr models pull                      # passe à la dernière release
+arr models pull --audiocpp v0.9.0    # reste sur cette version, ou y revient
+arr doctor                           # affiche la version en service
+```
+
+Pour rester durablement sur une version, la variable d'environnement
+`ARR_AUDIOCPP_VERSION` vaut `--audiocpp`. Chaque prise note la version qui l'a rendue, dans
+`takes/tNNN.json` (`engine`).
+
 ## Où sont rangées les choses
 
 | Quoi | Où | Pour le déplacer |
@@ -57,7 +81,7 @@ arr doctor
 
 Aucun son ne quitte la machine. Deux commandes seulement utilisent le réseau :
 
-- `arr models pull` télécharge les modèles ;
+- `arr models pull` télécharge les modèles depuis Hugging Face et audio.cpp depuis GitHub ;
 - `arr lyrics fetch` envoie l'artiste et le titre à lrclib.net pour trouver les paroles.
 
 ## Mettre à jour
@@ -66,7 +90,7 @@ Aucun son ne quitte la machine. Deux commandes seulement utilisent le réseau :
 cd ~/dev/music-arranger
 git pull
 uv sync
-arr models pull      # seulement si les notes de version le demandent
+arr models pull      # met aussi à jour audio.cpp ; voir ci-dessus pour rester sur une version
 ```
 
 ## Licence des modèles

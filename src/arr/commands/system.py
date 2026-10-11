@@ -10,7 +10,7 @@ import typer
 
 from arr import audio, engines
 from arr.app import ORIGINAL, app, models_app
-from arr.project import Project
+from arr.project import Project, ProjectError
 
 
 @app.command()
@@ -101,9 +101,58 @@ def devices() -> None:
             typer.echo(f"  {d['name']}  ({d['max_input_channels']} entrées, {d['max_output_channels']} sorties)")
 
 
-AUDIOCPP_RELEASE = (
-    "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.0/audio-v0.9.0-bin-ubuntu-x64-vulkan-portable.tar.gz"
-)
+AUDIOCPP_RELEASES = "https://api.github.com/repos/0xShug0/audio.cpp/releases"
+# La variante non portable vise AVX-512 et plante (SIGILL) sur les processeurs qui ne l'ont pas.
+AUDIOCPP_ASSET = "-bin-ubuntu-x64-vulkan-portable.tar.gz"
+
+
+def audiocpp_release(version: str) -> tuple[str, str, str]:
+    """Nom, adresse et empreinte sha256 de l'archive d'une release (la dernière si `version` est vide)."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{AUDIOCPP_RELEASES}/{f'tags/{version}' if version else 'latest'}") as reply:
+            release = json.load(reply)
+    except urllib.error.HTTPError as e:
+        raise ProjectError(f"release d'audio.cpp introuvable : {version or 'la dernière'} (HTTP {e.code})") from None
+    asset = next((a for a in release["assets"] if a["name"].endswith(AUDIOCPP_ASSET)), None)
+    if asset is None or not asset.get("digest"):
+        raise ProjectError(f"audio.cpp {release['tag_name']} : pas d'archive {AUDIOCPP_ASSET} avec son empreinte")
+    return release["tag_name"], asset["browser_download_url"], asset["digest"].removeprefix("sha256:")
+
+
+def install_audiocpp(version: str = "") -> str:
+    """Met en service une version d'audio.cpp (la dernière si `version` est vide) et renvoie son nom.
+
+    Chaque version a son dossier ; le lien `current` désigne celle qui sert. Les autres restent en place.
+    """
+    import hashlib
+    import shutil
+    import tarfile
+    import urllib.request
+
+    root, binary = engines.AUDIOCPP.parents[1], engines.AUDIOCPP.name
+    if not (version and (root / version / binary).exists()):
+        version, url, digest = audiocpp_release(version)
+        if not (root / version / binary).exists():
+            archive, _ = urllib.request.urlretrieve(url)
+            found = hashlib.sha256(Path(archive).read_bytes()).hexdigest()
+            if found != digest:
+                raise ProjectError(f"audio.cpp {version} : empreinte inattendue ({found[:12]}, attendu {digest[:12]})")
+            partial = root / f"{version}.partiel"
+            shutil.rmtree(partial, ignore_errors=True)
+            partial.mkdir(parents=True)
+            with tarfile.open(archive) as tar:
+                tar.extractall(partial, filter="data")
+            (partial / binary).chmod(0o755)
+            partial.rename(root / version)
+            Path(archive).unlink()
+    link = root / engines.AUDIOCPP.parent.name
+    link.unlink(missing_ok=True)
+    link.symlink_to(version)
+    return version
 
 
 SS2_PACKAGES = [
@@ -121,15 +170,23 @@ SS2_PACKAGES = [
 
 
 @models_app.command("pull")
-def models_pull() -> None:
-    """Installe les modèles et leurs moteurs (seule commande qui télécharge des modèles)."""
-    import tarfile
-    import urllib.request
+def models_pull(
+    audiocpp: str = typer.Option(
+        "",
+        "--audiocpp",
+        envvar="ARR_AUDIOCPP_VERSION",
+        help="Version d'audio.cpp à mettre en service (ex. v0.9.0) ; par défaut la dernière release.",
+    ),
+) -> None:
+    """Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
 
-    from beat_this.inference import load_model
+    Les poids viennent de Hugging Face. Le moteur audio.cpp vient de sa release GitHub : la
+    dernière à chaque appel, ou celle de `--audiocpp` pour rester sur une version ou y revenir.
+    """
     from demucs.pretrained import get_model
     from huggingface_hub import snapshot_download
 
+    from arr.engines import analysis
     from arr.engines.separation import MODELS
 
     snapshot_download(
@@ -139,13 +196,7 @@ def models_pull() -> None:
     )
     typer.echo(f"YuE2 dans {engines.YUE2}")
 
-    if not engines.AUDIOCPP.exists():
-        engines.AUDIOCPP.parent.mkdir(parents=True, exist_ok=True)
-        archive, _ = urllib.request.urlretrieve(AUDIOCPP_RELEASE)
-        with tarfile.open(archive) as tar:
-            tar.extractall(engines.AUDIOCPP.parent, filter="data")
-        engines.AUDIOCPP.chmod(0o755)
-    typer.echo(f"audio.cpp dans {engines.AUDIOCPP.parent}")
+    typer.echo(f"audio.cpp {install_audiocpp(audiocpp)} dans {engines.AUDIOCPP.parents[1]}")
 
     if not engines.SS2_PYTHON.exists():
         env = {**os.environ, "VIRTUAL_ENV": str(engines.SS2_PYTHON.parents[1])}
@@ -177,8 +228,8 @@ def models_pull() -> None:
 
     for name in MODELS:
         get_model(name)
-    load_model("final0", "cpu")
-    typer.echo("Demucs et beat_this dans ~/.cache")
+    analysis.checkpoint()
+    typer.echo("Demucs et beat_this dans le cache Hugging Face")
 
 
 @app.command()
@@ -193,9 +244,16 @@ def doctor() -> None:
     typer.echo(f"xpu: disponible ({torch.xpu.get_device_name(0)})")
     x = torch.randn(2048, 2048, device="xpu")
     typer.echo(f"calcul de test: {float((x @ x).abs().mean()):.3f}")
-    for label, path in (
-        ("audio.cpp", engines.AUDIOCPP),
-        ("YuE2", engines.YUE2 / "yue2-3b-q8_0.gguf"),
-        ("SheetSage2", engines.SS2_PYTHON),
+    from arr.engines import analysis, yue2
+
+    try:
+        beat_this = bool(analysis.checkpoint())
+    except ProjectError:
+        beat_this = False
+    for label, state in (
+        ("audio.cpp", engines.AUDIOCPP.exists() and f"présent ({yue2.version()})"),
+        ("YuE2", (engines.YUE2 / "yue2-3b-q8_0.gguf").exists() and "présent"),
+        ("SheetSage2", engines.SS2_PYTHON.exists() and "présent"),
+        ("beat_this", beat_this and "présent"),
     ):
-        typer.echo(f"{label}: {'présent' if path.exists() else 'absent (arr models pull)'}")
+        typer.echo(f"{label}: {state or 'absent (arr models pull)'}")

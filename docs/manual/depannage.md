@@ -8,7 +8,11 @@ les trois commandes de diagnostic.
 | Symptôme | Cause | Remède |
 |---|---|---|
 | `xpu: indisponible` | les pilotes Intel manquent, ou la machine n'a pas de carte Arc | installer `intel-compute-runtime` et `level-zero-loader` ; sans carte Arc, les commandes à modèle ne sont pas utilisables |
-| `absent (arr models pull)` dans `arr doctor` | un moteur n'est pas installé | `arr models pull` |
+| `absent (arr models pull)` dans `arr doctor` | un moteur n'est pas installé, ou une mise à jour d'`arr` l'a changé de place | `arr models pull` |
+| `poids de beat_this absents (arr models pull)` | les temps se mesurent avec un modèle qui n'est pas encore téléchargé | `arr models pull` |
+| `audio.cpp ... : empreinte inattendue` | l'archive téléchargée n'est pas celle que publie la release (téléchargement coupé ou archive modifiée) | relancer `arr models pull` ; si le message revient, rester sur la version précédente : `arr models pull --audiocpp vX.Y.Z` |
+| `release d'audio.cpp introuvable` | la version demandée n'existe pas, ou GitHub ne répond pas | vérifier le nom (`v0.9.0`, avec le `v`) ; réessayer plus tard |
+| `arr render` échoue ou rend autrement depuis une mise à jour | la nouvelle version d'audio.cpp se comporte différemment | `arr doctor` donne la version ; revenir à la précédente : `arr models pull --audiocpp vX.Y.Z` |
 | `env: « arr »: Aucun fichier ou dossier de ce nom` à chaque Tab | `arr` est un alias et non un programme | remplacer l'alias par un lien : voir [Installation](installation.md) |
 | `aucun projet ici (lance arr init <nom>)` | la commande n'est pas lancée depuis un dossier de projet | `cd` dans le projet |
 

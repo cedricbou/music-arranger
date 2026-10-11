@@ -77,3 +77,30 @@ def test_analyze_writes_tempo_key_and_beat_grid(tmp_path, monkeypatch):
     assert p.song["bpm"] == 120.0 and p.song["duration"] == 4.0
     assert p.song["key"].split()[0] == "A"  # un la à 440 Hz
     assert json.loads((p.root / "analysis.json").read_text())["downbeats"] == [0.0, 2.0]
+
+
+def test_beats_load_the_weights_from_the_hugging_face_cache(tmp_path, monkeypatch):
+    import beat_this.inference
+    import huggingface_hub
+
+    from arr.engines import analysis
+
+    asked, loaded = [], []
+
+    def download(repo, filename, revision):
+        asked.append((repo, filename, revision))
+        return str(tmp_path / filename)
+
+    class File2Beats:
+        def __init__(self, checkpoint_path, device, dbn):
+            loaded.append(checkpoint_path)
+
+        def __call__(self, path):
+            return [0.0, 0.5], [0.0]
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+    monkeypatch.setattr(beat_this.inference, "File2Beats", File2Beats)
+    monkeypatch.setattr(analysis, "device", lambda: "cpu")
+    assert analysis.beats(tmp_path / "morceau.flac") == ([0.0, 0.5], [0.0])
+    assert asked == [(analysis.BEAT_THIS_REPO, "final0.ckpt", analysis.BEAT_THIS_REVISION)]
+    assert loaded == [str(tmp_path / "final0.ckpt")]  # un chemin local : beat_this ne va pas chercher ailleurs
