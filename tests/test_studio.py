@@ -78,7 +78,7 @@ def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, mo
     monkeypatch.chdir(p.root)
     heard = {}
 
-    def fake_duplex(playback, channel):
+    def fake_duplex(playback, channel, watch=None):
         heard["playback"], heard["channel"] = playback, channel
         # le musicien « joue » un son reconnaissable, que la carte restitue 100 ms en retard
         played = np.concatenate([np.zeros((int(1.5 * audio.SR), 2), np.float32), tone(880, 4.0, amp=0.2)])
@@ -114,13 +114,15 @@ def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
     fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
     monkeypatch.setattr(studio, "CONFIG", tmp_path / "audio.toml")
     (tmp_path / "audio.toml").write_text('[output]\ndevice = "X"\n')
-    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (audio.shift(playback, 0.0375) * 0.5, 0.0))
+    monkeypatch.setattr(
+        studio, "play_and_record", lambda playback, channel, watch=None: (audio.shift(playback, 0.0375) * 0.5, 0.0)
+    )
     result = runner.invoke(app, ["calibrate"])
     assert result.exit_code == 0, result.output
     saved = (tmp_path / "audio.toml").read_text()
     assert "latency_ms = 37.5" in saved and 'device = "X"' in saved  # les autres réglages restent
 
-    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel, watch=None: (np.zeros_like(playback), 0.0))
     assert runner.invoke(app, ["calibrate"]).exit_code != 0  # rien n'est revenu : pas de valeur écrite
     assert "latency_ms = 37.5" in (tmp_path / "audio.toml").read_text()
 
@@ -169,7 +171,7 @@ def test_record_refuses_a_silent_take(tmp_path, monkeypatch):
     p = Project.create(tmp_path / "song", "song")
     add_track(p, "drums", tone(110, 1.0, amp=0.1), {"op": "split"})
     monkeypatch.chdir(p.root)
-    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel: (np.zeros_like(playback), 0.0))
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel, watch=None: (np.zeros_like(playback), 0.0))
     result = runner.invoke(app, ["record", "bass", "--count-in", "0"])
     assert result.exit_code != 0 and "bass" not in Project.find().tracks
 
@@ -227,3 +229,29 @@ def test_loop_block_wraps_to_the_loop_start():
     assert block[:, 0].tolist() == [8, 9, 4, 5, 6, 7, 8, 9] and position == 10
     block, position = studio.loop_block(data, position, 15, loop_from=4)  # un bloc plus long que la boucle
     assert block[:, 0].tolist() == [4, 5, 6, 7, 8, 9] * 2 + [4, 5, 6] and position == 7
+
+
+def test_record_shows_the_shared_screen_with_chords(tmp_path, monkeypatch):
+    from arr import studio
+    from tests.helpers import song_project
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    song_project(tmp_path, monkeypatch)
+    assert runner.invoke(app, ["split"]).exit_code == 0
+    assert runner.invoke(app, ["transcribe"]).exit_code == 0
+    seen = []
+
+    def fake_duplex(playback, channel, watch=None):
+        for seconds in (0.0, 1.5, 3.0):
+            watch(seconds)
+            seen.append(seconds)
+        return tone(880, len(playback) / audio.SR, amp=0.2), 0.0
+
+    monkeypatch.setattr(studio, "play_and_record", fake_duplex)
+    result = runner.invoke(app, ["record", "bass", "--count-in", "0"])
+    assert result.exit_code == 0, result.output
+    assert seen == [0.0, 1.5, 3.0]
+    out = result.output
+    assert "Enregistrement de bass" in out and "Ctrl+C arrête et garde la prise" in out
+    assert "drums" in out and "Accords · chorus2" in out and "Fmaj7" in out  # la dernière image, à 3 s
+    assert "bass v002" in out

@@ -69,7 +69,7 @@ def test_play_shows_what_plays_and_what_is_applied(tmp_path, monkeypatch):
 def test_play_view_follows_the_position(tmp_path):
     from rich.console import Console
 
-    from arr.commands.play import position, timeline, view
+    from arr.commands._screen import position, timeline, view
 
     p = Project.create(tmp_path / "song", "song")
     add_track(p, "guitar", tone(330, 6.0, amp=0.1), {"op": "split"})
@@ -79,12 +79,12 @@ def test_play_view_follows_the_position(tmp_path):
 
     # sections jouées dans le désordre : l'horloge suit la lecture, pas le morceau
     marks = timeline(p, None, ["outro", "verse"], [(4.0, 6.0), (0.0, 2.0)])
-    assert marks == [(0.0, 2.0, "outro"), (2.0, 4.0, "verse")]
-    assert timeline(p, None, [], [])[1] == (2.0, 4.0, "chorus")
+    assert marks == [(0.0, 2.0, "outro", 4.0), (2.0, 4.0, "verse", 0.0)]
+    assert timeline(p, None, [], [])[1] == (2.0, 4.0, "chorus", 2.0)
 
     def text(t):
         console = Console(width=200, record=True, file=open("/dev/null", "w"), color_system=None)
-        console.print(view(p, None, None, (), (), marks, 4.0, False, t))
+        console.print(view(p, "Mix · 1 piste", ["guitar"], marks, 4.0, "Ctrl+C arrête", t))
         return console.export_text()
 
     assert "outro (1/2)" in text(0.5) and "+500 ms" in text(0.5) and "puis verse" in text(0.5)
@@ -158,3 +158,63 @@ def test_play_count_in_without_a_known_tempo_only_warns(tmp_path, monkeypatch):
     result = runner.invoke(app, ["play", "--count-in", "1"])
     assert result.exit_code == 0 and "pas de décompte" in result.output
     assert len(calls["played"][0]) == audio.SR // 2
+
+
+def test_chord_names_read_like_a_lead_sheet():
+    from arr.commands._screen import chord_name
+
+    given = ["D:min", "C:maj", "F:maj7", "E:min7", "A:sus4", "C:maj6", "C:7", "N", "G:min/b3", "Bb"]
+    assert [chord_name(c) for c in given] == ["Dm", "C", "Fmaj7", "Em7", "Asus4", "C6", "C7", "–", "Gm/b3", "Bb"]
+
+
+def test_chord_page_follows_the_section_being_played():
+    from arr.commands._screen import chord_page
+
+    # un accord par seconde ; couplet de 0 à 4 s, refrain de 4 à 8 s
+    labels = ["D:min", "D:min", "C:maj", "C:maj", "F:maj", "G:maj", "F:maj", "G:maj", "A:min", "A:min"]
+    chords = [(float(i), i + 1.0, label) for i, label in enumerate(labels)]
+    whole = [(0.0, 4.0, "verse", 0.0), (4.0, 8.0, "chorus", 4.0)]
+
+    name, page, current, upcoming = chord_page(chords, whole, 2.5)
+    assert name == "verse" and [c[2] for c in page] == labels[:4] and current == 2
+    assert upcoming[0] == "chorus" and [c[2] for c in upcoming[1]] == labels[4:8]
+    name, page, current, upcoming = chord_page(chords, whole, 5.2)
+    assert name == "chorus" and current == 1 and upcoming == ()
+
+    # refrain puis couplet : à 1,5 s de lecture on est à 5,5 s du morceau
+    swapped = [(0.0, 4.0, "chorus", 4.0), (4.0, 8.0, "verse", 0.0)]
+    name, page, current, upcoming = chord_page(chords, swapped, 1.5)
+    assert name == "chorus" and page[current] == chords[5] and upcoming[0] == "verse"
+
+    # décompte : la première section, sans accord surligné
+    name, page, current, _ = chord_page(chords, swapped, -1.0)
+    assert name == "chorus" and [c[2] for c in page] == labels[4:8] and current is None
+
+    # hors section, ou projet sans sections : une page de huit accords autour de la position
+    name, page, current, upcoming = chord_page(chords, whole, 9.5)
+    assert name is None and page == chords[8:] and current == 1 and upcoming == ()
+    assert chord_page(chords, [], 3.2)[1:3] == (chords[:8], 3)
+
+    # une section redéfinie à la main, qui ne tombe pas sur les bornes : chaque accord va où est son milieu
+    assert [c[0] for c in chord_page(chords, [(0.0, 3.6, "verse", 0.0)], 0.0)[1]] == [0.0, 1.0, 2.0, 3.0]
+    assert chord_page([], whole, 1.0)[1] == []
+
+
+def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
+    from tests.helpers import song_project
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    song_project(tmp_path, monkeypatch)
+    assert "Accords" not in runner.invoke(app, ["play", "-o", "x"]).output  # pas de piste : erreur, pas d'écran
+    assert runner.invoke(app, ["split"]).exit_code == 0
+    assert "Accords" not in runner.invoke(app, ["play"]).output  # pas encore de transcription
+    assert runner.invoke(app, ["transcribe"]).exit_code == 0
+
+    out = runner.invoke(app, ["play", "-s", "chorus2"]).output  # de 2 à 4 s : Fmaj7 puis C
+    assert "Accords · chorus2" in out and "Fmaj7" in out and "Dm" not in out
+    out = runner.invoke(app, ["play"]).output  # l'écran de départ : l'intro, puis le refrain
+    assert "Accords · intro" in out and "puis chorus : Dm" in out
+
+    assert runner.invoke(app, ["render", "-s", "funk"]).exit_code == 0
+    out = runner.invoke(app, ["play", "t001"]).output
+    assert "Prise t001" in out and "Accords" not in out  # une prise brute n'est pas calée sur l'original

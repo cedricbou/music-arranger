@@ -104,3 +104,11 @@ def test_beats_load_the_weights_from_the_hugging_face_cache(tmp_path, monkeypatc
     assert analysis.beats(tmp_path / "morceau.flac") == ([0.0, 0.5], [0.0])
     assert asked == [(analysis.BEAT_THIS_REPO, "final0.ckpt", analysis.BEAT_THIS_REVISION)]
     assert loaded == [str(tmp_path / "final0.ckpt")]  # un chemin local : beat_this ne va pas chercher ailleurs
+
+
+def test_chords_are_read_from_the_transcription(tmp_path):
+    from arr.engines import transcription
+
+    assert transcription.chords(tmp_path) == []
+    (tmp_path / "chord.lab").write_text("0.01\t1.11\tN\n1.11\t2.97\tD:min\n")
+    assert transcription.chords(tmp_path) == [(0.01, 1.11, "N"), (1.11, 2.97, "D:min")]

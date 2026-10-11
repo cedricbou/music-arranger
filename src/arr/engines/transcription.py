@@ -46,6 +46,12 @@ def _rows(path: Path) -> list[list[str]]:
     return [line.split("\t") for line in path.read_text().splitlines() if line.strip()]
 
 
+def chords(out_dir: Path) -> list[tuple[float, float, str]]:
+    """Les accords du morceau : (début, fin, étiquette comme « D:min » ou « N »), vide sans transcription."""
+    f = out_dir / "chord.lab"
+    return [(float(start), float(end), label) for start, end, label in _rows(f)] if f.exists() else []
+
+
 def first_sung(out_dir: Path) -> float | None:
     """Instant de la première note de la mélodie vocale, ou None si elle manque."""
     f = out_dir / "melody_vocal.lab"

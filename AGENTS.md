@@ -75,7 +75,8 @@ src/arr/
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
-  commands/play.py          play, et son écran : ce qui joue, la section en cours, le calage appliqué
+  commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours et ses accords
+  commands/play.py          play : le mix, une piste ou une prise, en entier, par sections, en boucle
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
@@ -146,5 +147,4 @@ sortie par défaut** (fiche 003). Les autres installations sont décrites dans `
 - Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
 - Lecture et enregistrement : un flux duplex `sounddevice` sur l'API JACK de PipeWire, entrée
   et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
-- **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
-  virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.
+- **Tester sans bruit** : `scripts/loopback.sh arr <commande>` joue sur une sortie PipeWire virtuelle. Rien d'autre n'est permis.
