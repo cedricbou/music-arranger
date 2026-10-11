@@ -60,9 +60,8 @@ uv run pytest -q          # ~5 s, sans GPU, sans modèle, sans carte son
 uv run ruff check . && uv run ruff format .
 uv run arr doctor         # GPU et présence des moteurs
 uv run arr <commande>     # depuis un dossier de projet, ex. demo/gala-yue2 (hors git)
+# La CI (.github/workflows/ci.yml) lance lint, format et tests sur chaque PR.
 ```
-
-La CI (`.github/workflows/ci.yml`) lance lint, format et tests sur chaque PR.
 
 ## Carte du code
 
@@ -75,14 +74,14 @@ src/arr/
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
-  commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours et sa grille d'accords
-  commands/play.py          play : mix, piste ou prise, par sections, en boucle ; clavier (pause, mesure d'avant ou d'après)
+  commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
+  commands/play.py          play : mix, piste ou prise, sections, boucle ; clavier (pause, mesure voisine)
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
-  measure.py                mesures sans écoute : période, calage sur une grille, retard, niveaux, parts des stems
+  measure.py                mesures sans écoute : période, calage, retard, niveaux, parts des stems
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
@@ -96,8 +95,8 @@ tests/
   test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
   test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
   test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
-  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py, test_studio.py, test_system.py
-                            un fichier par module de commandes, via CliRunner
+  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
+  test_studio.py, test_system.py   un fichier par module de commandes, via CliRunner
 ```
 
 Règles de structure :
@@ -147,4 +146,5 @@ sortie par défaut** (fiche 003). Les autres installations sont décrites dans `
 - Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
 - Lecture et enregistrement : un flux duplex `sounddevice` sur l'API JACK de PipeWire, entrée
   et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
-- **Tester sans bruit** : `scripts/loopback.sh arr <commande>` joue sur une sortie PipeWire virtuelle. Rien d'autre n'est permis.
+- **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
+  virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.

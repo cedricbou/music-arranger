@@ -339,6 +339,7 @@ def test_arrows_lead_to_bar_starts():
     assert neighbour(bars, 5.0, -1) == 2.0 and neighbour(bars, 5.0, +1) == 6.0  # depuis la mesure qui commence à 4 s
     assert neighbour(bars, 4.0, -1) == 2.0  # pile sur la barre : la mesure d'avant, pas celle-ci
     assert neighbour(bars, 1.0, -1) == 0.0 and neighbour(bars, 11.0, +1) is None
+    assert neighbour(bars, 11.0, +1, loop=True) == 0.0 and neighbour(bars, 5.0, +1, loop=True) == 6.0
 
 
 def test_play_pauses_and_moves_bar_by_bar(tmp_path, monkeypatch):
@@ -373,7 +374,7 @@ def test_play_pauses_and_moves_bar_by_bar(tmp_path, monkeypatch):
         (True, 2.0),  # ← en pause : début de la mesure (0 s du refrain, après 2 s de décompte)
         (False, None),  # espace : reprise
         (False, 2.0),  # ← ← depuis 3,5 s (deuxième mesure) : la première, on ne remonte pas plus haut
-        (False, None),  # → depuis la dernière mesure : rien après
+        (False, 2.0),  # → depuis la dernière mesure, en boucle : retour à la première
         (False, 8.0),  # deuxième tour, à 1 s du refrain : → mène à sa deuxième mesure
         (False, None),
     ]
