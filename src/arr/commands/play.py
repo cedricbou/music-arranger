@@ -97,6 +97,7 @@ def play(
             hint,
             t,
             bars=bars,
+            loop=loop,
             notes=notes,
             solo=bool(name),
             version=version,

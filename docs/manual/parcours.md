@@ -24,11 +24,14 @@ arr play --without bass       # le morceau sans la basse
   de quoi jouer par-dessus. Elle se lit comme une grille de jazz : une case par mesure, quatre
   mesures par rangée (deux dans un terminal étroit), chaque accord écrit sur le temps où il
   commence, puis un `/` par temps où il est tenu. L'accord du moment est surligné sur toute
-  sa durée ; une ligne grise annonce les premières mesures de la section suivante.
+  sa durée. Sous un séparateur, la première rangée de la section suivante reste affichée en
+  gris, pour préparer l'enchaînement.
 
   ```
   Accords · chorus
   │ Dm    /     /     /     │ Fmaj7 /     C     /     │ Bb    /     /     /     │ C     /     /     /     │
+  ── puis verse2 ──
+  │ Dm    /     /     /     │ Dm    /     /     /     │ Dm    /     /     /     │ Dm    /     /     /     │
   ```
 - Une piste écoutée seule joue sans son gain de mix ; une prise brute, sans calage.
 - Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel

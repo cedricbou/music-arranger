@@ -218,6 +218,10 @@ def test_chord_page_follows_the_section_being_played():
     name, page, current, upcoming = chord_page(bars, swapped, 6.5)
     assert name == "chorus" and page[current[0]][3][current[1]][2] == "C:maj" and upcoming[0] == "verse"
 
+    # en boucle, la suite de la dernière section est la première ; une section seule n'annonce rien
+    assert chord_page(bars, swapped, 9.0)[3] == () and chord_page(bars, swapped, 9.0, loop=True)[3][0] == "chorus"
+    assert chord_page(bars, swapped[:1], 1.0, loop=True)[3] == ()
+
     # décompte : la première section, sans accord surligné
     name, page, current, _ = chord_page(bars, swapped, -1.0)
     assert name == "chorus" and page == bars[2:4] and current is None
@@ -262,12 +266,15 @@ def test_chord_grid_shows_how_long_each_chord_lasts(tmp_path, monkeypatch):
     assert row == (
         "│ Dm    /     /     /     │ Fmaj7 /     C     /     │ Bb    /     /     A7    │ A7    /     /     /     │"
     )
-    assert "puis chorus : A7" in "\n".join(out)
+    # sous un séparateur, la première rangée de la section suivante, sur les mêmes colonnes
+    at = out.index("── puis chorus ──")
+    assert out[at + 1] == "│ A7    /     /     /     │" and at == out.index("Accords · verse") + 2
     # terminal étroit : deux mesures par rangée, sans rien couper
     narrow = lines(5.0, 80)
     at = narrow.index("Accords · verse")
     assert narrow[at + 1] == "│ Dm    /     /     /     │ Fmaj7 /     C     /     │"
     assert narrow[at + 2] == "│ Bb    /     /     A7    │ A7    /     /     /     │"
+    assert narrow[at + 3 : at + 5] == ["── puis chorus ──", "│ A7    /     /     /     │"]
 
     # l'accord qui sonne, et lui seul, est surligné sur toute sa durée
     def highlighted(t):
@@ -276,7 +283,7 @@ def test_chord_grid_shows_how_long_each_chord_lasts(tmp_path, monkeypatch):
             width=120, record=True, file=open("/dev/null", "w"), color_system="standard", force_terminal=True
         )
         console.print(view(p, "Mix", [], marks, 20.0, "", t, bars=bars))
-        spans = [s for s in console.export_text(styles=True).split("\x1b[") if s.startswith("1;30;43m")]
+        spans = [s for s in console.export_text(styles=True).split("\x1b[") if s.startswith("1;7m")]
         return [s.split("m", 1)[1].rstrip() for s in spans]
 
     assert highlighted(5.0) == ["Fmaj7 /"] and highlighted(7.5) == ["C     /"]
@@ -297,7 +304,7 @@ def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
     out = runner.invoke(app, ["play", "-s", "chorus2"]).output  # de 2 à 4 s : une mesure, Fmaj7 puis C
     assert "Accords · chorus2" in out and "│ Fmaj7 /     C     /     │" in out and "Dm" not in out
     out = runner.invoke(app, ["play"]).output  # l'écran de départ : l'intro, puis le refrain
-    assert "Accords · intro" in out and "puis chorus : – Dm" in out
+    assert "Accords · intro" in out and "── puis chorus ──" in out and out.count("│ –   /   Dm  /   │") == 2
 
     assert runner.invoke(app, ["render", "-s", "funk"]).exit_code == 0
     out = runner.invoke(app, ["play", "t001"]).output

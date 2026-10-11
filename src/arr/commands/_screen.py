@@ -97,12 +97,15 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
     return [tuple(bar) for bar in bars]
 
 
-def chord_page(bars: list[tuple], marks: list[tuple], t: float) -> tuple[Optional[str], list, Optional[tuple], tuple]:
+def chord_page(
+    bars: list[tuple], marks: list[tuple], t: float, loop: bool = False
+) -> tuple[Optional[str], list, Optional[tuple], tuple]:
     """Les mesures à montrer à l'instant `t` de la lecture.
 
     Renvoie le nom de la section, ses mesures, la place de l'accord qui sonne (mesure, rang
-    dans la mesure ; None pendant le décompte) et la section suivante avec ses premières
-    mesures. Hors de toute section, la page est une suite de huit mesures autour de la position.
+    dans la mesure ; None pendant le décompte) et la section suivante avec sa première
+    rangée de mesures (en boucle, après la dernière section vient la première). Hors de
+    toute section, la page est une suite de huit mesures autour de la position.
     """
 
     def within(start: float, end: float) -> list:
@@ -119,41 +122,47 @@ def chord_page(bars: list[tuple], marks: list[tuple], t: float) -> tuple[Optiona
     else:
         start, end, name, origin = marks[index]
         now, page = origin + t - start, within(origin, origin + end - start)
-        after = marks[index + 1] if index + 1 < len(marks) else None
+        after = marks[index + 1] if index + 1 < len(marks) else marks[0] if loop and len(marks) > 1 else None
         upcoming = (after[2], within(after[3], after[3] + after[1] - after[0])[:PER_ROW]) if after else ()
     started = [(i, j) for i, b in enumerate(page) for j, chord in enumerate(b[3]) if chord[3] <= now]
     current = (started[-1] if started else (0, 0)) if page and t >= 0 else None
     return name, page, current, upcoming
 
 
-def chord_block(bars: list[tuple], marks: list[tuple], t: float) -> list:
+def chord_block(bars: list[tuple], marks: list[tuple], t: float, loop: bool = False) -> list:
     """La grille de la section : une case par mesure, un accord écrit sur son temps, « / » par temps tenu."""
     import shutil
 
     from rich.table import Table
     from rich.text import Text
 
-    name, page, current, upcoming = chord_page(bars, marks, t)
+    name, page, current, upcoming = chord_page(bars, marks, t, loop)
     if not page:
         return []
+    ahead = upcoming[1] if upcoming else []
     # Une colonne par temps, assez large pour le plus long nom : les temps tombent les uns sous les autres.
-    slot = max(4, 1 + max(len(chord_name(chord[2])) for b in page for chord in b[3]))
-    fit = (shutil.get_terminal_size((80, 24)).columns - 1) // (slot * max(b[2] for b in page) + 2)
+    slot = max(4, 1 + max(len(chord_name(chord[2])) for b in page + ahead for chord in b[3]))
+    fit = (shutil.get_terminal_size((80, 24)).columns - 1) // (slot * max(b[2] for b in page + ahead) + 2)
     per_row = PER_ROW if fit >= PER_ROW else 2 if fit >= 2 else 1
-    grid = Table.grid()
-    for row in range(0, len(page), per_row):
-        cells = []
-        for i, bar in enumerate(page[row : row + per_row], start=row):
-            cell = Text("│ ")
-            for j, (_, held, label, _, _) in enumerate(bar[3]):
-                text = chord_name(label).ljust(slot) + "/".ljust(slot) * (held - 1)
-                cell.append(text, style="bold black on yellow" if (i, j) == current else "")
-            cells.append(cell)
-        grid.add_row(*cells, "│")
-    lines = ["", f"[bold]Accords[/]{f' · {name}' if name else ''}", grid]
-    if upcoming and upcoming[1]:
-        ahead = " │ ".join(" ".join(chord_name(chord[2]) for chord in b[3]) for b in upcoming[1])
-        lines.append(f"[dim]puis {upcoming[0]} : {ahead}[/]")
+
+    def rows(shown: list, lit: Optional[tuple], style: str = "") -> Table:
+        grid = Table.grid()
+        for row in range(0, len(shown), per_row):
+            cells = []
+            for i, bar in enumerate(shown[row : row + per_row], start=row):
+                cell = Text("│ ", style=style)
+                for j, (_, held, label, _, _) in enumerate(bar[3]):
+                    text = chord_name(label).ljust(slot) + "/".ljust(slot) * (held - 1)
+                    # Vidéo inverse : les couleurs du terminal lui-même, donc toujours lisibles.
+                    cell.append(text, style="bold reverse" if (i, j) == lit else style)
+                cells.append(cell)
+            grid.add_row(*cells, Text("│", style=style))
+        return grid
+
+    lines = ["", f"[bold]Accords[/]{f' · {name}' if name else ''}", rows(page, current)]
+    if ahead:
+        # La première rangée de la section suivante reste sous les yeux : l'enchaînement se lit d'avance.
+        lines += [f"[dim]── puis {upcoming[0]} ──[/]", rows(ahead[:per_row], None, "dim")]
     return lines
 
 
@@ -171,6 +180,7 @@ def view(
     solo: bool = False,
     version: Optional[str] = None,
     recording: bool = False,
+    loop: bool = False,
 ):
     """L'écran à l'instant `t` : ce qui joue, ce qui s'applique à la section en cours, et ses accords.
 
@@ -222,7 +232,7 @@ def view(
     )
     # La consigne va avec le titre : sur la ligne d'état, elle la ferait déborder d'un terminal de 80 colonnes.
     head = f"[bold]{title}[/]  [dim]{hint}[/]"
-    return Group(head, *([table] if names else []), *notes, *chord_block(list(bars), marks, t), "", status)
+    return Group(head, *([table] if names else []), *notes, *chord_block(list(bars), marks, t, loop), "", status)
 
 
 def mix_notes(p: Project, names: list[str], without: tuple, only: tuple) -> list[str]:
