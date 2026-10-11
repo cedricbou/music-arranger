@@ -181,6 +181,7 @@ def view(
     version: Optional[str] = None,
     recording: bool = False,
     loop: bool = False,
+    paused: bool = False,
 ):
     """L'écran à l'instant `t` : ce qui joue, ce qui s'applique à la section en cours, et ses accords.
 
@@ -225,7 +226,7 @@ def view(
     status = Table.grid(padding=(0, 2))
     after = f"[dim]puis {marks[index + 1][2]}[/]" if index is not None and index + 1 < len(marks) else ""
     status.add_row(
-        f"{'[red]●[/]' if recording else '[green]▶[/]'} {where}",
+        f"{'[red]●[/]' if recording else '[yellow]⏸ en pause ·[/]' if paused else '[green]▶[/]'} {where}",
         f"{clock(max(t, 0.0))} / {clock(length)}",
         ProgressBar(total=max(length, 1e-9), completed=max(t, 0.0), width=30),
         after,

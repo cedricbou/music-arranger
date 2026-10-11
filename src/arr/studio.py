@@ -260,8 +260,9 @@ def loop_block(data: np.ndarray, position: int, frames: int, loop_from: int) -> 
 def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
     """Joue `data` sur la sortie configurée, puis `loop` sans fin s'il est donné ; Ctrl+C arrête.
 
-    `watch(secondes)` est appelé dix fois par seconde avec la position de lecture, comptée
+    `watch(secondes)` est appelé vingt fois par seconde avec la position de lecture, comptée
     depuis le début de `data` ; en boucle elle revient à la fin de `data` à chaque tour.
+    Il peut renvoyer `(en pause, position où sauter ou None)` pour piloter la lecture.
     """
     import threading
 
@@ -275,10 +276,15 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
     whole = data if loop is None else np.concatenate([data, loop])
     columns = [c - 1 for c in out["channels"]]
     position, done = 0, threading.Event()
+    paused, jump = False, None
 
     def callback(outdata, frames, time, status):
-        nonlocal position
+        nonlocal position, jump
         outdata.fill(0)
+        if jump is not None:
+            position, jump = int(np.clip(jump, 0, len(whole) - 1)), None
+        if paused:
+            return
         if loop is None:
             block = whole[position : position + frames]
             outdata[: len(block), columns] = block
@@ -298,9 +304,12 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
             callback=callback,
             finished_callback=done.set,
         ):
-            while not done.wait(0.1):
-                if watch:
-                    watch(position / audio.SR)
+            while not done.wait(0.05):
+                order = watch(position / audio.SR) if watch else None
+                if order:
+                    paused = order[0]
+                    if order[1] is not None:
+                        jump = int(order[1] * audio.SR)
     except KeyboardInterrupt:
         pass
 

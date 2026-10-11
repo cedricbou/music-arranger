@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from arr import audio
 from arr.cli import add_track, app
@@ -309,3 +310,82 @@ def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
     assert runner.invoke(app, ["render", "-s", "funk"]).exit_code == 0
     out = runner.invoke(app, ["play", "t001"]).output
     assert "Prise t001" in out and "Accords" not in out  # une prise brute n'est pas calée sur l'original
+
+
+def test_keys_are_read_from_what_the_terminal_sends():
+    from arr.commands.play import parse_keys
+
+    assert parse_keys(b" ") == ["pause"]
+    assert parse_keys(b"\x1b[D\x1b[D\x1b[C") == ["back", "back", "forward"]
+    assert parse_keys(b"\x1bOD \x1bOC") == ["back", "pause", "forward"]  # flèches en mode « application »
+    assert parse_keys(b"q\x1b[A\n") == []  # le reste est ignoré
+
+
+def test_arrows_lead_to_bar_starts():
+    from arr.commands.play import bar_stops, neighbour
+
+    bars = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+    assert bar_stops(bars, [], 12.0) == bars
+    # sections jouées dans le désordre : les arrêts suivent la lecture, pas le morceau
+    stops = bar_stops(bars, [(8.0, 12.0), (2.0, 6.0)], 8.0)
+    assert stops == [0.0, 2.0, 4.0, 6.0]
+    # une section qui commence au milieu d'une mesure : son début, puis les barres suivantes
+    assert bar_stops(bars, [(3.0, 7.0)], 4.0) == [0.0, 1.0, 3.0]
+    # une barre à deux centièmes du début de la section ne fait pas un arrêt de plus
+    assert bar_stops([0.0, 2.02, 4.02], [(2.0, 6.0)], 4.0) == pytest.approx([0.0, 2.02])
+    # sans mesures connues : un arrêt toutes les cinq secondes
+    assert bar_stops([], [], 12.0) == [0.0, 5.0, 10.0]
+
+    assert neighbour(bars, 5.0, -1) == 2.0 and neighbour(bars, 5.0, +1) == 6.0  # depuis la mesure qui commence à 4 s
+    assert neighbour(bars, 4.0, -1) == 2.0  # pile sur la barre : la mesure d'avant, pas celle-ci
+    assert neighbour(bars, 1.0, -1) == 0.0 and neighbour(bars, 11.0, +1) is None
+
+
+def test_play_pauses_and_moves_bar_by_bar(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    from arr.commands import play as command
+
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(330, 8.0, amp=0.1), {"op": "split"})
+    p.set_sections([Section("verse", 0.0, 4.0), Section("chorus", 4.0, 8.0)])
+    p.save()
+    # 120 à la noire : une mesure toutes les 2 s ; une mesure de décompte
+    grid = {"beats": [0.5 * i for i in range(16)], "downbeats": [2.0 * i for i in range(4)]}
+    (p.root / "analysis.json").write_text(json.dumps(grid))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "200")
+    typed = iter([[], ["pause"], ["back"], ["pause"], ["back", "back"], ["forward"], ["forward"], []])
+
+    @contextmanager
+    def keyboard():
+        yield lambda: next(typed)
+
+    monkeypatch.setattr(command, "keyboard", keyboard)
+    # refrain en boucle après 2 s de décompte ; le flux est à 3 s, donc à 1 s du refrain, puis au deuxième tour
+    calls["positions"] = [3.0, 3.0, 3.0, 3.0, 5.5, 5.5, 7.0, 7.0]
+    result = runner.invoke(app, ["play", "-s", "chorus", "--loop", "--count-in", "1"])
+    assert result.exit_code == 0, result.output
+    assert calls["orders"] == [
+        (False, None),
+        (True, None),  # espace : pause
+        (True, 2.0),  # ← en pause : début de la mesure (0 s du refrain, après 2 s de décompte)
+        (False, None),  # espace : reprise
+        (False, 2.0),  # ← ← depuis 3,5 s (deuxième mesure) : la première, on ne remonte pas plus haut
+        (False, None),  # → depuis la dernière mesure : rien après
+        (False, 8.0),  # deuxième tour, à 1 s du refrain : → mène à sa deuxième mesure
+        (False, None),
+    ]
+    assert "Espace : pause" in result.output and "en pause" not in result.output  # la dernière image joue
+
+
+def test_play_shows_the_pause(tmp_path):
+    from rich.console import Console
+
+    from arr.commands._screen import view
+
+    p = Project.create(tmp_path / "song", "song")
+    console = Console(width=200, record=True, file=open("/dev/null", "w"), color_system=None)
+    console.print(view(p, "Mix", [], [], 4.0, "", 1.0, paused=True))
+    assert "⏸ en pause" in console.export_text()

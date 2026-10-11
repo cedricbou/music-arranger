@@ -101,6 +101,8 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
 - **`arr levels`** affiche un vumètre par canal de la table. Lance Spotify (ou
   `arr levels --tone`, qui joue un son de référence à -12 dB), regarde quels canaux bougent
   et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
+- **Pause et retour en arrière** : pendant `arr play`, Espace met en pause, ← revient à la
+  mesure d'avant et → passe à la suivante.
 - **Accords à l'écran** : après `arr transcribe`, `arr play` et `arr record` affichent la
   grille d'accords de la section en cours, une case par mesure et un `/` par temps tenu, et
   surlignent l'accord du moment, pour jouer par-dessus.

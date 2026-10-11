@@ -102,9 +102,13 @@ def fake_studio(monkeypatch, heard):
     monkeypatch.setattr(studio, "listen", lambda source, channels: iter(chunks_of(heard)))
     calls["looped"] = []
 
+    calls["orders"] = []
+
     def play(data, loop=None, watch=None):
         calls["played"].append(data)
         calls["looped"].append(loop)
+        # la lecture « avance » : la position du flux à chaque appel, et ce que l'écran demande en retour
+        calls["orders"] += [watch(seconds) for seconds in calls.get("positions", [])]
 
     monkeypatch.setattr(studio, "play", play)
     monkeypatch.setattr(spotify, "now_playing", lambda playing_only=False: track)

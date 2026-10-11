@@ -76,7 +76,7 @@ src/arr/
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours et sa grille d'accords
-  commands/play.py          play : le mix, une piste ou une prise, en entier, par sections, en boucle
+  commands/play.py          play : mix, piste ou prise, par sections, en boucle ; clavier (pause, mesure d'avant ou d'après)
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull

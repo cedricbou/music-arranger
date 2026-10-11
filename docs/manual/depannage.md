@@ -42,6 +42,8 @@ les trois commandes de diagnostic.
 | pas d'accords à l'écran pendant `arr play` ou `arr record` | le projet n'a pas de transcription, ou c'est une prise brute (`arr play t001`), qui n'est pas calée sur l'original | `arr transcribe` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
 | les accords affichés ne sont pas ceux que j'ai écrits dans `score/score.abc` | l'écran montre les accords transcrits de l'original (`score/chord.lab`), pas la partition modifiée | pas de remède pour l'instant : se fier à la partition |
 | l'accord surligné change un peu avant ou après le temps | le moment du changement est celui que la transcription a trouvé, pas la grille des temps | lire l'accord suivant d'avance ; la grille entière de la section est affichée pour cela |
+| Espace et les flèches ne font rien pendant `arr play` | la commande ne lit pas le clavier : son entrée est redirigée, ou elle est lancée par un autre programme | lancer `arr play` directement dans un terminal |
+| ← ou → saute cinq secondes au lieu d'une mesure | le projet n'a pas de mesures connues, ou c'est une prise brute (`arr play t001`) | `arr transcribe` ou `arr analyze` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
 | je n'entends rien avec `arr play` | la sortie configurée n'est pas celle de vos enceintes | `arr devices` ; régler `[output]` |
 | le fichier `mix/mix.flac` semble muet dans un lecteur | le lecteur joue sur une autre sortie | `arr play` joue le même mix sur la sortie configurée ; `arr check` montre son niveau |
 
