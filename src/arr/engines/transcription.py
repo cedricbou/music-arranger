@@ -52,6 +52,12 @@ def chords(out_dir: Path) -> list[tuple[float, float, str]]:
     return [(float(start), float(end), label) for start, end, label in _rows(f)] if f.exists() else []
 
 
+def beats(out_dir: Path) -> list[tuple[float, int]]:
+    """Les temps de la transcription : (instant, rang dans la mesure). Les accords de `chords` tombent dessus."""
+    f = out_dir / "beat.lab"
+    return [(float(row[0]), int(row[1])) for row in _rows(f)] if f.exists() else []
+
+
 def first_sung(out_dir: Path) -> float | None:
     """Instant de la première note de la mélodie vocale, ou None si elle manque."""
     f = out_dir / "melody_vocal.lab"

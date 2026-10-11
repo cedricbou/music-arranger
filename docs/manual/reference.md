@@ -273,7 +273,7 @@ arr play [OPTIONS] [NAME] [VERSION]
 
 Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
-Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en cours, le calage qui s'y applique et ses accords, celui du moment surligné. Ctrl+C arrête.
+Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en cours, le calage qui s'y applique et sa grille d'accords, l'accord du moment surligné. Ctrl+C arrête.
 
 | Argument | Défaut | Rôle |
 |---|---|---|
@@ -358,7 +358,7 @@ arr record [OPTIONS] TRACK
 
 Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 
-Le playback est le mix courant sans la piste enregistrée. L'écran est celui d'`arr play` : les pistes du playback, la section en cours et ses accords, celui du moment surligné. Ctrl+C arrête et garde la prise.
+Le playback est le mix courant sans la piste enregistrée. L'écran est celui d'`arr play` : les pistes du playback, la section en cours et sa grille d'accords, l'accord du moment surligné. Ctrl+C arrête et garde la prise.
 
 | Argument | Défaut | Rôle |
 |---|---|---|

@@ -75,7 +75,7 @@ src/arr/
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
-  commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours et ses accords
+  commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours et sa grille d'accords
   commands/play.py          play : le mix, une piste ou une prise, en entier, par sections, en boucle
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/studio.py        capture, record, calibrate, levels

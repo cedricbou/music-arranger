@@ -20,9 +20,16 @@ arr play --without bass       # le morceau sans la basse
   et son gain, et les pistes laissées de côté), une piste seule, ou une prise telle que
   rendue. L'écran suit la lecture : la section en cours, la suivante, et pour chaque piste le
   calage de la piste, celui de cette section et le total appliqué.
-- Après `arr transcribe`, l'écran montre aussi les accords de la section en cours, quatre
-  par rangée, celui du moment surligné, et les premiers accords de la section suivante :
-  de quoi jouer par-dessus.
+- Après `arr transcribe`, l'écran montre aussi la grille d'accords de la section en cours,
+  de quoi jouer par-dessus. Elle se lit comme une grille de jazz : une case par mesure, quatre
+  mesures par rangée (deux dans un terminal étroit), chaque accord écrit sur le temps où il
+  commence, puis un `/` par temps où il est tenu. L'accord du moment est surligné sur toute
+  sa durée ; une ligne grise annonce les premières mesures de la section suivante.
+
+  ```
+  Accords · chorus
+  │ Dm    /     /     /     │ Fmaj7 /     C     /     │ Bb    /     /     /     │ C     /     /     /     │
+  ```
 - Une piste écoutée seule joue sans son gain de mix ; une prise brute, sans calage.
 - Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel
   lecteur. L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence.
@@ -57,7 +64,7 @@ arr rm bass-moi -v v002       # retirer une prise ratée
 
 - Vous vous entendez par votre table ou votre carte son, pas par l'ordinateur.
 - Pendant l'enregistrement, l'écran est celui d'`arr play` : les pistes du playback, la
-  section en cours et ses accords, celui du moment surligné.
+  section en cours et sa grille d'accords, l'accord du moment surligné.
 - `--click` garde le métronome pendant tout le morceau.
 - Le décompte a besoin du tempo : `arr transcribe` ou `arr analyze` d'abord.
 

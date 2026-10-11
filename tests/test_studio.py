@@ -253,5 +253,5 @@ def test_record_shows_the_shared_screen_with_chords(tmp_path, monkeypatch):
     assert seen == [0.0, 1.5, 3.0]
     out = result.output
     assert "Enregistrement de bass" in out and "Ctrl+C arrête et garde la prise" in out
-    assert "drums" in out and "Accords · chorus2" in out and "Fmaj7" in out  # la dernière image, à 3 s
+    assert "drums" in out and "Accords · chorus2" in out and "│ Fmaj7 /" in out  # la dernière image, à 3 s
     assert "bass v002" in out

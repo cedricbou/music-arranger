@@ -18,7 +18,7 @@ from arr.commands._common import (
     load_track,
     slug,
 )
-from arr.commands._screen import live, timeline, view
+from arr.commands._screen import chart, live, timeline, view
 from arr.project import Project, ProjectError
 
 
@@ -103,7 +103,7 @@ def record(
     """Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 
     Le playback est le mix courant sans la piste enregistrée. L'écran est celui d'`arr play` :
-    les pistes du playback, la section en cours et ses accords, celui du moment surligné.
+    les pistes du playback, la section en cours et sa grille d'accords, l'accord du moment surligné.
     Ctrl+C arrête et garde la prise.
     """
     from arr import studio
@@ -129,7 +129,8 @@ def record(
     elif bars or click:
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, lead = lead_in(backing, ticks)
-    marks, chords = timeline(p, None, [], []), transcription.chords((p.root / SCORE).parent)
+    score = (p.root / SCORE).parent
+    marks, bars = timeline(p, None, [], []), chart(transcription.chords(score), transcription.beats(score))
     notes = [] if names else ["[dim]playback : morceau original[/]"]
 
     def screen(seconds: float):
@@ -141,7 +142,7 @@ def record(
             len(backing) / audio.SR,
             "Ctrl+C arrête et garde la prise",
             seconds - lead / audio.SR,
-            chords=chords,
+            bars=bars,
             notes=notes,
             recording=True,
         )

@@ -1,4 +1,4 @@
-"""L'écran commun à `play` et `record` : ce qui joue, les accords de la section en cours, la position."""
+"""L'écran commun à `play` et `record` : ce qui joue, la grille d'accords de la section en cours, la position."""
 
 from __future__ import annotations
 
@@ -69,49 +69,91 @@ def chord_name(label: str) -> str:
     return root + QUALITIES.get(quality, quality) + slash + bass
 
 
-def chord_page(chords: list[tuple], marks: list[tuple], t: float) -> tuple[Optional[str], list, Optional[int], tuple]:
-    """Les accords à montrer à l'instant `t` de la lecture.
+def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
+    """La grille d'accords : une mesure par élément, comme sur une grille de jazz.
 
-    Renvoie le nom de la section, ses accords, l'indice de celui qui sonne (None pendant le
-    décompte) et la section suivante avec ses premiers accords. Hors de toute section, la
-    page est une suite de huit accords autour de la position.
+    Chaque mesure est (début, fin, nombre de temps, accords), et chaque accord
+    (temps où il commence, durée en temps, étiquette, début, fin). Un accord tenu au-delà de
+    la barre est réécrit au début de la mesure suivante. Sans grille de temps, chaque accord
+    fait une mesure d'un temps.
+    """
+    if not beats:
+        return [(start, end, 1, [(0, 1, label, start, end)]) for start, end, label in chords]
+    last = max([beats[-1][0] + (beats[-1][0] - beats[-2][0] if len(beats) > 1 else 1.0)] + [c[1] for c in chords[-1:]])
+    ends = [t for t, _ in beats[1:]] + [last]
+    bars: list[list] = []
+    for (t, number), end in zip(beats, ends, strict=True):
+        if number == 1 or not bars:
+            bars.append([t, end, 0, []])
+        bar = bars[-1]
+        # Un accord commence sur un temps ; la marge absorbe l'arrondi au centième des fichiers.
+        label = next((c[2] for c in chords if c[0] <= t + 0.02 < c[1]), "N")
+        if bar[3] and bar[3][-1][2] == label:
+            slot, held, _, start, _ = bar[3][-1]
+            bar[3][-1] = (slot, held + 1, label, start, end)
+        else:
+            bar[3].append((bar[2], 1, label, t, end))
+        bar[1], bar[2] = end, bar[2] + 1
+    return [tuple(bar) for bar in bars]
+
+
+def chord_page(bars: list[tuple], marks: list[tuple], t: float) -> tuple[Optional[str], list, Optional[tuple], tuple]:
+    """Les mesures à montrer à l'instant `t` de la lecture.
+
+    Renvoie le nom de la section, ses mesures, la place de l'accord qui sonne (mesure, rang
+    dans la mesure ; None pendant le décompte) et la section suivante avec ses premières
+    mesures. Hors de toute section, la page est une suite de huit mesures autour de la position.
     """
 
     def within(start: float, end: float) -> list:
-        # Par le milieu : une section redéfinie à la main ne tombe plus sur les bornes des accords.
-        return [c for c in chords if start <= (c[0] + c[1]) / 2 < end]
+        # Par le milieu : une section redéfinie à la main ne tombe plus sur les barres de mesure.
+        # Une section plus courte qu'une mesure garde celle qu'elle traverse.
+        inside = [b for b in bars if start <= (b[0] + b[1]) / 2 < end]
+        return inside or [b for b in bars if b[0] < end and b[1] > start]
 
     index = next((i for i, m in enumerate(marks) if m[0] <= t < m[1]), 0 if t < 0 and marks else None)
     if index is None:
         now = max(t, 0.0)
-        at = max((i for i, c in enumerate(chords) if c[0] <= now), default=0)
-        name, page, upcoming = None, chords[at - at % (2 * PER_ROW) :][: 2 * PER_ROW], ()
+        at = max((i for i, b in enumerate(bars) if b[0] <= now), default=0)
+        name, page, upcoming = None, bars[at - at % (2 * PER_ROW) :][: 2 * PER_ROW], ()
     else:
         start, end, name, origin = marks[index]
         now, page = origin + t - start, within(origin, origin + end - start)
         after = marks[index + 1] if index + 1 < len(marks) else None
         upcoming = (after[2], within(after[3], after[3] + after[1] - after[0])[:PER_ROW]) if after else ()
-    current = max((i for i, c in enumerate(page) if c[0] <= now), default=0) if page and t >= 0 else None
+    started = [(i, j) for i, b in enumerate(page) for j, chord in enumerate(b[3]) if chord[3] <= now]
+    current = (started[-1] if started else (0, 0)) if page and t >= 0 else None
     return name, page, current, upcoming
 
 
-def chord_block(chords: list[tuple], marks: list[tuple], t: float) -> list:
-    from rich.table import Table
+def chord_block(bars: list[tuple], marks: list[tuple], t: float) -> list:
+    """La grille de la section : une case par mesure, un accord écrit sur son temps, « / » par temps tenu."""
+    import shutil
 
-    name, page, current, upcoming = chord_page(chords, marks, t)
+    from rich.table import Table
+    from rich.text import Text
+
+    name, page, current, upcoming = chord_page(bars, marks, t)
     if not page:
         return []
-    grid = Table.grid(padding=(0, 2))
-    for start in range(0, len(page), PER_ROW):
-        grid.add_row(
-            *(
-                f"[bold black on yellow] {chord_name(c[2])} [/]" if start + i == current else f" {chord_name(c[2])} "
-                for i, c in enumerate(page[start : start + PER_ROW])
-            )
-        )
+    # Une colonne par temps, assez large pour le plus long nom : les temps tombent les uns sous les autres.
+    slot = max(4, 1 + max(len(chord_name(chord[2])) for b in page for chord in b[3]))
+    fit = (shutil.get_terminal_size((80, 24)).columns - 1) // (slot * max(b[2] for b in page) + 2)
+    per_row = PER_ROW if fit >= PER_ROW else 2 if fit >= 2 else 1
+    grid = Table.grid()
+    for row in range(0, len(page), per_row):
+        cells = []
+        for i, bar in enumerate(page[row : row + per_row], start=row):
+            cell = Text("│ ")
+            for j, (_, held, label, _, _) in enumerate(bar[3]):
+                text = chord_name(label).ljust(slot) + "/".ljust(slot) * (held - 1)
+                cell.append(text, style="bold black on yellow" if (i, j) == current else "")
+            cells.append(cell)
+        grid.add_row(*cells, "│")
     lines = ["", f"[bold]Accords[/]{f' · {name}' if name else ''}", grid]
     if upcoming and upcoming[1]:
-        lines.append(f"[dim]puis {upcoming[0]} : {'  '.join(chord_name(c[2]) for c in upcoming[1])}[/]")
+        ahead = " │ ".join(" ".join(chord_name(chord[2]) for chord in b[3]) for b in upcoming[1])
+        lines.append(f"[dim]puis {upcoming[0]} : {ahead}[/]")
     return lines
 
 
@@ -124,7 +166,7 @@ def view(
     hint: str,
     t: float,
     *,
-    chords: list[tuple] = (),
+    bars: list[tuple] = (),
     notes: list[str] = (),
     solo: bool = False,
     version: Optional[str] = None,
@@ -140,6 +182,7 @@ def view(
 
     from arr.commands.align import amount, beat_period
 
+    t = min(t, length - 1e-3)  # la dernière image reste dans la dernière section jouée
     period = beat_period(p)
     index = next((i for i, m in enumerate(marks) if m[0] <= t < m[1]), None)
     section = marks[index][2] if index is not None else None
@@ -179,7 +222,7 @@ def view(
     )
     # La consigne va avec le titre : sur la ligne d'état, elle la ferait déborder d'un terminal de 80 colonnes.
     head = f"[bold]{title}[/]  [dim]{hint}[/]"
-    return Group(head, *([table] if names else []), *notes, *chord_block(list(chords), marks, t), "", status)
+    return Group(head, *([table] if names else []), *notes, *chord_block(list(bars), marks, t), "", status)
 
 
 def mix_notes(p: Project, names: list[str], without: tuple, only: tuple) -> list[str]:

@@ -10,7 +10,7 @@ import typer
 from arr import audio
 from arr.app import ANALYSIS, SCORE, app
 from arr.commands._common import lead_in, load_track, mix_tracks, render_mix
-from arr.commands._screen import live, mix_notes, position, timeline, view
+from arr.commands._screen import chart, live, mix_notes, position, timeline, view
 from arr.project import Project, ProjectError
 
 
@@ -34,7 +34,7 @@ def play(
     """Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
     Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en
-    cours, le calage qui s'y applique et ses accords, celui du moment surligné. Ctrl+C arrête.
+    cours, le calage qui s'y applique et sa grille d'accords, l'accord du moment surligné. Ctrl+C arrête.
     """
     from arr import studio
     from arr.engines import transcription
@@ -82,7 +82,8 @@ def play(
         title = f"Mix · {len(names)} piste{'s' if len(names) > 1 else ''}"
         notes = mix_notes(p, names, tuple(without), tuple(only))
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
-    chords = [] if take else transcription.chords((p.root / SCORE).parent)
+    score = (p.root / SCORE).parent
+    bars = [] if take else chart(transcription.chords(score), transcription.beats(score))
     hint = "en boucle · Ctrl+C arrête" if loop else "Ctrl+C arrête"
 
     def screen(seconds: float):
@@ -95,7 +96,7 @@ def play(
             len(body) / audio.SR,
             hint,
             t,
-            chords=chords,
+            bars=bars,
             notes=notes,
             solo=bool(name),
             version=version,

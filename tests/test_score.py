@@ -112,3 +112,6 @@ def test_chords_are_read_from_the_transcription(tmp_path):
     assert transcription.chords(tmp_path) == []
     (tmp_path / "chord.lab").write_text("0.01\t1.11\tN\n1.11\t2.97\tD:min\n")
     assert transcription.chords(tmp_path) == [(0.01, 1.11, "N"), (1.11, 2.97, "D:min")]
+    assert transcription.beats(tmp_path) == []
+    (tmp_path / "beat.lab").write_text("0.01\t1\t5\t8\n0.22\t2\t5\t8\n1.11\t1\t4\t4\n")
+    assert transcription.beats(tmp_path) == [(0.01, 1), (0.22, 2), (1.11, 1)]
