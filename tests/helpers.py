@@ -135,3 +135,21 @@ def chord_song(bars: int = 24, bpm: float = 120.0) -> np.ndarray:
         out += [(0.1 * chord * decay).astype(np.float32)] * 4
     mono = np.concatenate(out)
     return np.stack([mono, mono], axis=1)
+
+
+def short_bar_song() -> tuple[np.ndarray, list[float], list[float], list[tuple]]:
+    """Un morceau à 120 à la noire dont la cinquième mesure n'a que deux temps.
+
+    Renvoie l'audio, ses temps, ses débuts de mesure et ses accords (début, fin, étiquette).
+    """
+    names = ["A", "Bb", "B", "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab"]
+    whole = chord_song(bars=12)
+    bar = 2 * audio.SR
+    song = np.concatenate([whole[: 4 * bar + bar // 2], whole[5 * bar :]])
+    starts = [2.0 * i for i in range(5)] + [9.0 + 2.0 * i for i in range(7)]
+    ends = starts[1:] + [len(song) / audio.SR]
+    chords = [
+        (start, end, f"{names[(i * 7) % 12]}:{'maj' if i % 3 else 'min'}")
+        for i, (start, end) in enumerate(zip(starts, ends, strict=True))
+    ]
+    return song, [0.5 * i for i in range(int(ends[-1] * 2))], starts, chords

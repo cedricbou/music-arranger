@@ -26,7 +26,7 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 Générer une piste d'instrument qui s'accorde à une bande existante a été essayé de cinq
 façons et abandonné. Ce qui marche : faire rejouer le morceau entier par YuE2 à partir de sa
 partition, puis séparer la prise. Lire les fiches avant de toucher à la génération (001,
-002), à la chaîne audio (003), au calage des prises (004) ou au volume (005).
+002), à la chaîne audio (003), au calage (004), au volume (005) ou à la grille de mesures (008).
 
 ## Comment travailler ici
 
@@ -81,7 +81,7 @@ src/arr/
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
-  measure.py                mesures sans écoute : période, calage, retard, niveaux, parts des stems
+  measure.py                mesures sans écoute : période, calage, retard, niveaux, accords replacés
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)

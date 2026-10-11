@@ -11,14 +11,14 @@ import numpy as np
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, ORIGINAL, SCORE, app
+from arr.app import ANALYSIS, ORIGINAL, app
 from arr.commands._common import (
     add_track,
     lead_in,
     load_track,
     slug,
 )
-from arr.commands._screen import chart, live, timeline, view
+from arr.commands._screen import live, song_chart, timeline, view
 from arr.project import Project, ProjectError
 
 
@@ -107,7 +107,6 @@ def record(
     Ctrl+C arrête et garde la prise.
     """
     from arr import studio
-    from arr.engines import transcription
 
     p = Project.find()
     names = [
@@ -129,8 +128,7 @@ def record(
     elif bars or click:
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, lead = lead_in(backing, ticks)
-    score = (p.root / SCORE).parent
-    marks, measures = timeline(p, None, [], []), chart(transcription.chords(score), transcription.beats(score))
+    marks, measures = timeline(p, None, [], []), song_chart(p)
     notes = [] if names else ["[dim]playback : morceau original[/]"]
 
     def screen(seconds: float):

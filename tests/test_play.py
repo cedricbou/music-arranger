@@ -390,3 +390,29 @@ def test_play_shows_the_pause(tmp_path):
     console = Console(width=200, record=True, file=open("/dev/null", "w"), color_system=None)
     console.print(view(p, "Mix", [], [], 4.0, "", 1.0, paused=True))
     assert "⏸ en pause" in console.export_text()
+
+
+def test_chord_chart_follows_the_reference_bars(tmp_path):
+    """Les mesures de la grille sont celles d'arr analyze, y compris une mesure à deux temps."""
+    from arr.commands._screen import song_chart
+    from tests.helpers import short_bar_song
+
+    song, beats, bars, truth = short_bar_song()
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", song)
+    (p.root / "analysis.json").write_text(json.dumps({"beats": beats, "downbeats": bars}))
+    score = p.root / "score"
+    score.mkdir(exist_ok=True)
+    # la transcription compte quatre temps partout, et pose les accords d'après la mesure courte trop tard
+    (score / "beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(beats)))
+    heard = [(s + 1.0, e + 1.0, label) if s >= 9.0 else (s, e, label) for s, e, label in truth]
+    (score / "chord.lab").write_text("".join(f"{s:.2f}\t{e:.2f}\t{label}\n" for s, e, label in heard))
+
+    chart = song_chart(p)
+    assert [round(bar[0], 2) for bar in chart] == bars
+    assert [bar[2] for bar in chart] == [4, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4]
+    assert [[chord[2] for chord in bar[3]] for bar in chart] == [[label] for _, _, label in truth]
+
+    # sans analyse : la grille de la transcription, telle quelle
+    (p.root / "analysis.json").unlink()
+    assert [bar[2] for bar in song_chart(p)][:6] == [4, 4, 4, 4, 4, 4]

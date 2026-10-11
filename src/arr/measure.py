@@ -186,3 +186,77 @@ def within(windows: list[dict], tolerance: float = 0.03, minimum: float = 0.15) 
     """Part des fenêtres fiables où le signal est à moins de `tolerance` de la référence."""
     lags = [abs(w["lag"]) for w in windows if w["confidence"] >= minimum]
     return float(np.mean([lag < tolerance for lag in lags])) if lags else 0.0
+
+
+_NOTES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_TRIADS = {
+    "min": (0, 3, 7),
+    "dim": (0, 3, 6),
+    "hdim": (0, 3, 6),
+    "aug": (0, 4, 8),
+    "sus4": (0, 5, 7),
+    "sus2": (0, 2, 7),
+}
+
+
+def _triad(label: str) -> np.ndarray | None:
+    """Les trois notes d'un accord (« D:min », « F:maj7 »), comme une ligne de chroma ; None pour « N »."""
+    root, _, quality = label.partition(":")
+    if root[:1] not in _NOTES:
+        return None
+    steps = next((v for k, v in _TRIADS.items() if quality.startswith(k)), (0, 4, 7))
+    notes = np.full(12, -0.25)
+    notes[[(_NOTES[root[0]] + root.count("#") - root.count("b") + s) % 12 for s in steps]] = 0.75
+    return notes / np.linalg.norm(notes)
+
+
+def seat_chords(
+    chords: list[tuple], own_bars: list[float], bars: list[float], beats: list[float], reference
+) -> list[tuple]:
+    """Replace les accords d'une transcription sur les mesures de référence du morceau.
+
+    `chords` sont (début, fin, étiquette), posés sur les mesures `own_bars` de la transcription ;
+    `bars` et `beats` sont la grille de référence. Là où les deux grilles ne comptent pas les
+    mesures pareil (une mesure à deux temps que la transcription n'a pas vue), les accords
+    sont décalés d'un nombre entier de temps pour retomber sur les barres de référence : vers
+    l'avant ou vers l'arrière, selon ce qui colle le mieux à l'harmonie de `reference()`, qui
+    rend l'audio du morceau et n'est appelé que s'il y a quelque chose à trancher.
+    """
+    if len(beats) < 3 or len(bars) < 2 or not own_bars or not chords:
+        return chords
+    beat, ref = period(beats), np.asarray(bars)
+    size = int(round(float(np.median(np.diff(ref))) / beat))
+    late = [int(round((d - ref[np.abs(ref - d).argmin()]) / beat)) for d in own_bars]
+    zones, i = [], 0
+    while i < len(late):
+        j = i
+        while j + 1 < len(late) and late[j + 1] == late[i]:
+            j += 1
+        if late[i]:
+            zones.append((own_bars[i], own_bars[j + 1] if j + 1 < len(own_bars) else float("inf"), late[i]))
+        i = j + 1
+    if not zones:
+        return chords
+    chroma = _chroma(_mono(reference()))
+
+    def fit(inside: list[tuple], shift: float) -> float:
+        total = 0.0
+        for start, end, label in inside:
+            a, b = (max(int((t + shift) / _CHROMA_HOP), 0) for t in (start, end))
+            if (triad := _triad(label)) is not None and len(chroma[a:b]):
+                total += float((chroma[a:b] @ triad).sum())
+        return total
+
+    moved = []
+    for start, end, label in chords:
+        zone = next((z for z in zones if z[0] - 0.02 <= start < z[1] - 0.02), None)
+        if zone:
+            inside = [c for c in chords if zone[0] - 0.02 <= c[0] < zone[1] - 0.02]
+            back = -zone[2]
+            shift = max((back, back + size if back < 0 else back - size), key=lambda s: fit(inside, s * beat)) * beat
+            start, end = start + shift, end + shift
+        moved.append((start, end, label))
+    moved.sort(key=lambda c: c[0])
+    # Aux bords d'une zone, l'accord d'avant est tenu jusqu'au suivant : ni trou ni chevauchement.
+    ends = [c[0] for c in moved[1:]] + [moved[-1][1]]
+    return [(start, end, label) for (start, _, label), end in zip(moved, ends, strict=True) if end > start]
