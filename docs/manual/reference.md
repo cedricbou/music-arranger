@@ -273,7 +273,9 @@ arr play [OPTIONS] [NAME] [VERSION]
 
 Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
-Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en cours, le calage qui s'y applique et sa grille d'accords, l'accord du moment surligné. Ctrl+C arrête.
+Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la section en cours, le calage qui s'y applique et sa grille d'accords, l'accord du moment surligné.
+
+Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite passe à la suivante. Ctrl+C arrête.
 
 | Argument | Défaut | Rôle |
 |---|---|---|
