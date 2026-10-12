@@ -11,9 +11,9 @@ from typing import Optional
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, SCORE, app
+from arr.app import ANALYSIS, app
 from arr.commands._common import lead_in, load_track, mix_tracks, render_mix
-from arr.commands._screen import chart, live, mix_notes, position, timeline, view
+from arr.commands._screen import live, mix_notes, position, song_chart, timeline, view
 from arr.project import Project, ProjectError
 
 KEYS = {b" ": "pause", b"D": "back", b"C": "forward"}
@@ -107,7 +107,6 @@ def play(
     passe à la suivante. Ctrl+C arrête.
     """
     from arr import studio
-    from arr.engines import transcription
 
     p = Project.find()
     sections = [name.strip() for given in sections for name in given.split(",") if name.strip()]
@@ -152,8 +151,7 @@ def play(
         title = f"Mix · {len(names)} piste{'s' if len(names) > 1 else ''}"
         notes = mix_notes(p, names, tuple(without), tuple(only))
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
-    score = (p.root / SCORE).parent
-    measures = [] if take else chart(transcription.chords(score), transcription.beats(score))
+    measures = [] if take else song_chart(p)
     hint = f"{'en boucle · ' if loop else ''}Espace : pause · ← → : mesure · Ctrl+C arrête"
     grid = json.loads(f.read_text()) if (f := p.root / ANALYSIS).exists() and not take else {"downbeats": []}
     stops = bar_stops([m[0] for m in measures] or grid["downbeats"], ranges, len(body) / audio.SR)

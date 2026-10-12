@@ -86,8 +86,9 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
         if number == 1 or not bars:
             bars.append([t, end, 0, []])
         bar = bars[-1]
-        # Un accord commence sur un temps ; la marge absorbe l'arrondi au centième des fichiers.
-        label = next((c[2] for c in chords if c[0] <= t + 0.02 < c[1]), "N")
+        # L'accord du temps est celui qui sonne en son milieu : les accords viennent d'une autre
+        # analyse que les temps, et commencent quelques centièmes avant ou après eux.
+        label = next((c[2] for c in chords if c[0] <= (t + end) / 2 < c[1]), "N")
         if bar[3] and bar[3][-1][2] == label:
             slot, held, _, start, _ = bar[3][-1]
             bar[3][-1] = (slot, held + 1, label, start, end)
@@ -95,6 +96,39 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
             bar[3].append((bar[2], 1, label, t, end))
         bar[1], bar[2] = end, bar[2] + 1
     return [tuple(bar) for bar in bars]
+
+
+def song_chart(p: Project) -> list[tuple]:
+    """La grille d'accords du morceau, sur ses mesures de référence (`arr analyze`) ; vide sans transcription.
+
+    Les accords viennent de la transcription, qui compte parfois les mesures autrement
+    (une mesure à deux temps non vue) : `measure.seat_chords` les replace. Sans `analysis.json`,
+    la grille suit les temps de la transcription.
+    """
+    import json
+
+    from arr import measure
+    from arr.app import ANALYSIS, ORIGINAL, SCORE
+    from arr.engines import transcription
+
+    score = (p.root / SCORE).parent
+    chords, own = transcription.chords(score), transcription.beats(score)
+    analysis, original = p.root / ANALYSIS, p.root / ORIGINAL
+    if not chords or not analysis.exists():
+        return chart(chords, own)
+    grid = json.loads(analysis.read_text())
+    if original.exists():
+        own_bars = [t for t, number in own if number == 1]
+        chords = measure.seat_chords(chords, own_bars, grid["downbeats"], grid["beats"], lambda: audio.load(original))
+    beats, strong = [], iter(sorted(grid["downbeats"]) + [float("inf")])
+    bar = next(strong)
+    for t in grid["beats"]:
+        if t >= bar - 0.05:
+            beats.append((t, 1))
+            bar = next(strong)
+        else:
+            beats.append((t, beats[-1][1] + 1 if beats else 1))
+    return chart(chords, beats)
 
 
 def chord_page(

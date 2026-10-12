@@ -21,7 +21,8 @@ arr play --without bass       # le morceau sans la basse
   rendue. L'écran suit la lecture : la section en cours, la suivante, et pour chaque piste le
   calage de la piste, celui de cette section et le total appliqué.
 - Après `arr transcribe`, l'écran montre aussi la grille d'accords de la section en cours,
-  de quoi jouer par-dessus. Elle se lit comme une grille de jazz : une case par mesure, quatre
+  de quoi jouer par-dessus. Ses mesures sont celles du morceau telles qu'`arr analyze` les
+  compte, mesures courtes comprises ; les accords transcrits y sont replacés. Elle se lit comme une grille de jazz : une case par mesure, quatre
   mesures par rangée (deux dans un terminal étroit), chaque accord écrit sur le temps où il
   commence, puis un `/` par temps où il est tenu. L'accord du moment est surligné sur toute
   sa durée. Sous un séparateur, la première rangée de la section suivante reste affichée en

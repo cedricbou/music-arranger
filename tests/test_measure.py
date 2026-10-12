@@ -1,6 +1,7 @@
 """measure.py : les chiffres qui remplacent l'écoute."""
 
 import numpy as np
+import pytest
 
 from arr import audio, measure
 from tests.helpers import tone
@@ -39,3 +40,35 @@ def test_level_and_shares():
         {"drums": tone(110, 1.0, amp=0.3), "guitar": tone(330, 1.0, amp=0.1), "none": tone(1, 1.0, amp=0.0)}
     )
     assert abs(shares["drums"] - 0.9) < 0.01 and abs(shares["guitar"] - 0.1) < 0.01 and shares["none"] == 0.0
+
+
+def test_chords_are_seated_back_on_the_reference_bars():
+    """Une transcription qui n'a pas vu une mesure à deux temps pose ses accords une demi-mesure à côté."""
+    from tests.helpers import short_bar_song
+
+    song, beats, bars, truth = short_bar_song()
+    own_bars = [2.0 * i for i in range(12)]  # la transcription compte quatre temps partout
+    starts = lambda chords: [start for start, _, _ in chords]
+    labels = lambda chords: [label for _, _, label in chords]
+
+    # ses accords d'après la mesure courte arrivent une demi-mesure trop tard
+    late = [(s + 1.0, e + 1.0, label) if s >= 9.0 else (s, e, label) for s, e, label in truth]
+    seated = measure.seat_chords(late, own_bars, bars, beats, lambda: song)
+    assert labels(seated) == labels(truth) and starts(seated) == pytest.approx(starts(truth), abs=0.01)
+    # ni trou ni chevauchement : chaque accord est tenu jusqu'au suivant
+    assert [end for _, end, _ in seated[:-1]] == pytest.approx(starts(seated)[1:])
+
+    # ou une demi-mesure trop tôt : l'accord de la mesure courte n'a alors pas été vu du tout
+    early = [(s - 1.0, e - 1.0, label) if s >= 9.0 else (s, e, label) for s, e, label in truth if s != 8.0]
+    seated = measure.seat_chords(early, own_bars, bars, beats, lambda: song)
+    assert labels(seated) == labels(early)
+    assert starts(seated)[5:] == pytest.approx(starts(truth)[6:], abs=0.01) and seated[4][0] == 8.0
+
+
+def test_chords_stay_put_when_the_grids_agree():
+    def never():
+        raise AssertionError("l'audio n'a pas à être lu quand les deux grilles comptent pareil")
+
+    chords = [(2.0 * i + 0.03, 2.0 * i + 2.03, "C:maj") for i in range(6)]
+    bars = [2.0 * i for i in range(6)]
+    assert measure.seat_chords(chords, [b + 0.03 for b in bars], bars, [0.5 * i for i in range(24)], never) == chords
