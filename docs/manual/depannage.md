@@ -47,6 +47,12 @@ les trois commandes de diagnostic.
 | `sheet.toml est mal écrit` | une faute de syntaxe dans le fichier (guillemet, crochet) | corriger la ligne indiquée, ou `arr sheet --reset` pour repartir de la proposition |
 | l'antisèche ne suit plus le projet (sections ou accords refaits) | `sheet.toml` existe : il fait foi et n'est jamais réécrit | `arr sheet --reset`, l'ancien fichier reste dans `trash/` |
 | les accords proposés sont faux ou la tonalité aussi | ils viennent de la transcription et de la détection de tonalité | les corriger dans `sheet.toml` (`arr sheet --edit`) |
+| `setlist inconnue` | le nom ne correspond à aucun fichier de `setlists/`, ou la commande est lancée ailleurs que dans le dossier des projets | `cd` dans le dossier des projets ; le message cite les setlists connues |
+| `… n'est pas un projet de …` | le morceau donné n'est pas un dossier de projet de ce dossier | donner le nom du dossier du morceau, tel que `ls` le montre |
+| `antisèches impossibles à imprimer` | un morceau de la setlist n'est pas transcrit, ou son dossier a été renommé | `arr transcribe` dans ce morceau, ou corriger son nom avec `arr set edit` |
+| `texte petit, difficile à lire debout` | trop de contenu pour le nombre de feuilles demandé | alléger des antisèches (`arr sheet --edit`), ou augmenter `--pages` |
+| `ne tient pas en N feuille(s)` | même au plus petit texte, le concert déborde | augmenter `--pages`, ou alléger des antisèches |
+| un caractère devient `?` dans le PDF | il n'existe pas dans la police d'impression (symboles, alphabets non latins) | l'écrire autrement dans `sheet.toml` ou dans le titre |
 | Espace et les flèches ne font rien pendant `arr play` | la commande ne lit pas le clavier : son entrée est redirigée, ou elle est lancée par un autre programme | lancer `arr play` directement dans un terminal |
 | ← ou → saute cinq secondes au lieu d'une mesure | le projet n'a pas de mesures connues, ou c'est une prise brute (`arr play t001`) | `arr transcribe` ou `arr analyze` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
 | je n'entends rien avec `arr play` | la sortie configurée n'est pas celle de vos enceintes | `arr devices` ; régler `[output]` |

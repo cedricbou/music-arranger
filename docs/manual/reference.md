@@ -36,6 +36,11 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr sections set`](#arr-sections-set) : Définit les sections en numéros de mesure (inclusifs, à partir de 1).
 - [`arr sections list`](#arr-sections-list) : Affiche les sections.
 - [`arr lyrics fetch`](#arr-lyrics-fetch) : Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
+- [`arr set new`](#arr-set-new) : Crée une setlist, à lancer depuis le dossier qui contient les projets.
+- [`arr set add`](#arr-set-add) : Ajoute des morceaux, ou un entracte, à une setlist.
+- [`arr set edit`](#arr-set-edit) : Ouvre le fichier de la setlist : réordonner, retirer, transposer un morceau pour ce concert.
+- [`arr set show`](#arr-set-show) : Affiche l'ordre du concert : tonalité, tempo et durée de chaque morceau, et ce qui manque.
+- [`arr set print`](#arr-set-print) : Écrit le PDF des antisèches du concert : une feuille A4 en colonnes, un bloc par morceau.
 - [`arr models pull`](#arr-models-pull) : Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
 
 ## `arr init`
@@ -347,6 +352,7 @@ Tant que sheet.toml n'existe pas, elle est déduite du projet. Dès qu'il existe
 | `--note` |  | Ajoute un rappel à l'antisèche. |
 | `--transpose` |  | Demi-tons de transposition : --transpose=-2 joue un ton plus bas ; 0 pour l'original. |
 | `--reset` | non | Revient à la proposition ; sheet.toml part dans trash/. |
+| `--pdf` | non | Écrit aussi export/sheet.pdf, pour voir l'antisèche imprimée. |
 
 ## `arr capture`
 
@@ -484,6 +490,87 @@ Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--force` | non | Remplace un lyrics.txt existant. |
+
+## `arr set new`
+
+```
+arr set new [OPTIONS] NAME [SONGS...]
+```
+
+Crée une setlist, à lancer depuis le dossier qui contient les projets.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` | obligatoire | Nom de la setlist : setlists/NOM.toml est créé. |
+| `SONGS` |  | Dossiers des morceaux, dans l'ordre du concert. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--title` |  | Titre imprimé en haut des feuilles ; sinon le nom. |
+
+## `arr set add`
+
+```
+arr set add [OPTIONS] NAME [SONGS...]
+```
+
+Ajoute des morceaux, ou un entracte, à une setlist.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` | obligatoire | Setlist à compléter. |
+| `SONGS` |  | Dossiers des morceaux à ajouter. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--at` |  | Rang où les insérer (1 = en tête) ; sinon à la fin. |
+| `--break` | non | Ajoute un entracte (avant les morceaux donnés). |
+
+## `arr set edit`
+
+```
+arr set edit NAME
+```
+
+Ouvre le fichier de la setlist : réordonner, retirer, transposer un morceau pour ce concert.
+
+Un morceau s'écrit "dossier", ou { song = "dossier", transpose = -2, note = "enchaîner" } ; "---" marque un entracte.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` | obligatoire | Setlist à ouvrir. |
+
+## `arr set show`
+
+```
+arr set show NAME
+```
+
+Affiche l'ordre du concert : tonalité, tempo et durée de chaque morceau, et ce qui manque.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` | obligatoire | Setlist à afficher. |
+
+## `arr set print`
+
+```
+arr set print [OPTIONS] NAME
+```
+
+Écrit le PDF des antisèches du concert : une feuille A4 en colonnes, un bloc par morceau.
+
+Chaque bloc porte le rang, le titre, la tonalité, le tempo, puis l'antisèche du morceau (arr sheet) et la note de la setlist. Un morceau sans antisèche possible est refusé.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `NAME` | obligatoire | Setlist à imprimer. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--pages` |  | Nombre de feuilles A4 à ne pas dépasser : le texte prend la plus grande taille qui tient. |
+| `--columns` | `2` | Colonnes par feuille. |
+| `--out` |  | Fichier PDF à écrire ; sinon setlists/NOM.pdf. |
 
 ## `arr models pull`
 

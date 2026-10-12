@@ -155,6 +155,7 @@ arr sheet --note "départ batterie"    # ajoute un rappel
 arr sheet --edit                      # écrit sheet.toml et l'ouvre dans votre éditeur
 arr sheet --transpose=-2              # le groupe joue un ton plus bas : tonalité et accords suivent
 arr sheet --reset                     # revient à la proposition
+arr sheet --pdf                       # écrit aussi export/sheet.pdf
 ```
 
 ```
@@ -174,6 +175,35 @@ Refrain      [F | F | F | F | F | Dm | Bb] ×2 | Gm | – ×3
   montrer moins, ajoutez-en un pour un riff ou une fin, corrigez un accord ou la tonalité.
 - Écrivez les accords dans la tonalité de l'original ; `transpose` les décale à l'affichage.
 - `$EDITOR` choisit l'éditeur ; sans lui, `--edit` indique seulement le fichier à ouvrir.
+
+## Préparer un concert : la setlist et ses feuilles
+
+Une setlist est un fichier à part, `setlists/NOM.toml`, dans le dossier qui contient vos
+projets. Elle ne garde que l'ordre du concert ; les antisèches restent avec les morceaux,
+donc une nouvelle setlist les reprend telles quelles.
+
+```
+cd ~/Musique                                   # le dossier des projets
+arr set new bar-du-port gala what-s-up maldon --title "Bar du Port, 14 novembre"
+arr set add bar-du-port murder-on-the-dancefloor --at 2    # en deuxième
+arr set add bar-du-port --break                            # un entracte
+arr set show bar-du-port                       # ordre, tonalités, tempos, durée totale
+arr set edit bar-du-port                       # réordonner, retirer, régler pour ce concert
+arr set print bar-du-port --pages 3            # écrit setlists/bar-du-port.pdf
+```
+
+- **La feuille** : A4, deux colonnes, un bloc par morceau (rang, titre, tonalité, tempo, puis
+  son antisèche). Chaque bloc prend la hauteur de son contenu : un morceau que vous connaissez
+  bien, réduit à deux lignes dans son `sheet.toml`, laisse la place aux autres.
+- **`--pages 3`** choisit la plus grande taille de texte qui fait tenir le concert sur trois
+  feuilles. Sans lui, le texte garde sa taille normale. La commande prévient quand le texte
+  devient petit : allégez alors des antisèches, ou ajoutez une feuille.
+- **Pour un concert seulement** : dans le fichier, un morceau s'écrit `"gala"`, ou
+  `{ song = "gala", transpose = -2, note = "enchaîner" }` ; `"---"` est un entracte. Cette
+  transposition ne touche pas à l'antisèche du morceau.
+- Un morceau non transcrit apparaît « incomplet » dans `arr set show` et bloque l'impression.
+- `arr sheet --pdf` écrit `export/sheet.pdf` : l'antisèche d'un seul morceau, pour la voir.
+- Les commandes `arr set` se lancent depuis le dossier des projets, ou depuis un projet.
 
 ## Vérifier un projet sans l'écouter
 
