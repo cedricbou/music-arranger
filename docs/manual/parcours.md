@@ -176,6 +176,27 @@ Refrain      [F | F | F | F | F | Dm | Bb] ×2 | Gm | – ×3
 - Écrivez les accords dans la tonalité de l'original ; `transpose` les décale à l'affichage.
 - `$EDITOR` choisit l'éditeur ; sans lui, `--edit` indique seulement le fichier à ouvrir.
 
+Pour rappeler un **groove**, ajoutez un bloc `[[grooves]]` dans `sheet.toml` :
+
+```toml
+[[grooves]]
+instrument = "basse"
+part = "Couplet"
+rhythm = "x..x ..x. x-x. ...x | x--- .... x-x- xxxx"
+
+[[grooves]]
+instrument = "basse"
+part = "Refrain"
+tab = ["G|----------------|", "D|--------5---5-7-|", "A|3---3-5---5-----|", "E|----------------|"]
+```
+
+- `rhythm` s'écrit un groupe par temps : quatre signes pour des doubles croches, trois pour
+  un triolet, deux pour des croches. `x` est une attaque, `-` une note tenue, `.` un silence,
+  `|` sépare deux mesures. Il est imprimé en notation rythmique : têtes, hampes, ligatures,
+  points, liaisons et silences. Une tenue en début de temps lie la note à celle d'avant.
+- `tab` est imprimé tel quel, en police à chasse fixe : alignez vos lignes.
+- Rien n'est proposé automatiquement pour le groove : il se saisit.
+
 ## Préparer un concert : la setlist et ses feuilles
 
 Une setlist est un fichier à part, `setlists/NOM.toml`, dans le dossier qui contient vos

@@ -13,6 +13,11 @@ HEADER = """# Antisèche du morceau. Ce fichier fait foi dès qu'il existe : mod
 # tonalité et les accords à l'affichage et à l'impression.
 # Un passage : [[parts]] avec name, chords (mesures séparées par |) et repeat. Pour en
 # montrer moins, supprime le bloc ; `arr sheet --reset` revient à la proposition.
+# Un groove : [[grooves]] avec instrument, part, et soit
+#   rhythm = "x..x ..x. x-x. ...x"   un groupe par temps (4 signes : doubles croches, 3 :
+#                                    triolet, 2 : croches) ; x attaque, - tenue, . silence,
+#                                    | entre deux mesures ; imprimé en notation rythmique
+#   tab = ["G|--------|", "D|--5-----|", "A|3---3-5-|", "E|--------|"]
 
 """
 # Qualités de la notation de chord.lab (« D:min »), telles qu'un musicien les écrit.
@@ -202,3 +207,39 @@ def played(sheet: dict, semitones: int | None = None) -> dict:
     key = transpose_key(str(sheet.get("key", "")), shift)
     parts = [{**part, "chords": transpose(str(part.get("chords", "")), shift, key)} for part in sheet.get("parts", [])]
     return {**sheet, "key": key, "transpose": shift, "parts": parts}
+
+
+def rhythm(text: str) -> list[list[tuple[int, list[tuple]]]]:
+    """Lit un rythme écrit à la main : des mesures, faites de temps, faits de notes et de silences.
+
+    Un groupe de caractères par temps (4 pour des doubles croches, 3 pour un triolet, 2 pour
+    des croches) : `x` attaque, `-` tenue, `.` silence ; `|` sépare les mesures. Chaque temps
+    rend (nombre de cases, événements), un événement étant (genre, case de départ, durée en
+    cases, lié à la note d'avant) avec le genre « note » ou « rest ».
+    """
+    bars = []
+    for written in text.split("|"):
+        beats = []
+        for group in written.split():
+            if set(group) - set("x-.") or len(group) not in (2, 3, 4):
+                raise ValueError(f"temps illisible : « {group} » (2 à 4 caractères parmi x, - et .)")
+            events: list[tuple] = []
+            for slot, sign in enumerate(group):
+                sounding = bool(events) and events[-1][0] == "note"
+                if sign == "x":
+                    events.append(("note", slot, 1, False))
+                elif sign == "-" and (slot == 0 or sounding):
+                    # Une tenue en début de temps prolonge la note du temps d'avant : une note liée.
+                    events.append(("note", 0, 1, True)) if slot == 0 else events.append(_longer(events.pop()))
+                elif events and events[-1][0] == "rest":
+                    events.append(_longer(events.pop()))
+                else:
+                    events.append(("rest", slot, 1, False))
+            beats.append((len(group), events))
+        if beats:
+            bars.append(beats)
+    return bars
+
+
+def _longer(event: tuple) -> tuple:
+    return (event[0], event[1], event[2] + 1, event[3])

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from arr import sheet
 from arr.cli import app
 from arr.project import Project, Section
@@ -227,3 +229,62 @@ def test_setlist_orders_songs_and_prints_their_sheets(tmp_path, monkeypatch):
     unknown = runner.invoke(app, ["set", "show", "nope"])
     assert unknown.exit_code != 0 and "connues : bar" in str(unknown.exception)
     assert runner.invoke(app, ["sheet", "--pdf"]).exit_code == 0 and (tmp_path / "gala/export/sheet.pdf").exists()
+
+
+def test_rhythm_is_read_beat_by_beat():
+    bar = sheet.rhythm("x..x ..x. x-x. ...x")[0]
+    assert bar[0] == (4, [("note", 0, 1, False), ("rest", 1, 2, False), ("note", 3, 1, False)])
+    assert bar[2] == (4, [("note", 0, 2, False), ("note", 2, 1, False), ("rest", 3, 1, False)])
+    # une tenue en début de temps prolonge la note d'avant : une note liée
+    second = sheet.rhythm("x--- | -x.. x-x xx")[1]
+    assert second[0] == (4, [("note", 0, 1, True), ("note", 1, 1, False), ("rest", 2, 2, False)])
+    assert second[1] == (3, [("note", 0, 2, False), ("note", 2, 1, False)]) and second[2][0] == 2
+    assert sheet.rhythm(".-..")[0][0] == (4, [("rest", 0, 4, False)])  # une tenue après un silence reste un silence
+    for wrong in ("x.y.", "x", "xxxxx"):
+        with pytest.raises(ValueError, match="temps illisible"):
+            sheet.rhythm(wrong)
+
+
+def test_note_values_follow_the_beat():
+    from arr import pdf
+
+    assert pdf.pieces(4, "note", 0, 4) == [(0, 4)] and pdf.pieces(4, "rest", 0, 4) == [(0, 4)]  # noire, soupir
+    assert pdf.pieces(4, "note", 0, 3) == [(0, 3)]  # croche pointée
+    assert pdf.pieces(4, "note", 1, 2) == [(1, 2)]  # double, croche, double
+    assert pdf.pieces(4, "note", 1, 3) == [(1, 2), (3, 1)]  # croche liée à une double
+    assert pdf.pieces(4, "rest", 1, 3) == [(1, 1), (2, 2)] and pdf.pieces(4, "rest", 0, 3) == [(0, 2), (2, 1)]
+    assert pdf.pieces(3, "note", 0, 2) == [(0, 2), (1, 2)] and pdf.pieces(3, "rest", 0, 3) == [(0, 4)]
+    assert pdf.pieces(2, "note", 0, 2) == [(0, 4)] and pdf.pieces(2, "note", 1, 1) == [(1, 2)]
+
+
+def test_grooves_are_shown_and_printed(tmp_path, monkeypatch):
+    from arr import pdf
+
+    p = transcribed(tmp_path, monkeypatch)
+    runner.invoke(app, ["sheet", "--note", "x"])
+    written = sheet.load(p.root)
+    tab = ["A|3---3-5-|", "E|--------|"]
+    written["grooves"] = [
+        {
+            "instrument": "basse",
+            "part": "Couplet",
+            "rhythm": "x..x ..x. x-x. ...x | x--- .... x-x- xxxx | x... x... x... x...",
+        },
+        {"instrument": "guitare", "tab": tab},
+    ]
+    sheet.save(p.root, written)
+    out = runner.invoke(app, ["sheet", "--pdf"])
+    assert out.exit_code == 0 and "basse · Couplet  x..x ..x." in out.output and "A|3---3-5-|" in out.output
+    assert (p.root / "export/sheet.pdf").read_bytes().startswith(b"%PDF")
+
+    doc = pdf.Sheet()
+    lines = pdf.block(doc, {"number": 1, "title": "x", "sheet": written}, 90.0)
+    drawn = [segments for _, segments in lines if callable(segments[0][1])]
+    assert len(drawn) == 2  # trois mesures : deux tiennent sur la première ligne, la troisième passe dessous
+    texts = [segment[1] for _, segments in lines for segment in segments if isinstance(segment[1], str)]
+    assert "basse · Couplet" in texts and "guitare" in texts and all(row in texts for row in tab)
+
+    written["grooves"] = [{"instrument": "basse", "rhythm": "x.y."}]
+    sheet.save(p.root, written)
+    refused = runner.invoke(app, ["sheet"])
+    assert refused.exit_code != 0 and "groove de basse" in str(refused.exception)

@@ -24,6 +24,11 @@ def song_sheet(p: Project) -> tuple[dict, bool]:
     except tomllib.TOMLDecodeError as e:
         raise ProjectError(f"{sheets.SHEET_FILE} est mal écrit : {e} (arr sheet --edit, ou --reset)")
     if written is not None:
+        for groove in written.get("grooves", []):
+            try:
+                sheets.rhythm(str(groove.get("rhythm", "")))
+            except ValueError as e:
+                raise ProjectError(f"{sheets.SHEET_FILE}, groove de {groove.get('instrument', '?')} : {e}")
         return written, True
     chart = song_chart(p)
     missing = [
@@ -56,6 +61,11 @@ def show(p: Project, sheet: dict, written: bool) -> None:
         times = f"[dim]×{part['repeat']}[/]" if part.get("repeat", 1) > 1 else ""
         table.add_row(f"[bold]{part.get('name', '')}[/]", part.get("chords", ""), times)
     console.print(table, highlight=False)
+    for groove in seen.get("grooves", []):
+        label = " · ".join(filter(None, (str(groove.get("instrument", "")), str(groove.get("part", "")))))
+        console.print(f"[dim]{label}[/]  {groove.get('rhythm', '')}", highlight=False)
+        for row in groove.get("tab", []):
+            console.print(f"  {row}", highlight=False, markup=False)
     for note in seen.get("notes", []):
         console.print(f"• {note}", highlight=False)
     origin = sheets.SHEET_FILE if written else "proposition déduite du projet : arr sheet --edit pour la modifier"
