@@ -13,6 +13,7 @@ from arr.commands import takes  # noqa: F401
 from arr.commands import tracks  # noqa: F401
 from arr.commands import play  # noqa: F401
 from arr.commands import align  # noqa: F401
+from arr.commands import sheet  # noqa: F401
 from arr.commands import studio  # noqa: F401
 from arr.commands import system  # noqa: F401
 from arr.commands._common import add_track  # réexporté pour les tests

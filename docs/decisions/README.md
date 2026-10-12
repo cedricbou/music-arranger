@@ -18,3 +18,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [006](006-calage-par-sections.md) | Caler une prise par section, avec des réglages mémorisés (remplace la mesure de 004) |
 | [007](007-provenance-des-modeles.md) | Les poids viennent de Hugging Face ; audio.cpp suit sa release officielle, version fixable |
 | [008](008-grille-de-reference.md) | Une seule grille de mesures, celle d'`arr analyze` ; les accords transcrits y sont replacés |
+| [009](009-antiseche-portee-par-le-morceau.md) | L'antisèche de scène vit dans le projet : proposition déduite, puis `sheet.toml` qui fait foi |

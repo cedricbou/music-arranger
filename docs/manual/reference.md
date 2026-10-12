@@ -25,6 +25,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 - [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
 - [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
+- [`arr sheet`](#arr-sheet) : Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -329,6 +330,23 @@ Mesure le décalage de la prise (harmonie, puis attaques) et l'inscrit comme ré
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--report` | non | Mesure et affiche le décalage par section, sans rien régler. |
+
+## `arr sheet`
+
+```
+arr sheet [OPTIONS]
+```
+
+Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
+
+Tant que sheet.toml n'existe pas, elle est déduite du projet. Dès qu'il existe, lui seul fait foi : modifie-le pour montrer moins, plus, ou autre chose.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--edit` | non | Écrit la proposition dans sheet.toml s'il manque, et l'ouvre. |
+| `--note` |  | Ajoute un rappel à l'antisèche. |
+| `--transpose` |  | Demi-tons de transposition : --transpose=-2 joue un ton plus bas ; 0 pour l'original. |
+| `--reset` | non | Revient à la proposition ; sheet.toml part dans trash/. |
 
 ## `arr capture`
 

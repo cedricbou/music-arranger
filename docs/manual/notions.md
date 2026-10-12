@@ -9,6 +9,7 @@ ou l'un de ses sous-dossiers.
 mon-morceau/
   song.toml        titre, artiste, tempo, tonalité, sections, état du mix
   lyrics.txt       paroles, avec des balises [Verse], [Chorus]...
+  sheet.toml       l'antisèche de scène, une fois que vous l'avez modifiée
   analysis.json    temps et mesures détectés
   source/          le morceau original, en FLAC 48 kHz stéréo
   score/           la partition (score.abc), des fichiers MIDI, accords et structure
@@ -19,7 +20,7 @@ mon-morceau/
   trash/           ce que `arr rm` a retiré
 ```
 
-`song.toml`, `lyrics.txt` et `score/score.abc` sont des fichiers texte que vous pouvez
+`song.toml`, `lyrics.txt`, `sheet.toml` et `score/score.abc` sont des fichiers texte que vous pouvez
 modifier à la main.
 
 ## L'original
