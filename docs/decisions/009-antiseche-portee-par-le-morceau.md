@@ -40,6 +40,9 @@ setlist à l'autre.
 - **Blocs de hauteur variable en colonnes**, jamais coupés : la densité se règle par le
   contenu de chaque antisèche. `--pages` cherche la plus grande échelle de texte, de 160 % à
   50 %, qui tient ; sous 75 % la commande prévient.
+- **Tout en noir, rien sous 9 points** : le gris et les petits corps sortent illisibles sur
+  l'imprimante de Cédric. Les lignes se distinguent par le gras (accords), l'italique
+  (structure, artiste) et le rang en blanc sur un pavé noir.
 - **Un agent peut voir le résultat** : `pdftoppm` en fait une image. La lisibilité debout,
   feuilles au sol, reste à juger par le musicien.
 

@@ -144,7 +144,7 @@ def test_pdf_blocks_wrap_and_flow_without_cutting_a_song():
     doc = pdf.Sheet()
     lines = pdf.block(doc, entry(3), 90.0)
     text = [[segment[1] for segment in segments] for _, segments in lines]
-    assert text[0][:2] == ["3", "Freed From Desire"] and "Dm" in text[0] and " 121" in text[0]
+    assert text[0][:2] == ["3", "Freed From Desire"] and "Dm" in text[0] and "  121" in text[0]
     assert text[1] == ["Intro 4 · C 16 · R 8"]
     chords = [row for row in text if row[-1].startswith(("Dm", "Fmaj7", "Bb", "C"))]
     assert len(chords) > 1 and chords[0][0] == "Couplet" and chords[-1][-1].endswith("×2")  # la ligne est repliée
@@ -159,6 +159,8 @@ def test_pdf_blocks_wrap_and_flow_without_cutting_a_song():
     for page in pages:
         for _, y, _, block, gap in page:
             assert y + sum(height for height, _ in block) + 2 * gap <= pdf.PAGE[1] - pdf.MARGIN + 1e-6
+    # ni gris ni petit corps : tout est noir, et rien sous 9 points
+    assert min(size for _, segments in lines for _, _, size, _ in segments) >= 9
     assert pdf.plain("Maldòn – « F♯ » … ×2") == "Maldòn - « F# » ... ×2"
 
 

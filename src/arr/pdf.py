@@ -12,9 +12,9 @@ MM = 0.3528  # un point typographique, en millimètres
 LEADING = 1.22
 SCALES = [s / 20 for s in range(32, 9, -1)]  # de 1,6 à 0,5 : la plus grande taille qui tient est gardée
 SMALL = 0.75  # en dessous, le texte ne se lit plus debout
-GREY = 110
-# Tailles en points, à l'échelle 1.
-NUMBER, TITLE, ARTIST, KEY, BPM, STRUCTURE, PART, CHORDS, NOTE, TAB = 20, 13, 9, 15, 9, 7.5, 8, 10.5, 9, 8
+# Tailles en points, à l'échelle 1. Rien sous 9 points ni en gris : une imprimante de bureau les rend illisibles.
+# Ce qui distingue les lignes : le gras (accords), l'italique (structure, artiste), le rang en blanc sur noir.
+NUMBER, TITLE, ARTIST, KEY, BPM, STRUCTURE, PART, CHORDS, NOTE, TAB = 21, 14, 10, 17, 11, 9.5, 10, 12.5, 10.5, 9.5
 SWAPS = {"–": "-", "—": "-", "…": "...", "•": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "→": ">", "♭": "b", "♯": "#"}
 
 
@@ -36,8 +36,9 @@ class Sheet:
         self.scale = scale
 
     def font(self, size: float, style: str) -> None:
-        """Helvetica, ou Courier pour le style « C » (tablatures : les colonnes doivent tomber juste)."""
-        self.pdf.set_font("Courier" if style == "C" else "Helvetica", "" if style == "C" else style, size * self.scale)
+        """Helvetica ; « N » (négatif) est un gras en blanc sur un pavé noir, « C » du Courier pour les tablatures."""
+        family, weight = ("Courier", "B") if style == "C" else ("Helvetica", "B" if style == "N" else style)
+        self.pdf.set_font(family, weight, size * self.scale)
 
     def width(self, text: str, size: float, style: str = "") -> float:
         self.font(size, style)
@@ -46,10 +47,17 @@ class Sheet:
     def high(self, size: float) -> float:
         return size * self.scale * MM * LEADING
 
-    def write(self, x: float, base: float, text: str, size: float, style: str = "", grey: int = 0) -> None:
-        """Écrit `text` posé sur la ligne de base `base`."""
+    def write(self, x: float, base: float, text: str, size: float, style: str = "") -> None:
+        """Écrit `text` en noir, posé sur la ligne de base `base`."""
         self.font(size, style)
-        self.pdf.set_text_color(grey)
+        self.pdf.set_text_color(0)
+        if style == "N" and text:
+            pad, tall = 0.9 * self.scale, size * self.scale * MM * 0.74
+            self.pdf.set_fill_color(0)
+            self.pdf.rect(
+                x - pad, base - tall - pad, self.width(text, size, style) + 2 * pad, tall + 2 * pad, style="F"
+            )
+            self.pdf.set_text_color(255)
         self.pdf.text(x, base, plain(text))
 
     def fit(self, text: str, room: float, size: float, style: str = "") -> str:
@@ -116,10 +124,8 @@ def draw_rhythm(doc: Sheet, x: float, y: float, bars: list, slot: float, span) -
     last_head = None
     at = x
     for bar in bars:
-        pdf.set_line_width(0.15 * u)
-        pdf.set_draw_color(150)
+        pdf.set_line_width(0.12 * u)
         pdf.line(at, line, at + span(bar) - 1.5 * u, line)
-        pdf.set_draw_color(0)
         for slots, events in bar:
             left = at + 0.3 * slot
             notes = []  # (x de la hampe, durée) des notes du temps, pour les ligatures
@@ -162,7 +168,7 @@ def draw_rhythm(doc: Sheet, x: float, y: float, bars: list, slot: float, span) -
                 for k in range(2 if size == 1 else 1):
                     pdf.line(stem, top + k * 1.2 * u, stem + 1.5 * u, top + (k * 1.2 + 2.0) * u)
             if slots == 3 and notes:
-                doc.write(left + 1.2 * slot, top - 0.6 * u, "3", 6, "I")
+                doc.write(left + 1.2 * slot, top - 0.6 * u, "3", 8, "BI")
             at += slots * slot + 0.6 * slot
         pdf.set_line_width(0.25 * u)
         pdf.line(at + 0.4 * u, line - 3.0 * u, at + 0.4 * u, line + 3.0 * u)
@@ -186,49 +192,50 @@ def draw_rest(doc: Sheet, cx: float, line: float, size: int) -> None:
 
 
 def block(doc: Sheet, entry: dict, width: float) -> list[tuple]:
-    """Les lignes d'un morceau : (hauteur, [(décalage x, texte, taille, style, gris)])."""
+    """Les lignes d'un morceau : (hauteur, [(décalage x, texte, taille, style)])."""
     sheet = entry["sheet"]
     if entry.get("break"):
-        return [(doc.high(NOTE) * 1.6, [(0.0, entry.get("title", "Entracte"), NOTE, "I", GREY)])]
+        return [(doc.high(NOTE) * 1.6, [(0.0, entry.get("title", "Entracte"), NOTE, "BI")])]
     lines = []
     number = str(entry.get("number", ""))
-    right = [(f"{sheet['key']}", KEY, "B", 0), (f" {sheet['bpm']}", BPM, "", GREY)]
-    right_width = sum(doc.width(t, size, style) for t, size, style, _ in right)
-    x = doc.width(number, NUMBER, "B") + 2.0 * doc.scale
+    right = [(f"{sheet['key']}", KEY, "B"), (f"  {sheet['bpm']}", BPM, "")]
+    right_width = sum(doc.width(t, size, style) for t, size, style in right)
+    inset = 0.9 * doc.scale if number else 0.0
+    x = doc.width(number, NUMBER, "N") + (2 * inset + 2.0 * doc.scale if number else 0.0)
     room = width - x - right_width - 2.0
     # Un titre long est d'abord écrit plus petit, et coupé seulement s'il ne tient toujours pas.
     size = next((s for s in (TITLE, TITLE * 0.85, TITLE * 0.72) if doc.width(entry["title"], s, "B") <= room), None)
     title = entry["title"] if size else doc.fit(entry["title"], room, TITLE * 0.72, "B")
     size = size or TITLE * 0.72
-    head = [(0.0, number, NUMBER, "B", 0), (x, title, size, "B", 0)]
+    head = [(inset, number, NUMBER, "N"), (x, title, size, "B")]
     after = x + doc.width(title, size, "B") + 1.5
     if entry.get("artist") and after + doc.width(entry["artist"], ARTIST) <= x + room:
-        head.append((after, entry["artist"], ARTIST, "", GREY))
+        head.append((after, entry["artist"], ARTIST, "I"))
     at = width - right_width
-    for text, size, style, grey in right:
-        head.append((at, text, size, style, grey))
+    for text, size, style in right:
+        head.append((at, text, size, style))
         at += doc.width(text, size, style)
-    lines.append((doc.high(NUMBER), head))
+    lines.append((doc.high(NUMBER) * 1.08, head))
     for row in doc.wrap(sheet.get("structure", ""), width, STRUCTURE, sep=" · ")[:2]:
-        lines.append((doc.high(STRUCTURE), [(0.0, row, STRUCTURE, "", GREY)]))
+        lines.append((doc.high(STRUCTURE), [(0.0, row, STRUCTURE, "I")]))
     parts = sheet.get("parts", [])
-    indent = max((doc.width(str(p.get("name", "")), PART, "B") for p in parts), default=0.0) + 2.0
+    indent = max((doc.width(str(p.get("name", "")), PART) for p in parts), default=0.0) + 2.5
     for part in parts:
         times = f"  ×{part['repeat']}" if part.get("repeat", 1) > 1 else ""
         rows = doc.wrap(str(part.get("chords", "")) + times, width - indent, CHORDS, "B", sep=" | ")
         for i, row in enumerate(rows):
-            name = [(0.0, str(part.get("name", "")), PART, "", GREY)] if i == 0 else []
-            lines.append((doc.high(CHORDS), [*name, (indent, row, CHORDS, "B", 0)]))
+            name = [(0.0, str(part.get("name", "")), PART, "")] if i == 0 else []
+            lines.append((doc.high(CHORDS), [*name, (indent, row, CHORDS, "B")]))
     for groove in sheet.get("grooves", []):
         label = " · ".join(filter(None, (str(groove.get("instrument", "")), str(groove.get("part", "")))))
-        lines.append((doc.high(PART), [(0.0, label, PART, "", GREY)]))
+        lines.append((doc.high(PART), [(0.0, label, PART, "I")]))
         if groove.get("rhythm"):
             lines += staff(doc, sheets.rhythm(str(groove["rhythm"])), width)
         for row in groove.get("tab", []):
-            lines.append((doc.high(TAB) * 0.92, [(0.0, doc.fit(str(row), width, TAB, "C"), TAB, "C", 0)]))
+            lines.append((doc.high(TAB) * 0.92, [(0.0, doc.fit(str(row), width, TAB, "C"), TAB, "C")]))
     for note in [*sheet.get("notes", []), *([entry["note"]] if entry.get("note") else [])]:
         for i, row in enumerate(doc.wrap(note, width - 3.0, NOTE)):
-            lines.append((doc.high(NOTE), [(0.0, "-" if i == 0 else "", NOTE, "", 0), (3.0, row, NOTE, "", 0)]))
+            lines.append((doc.high(NOTE), [(0.0, "-" if i == 0 else "", NOTE, ""), (3.0, row, NOTE, "")]))
     return lines
 
 
@@ -264,12 +271,12 @@ def render(entries: list[dict], title: str, path: Path, columns: int = 2, pages:
             break
     for n, page in enumerate(laid, start=1):
         doc.pdf.add_page()
-        doc.write(MARGIN, MARGIN + 2.0, title, 8 / doc.scale, "B", GREY)
+        doc.write(MARGIN, MARGIN + 2.5, title, 10 / doc.scale, "B")
         mark = f"{n} / {len(laid)}"
-        doc.write(PAGE[0] - MARGIN - doc.width(mark, 8 / doc.scale), MARGIN + 2.0, mark, 8 / doc.scale, "", GREY)
+        doc.write(PAGE[0] - MARGIN - doc.width(mark, 10 / doc.scale), MARGIN + 2.5, mark, 10 / doc.scale, "")
         for x, y, width, lines, gap in page:
-            doc.pdf.set_draw_color(170)
-            doc.pdf.set_line_width(0.2)
+            doc.pdf.set_draw_color(0)
+            doc.pdf.set_line_width(0.35)
             doc.pdf.line(x, y, x + width, y)
             at = y + gap
             for height, segments in lines:
@@ -278,9 +285,9 @@ def render(entries: list[dict], title: str, path: Path, columns: int = 2, pages:
                     at += height
                     continue
                 # Tous les textes d'une ligne reposent sur la même ligne de base, celle du plus grand.
-                base = at + max(size for _, _, size, _, _ in segments) * doc.scale * MM
-                for dx, text, size, style, grey in segments:
-                    doc.write(x + dx, base, text, size, style, grey)
+                base = at + max(size for _, _, size, _ in segments) * doc.scale * MM
+                for dx, text, size, style in segments:
+                    doc.write(x + dx, base, text, size, style)
                 at += height
     path.parent.mkdir(parents=True, exist_ok=True)
     doc.pdf.output(str(path))
