@@ -46,6 +46,16 @@ setlist à l'autre.
 - **Un agent peut voir le résultat** : `pdftoppm` en fait une image. La lisibilité debout,
   feuilles au sol, reste à juger par le musicien.
 
+## Le groove
+
+- **Saisi à la main**, dans `[[grooves]]` : soit un rythme écrit temps par temps (`x`, `-`,
+  `.`), soit des lignes de tablature gardées telles quelles.
+- **La notation rythmique est dessinée par `pdf.py`** (ellipses, traits, courbes) : aucune
+  police musicale n'est installée sur la machine, et en embarquer une pour quelques signes
+  ne se justifiait pas. Valeurs gérées : de la double croche à la noire, croche pointée,
+  triolet de croches, liaisons, silences correspondants.
+- Les signes sont simplifiés (crochets droits, silences schématiques) : lisibles, pas gravés.
+
 ## Limites
 
 - Les accords et la tonalité viennent de la transcription : la proposition est à relire.

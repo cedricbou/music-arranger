@@ -53,6 +53,8 @@ les trois commandes de diagnostic.
 | `texte petit, difficile à lire debout` | trop de contenu pour le nombre de feuilles demandé | alléger des antisèches (`arr sheet --edit`), ou augmenter `--pages` |
 | `ne tient pas en N feuille(s)` | même au plus petit texte, le concert déborde | augmenter `--pages`, ou alléger des antisèches |
 | un caractère devient `?` dans le PDF | il n'existe pas dans la police d'impression (symboles, alphabets non latins) | l'écrire autrement dans `sheet.toml` ou dans le titre |
+| `groove de … : temps illisible` | un groupe de `rhythm` n'a pas 2, 3 ou 4 signes, ou contient autre chose que `x`, `-` et `.` | écrire un groupe par temps, séparés par des espaces : `x..x ..x. x-x. ...x` |
+| les silences du rythme imprimé se touchent | beaucoup de silences courts dans un même temps | écrire le rythme en croches (deux signes par temps) là où c'est possible, ou passer en tablature |
 | Espace et les flèches ne font rien pendant `arr play` | la commande ne lit pas le clavier : son entrée est redirigée, ou elle est lancée par un autre programme | lancer `arr play` directement dans un terminal |
 | ← ou → saute cinq secondes au lieu d'une mesure | le projet n'a pas de mesures connues, ou c'est une prise brute (`arr play t001`) | `arr transcribe` ou `arr analyze` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
 | je n'entends rien avec `arr play` | la sortie configurée n'est pas celle de vos enceintes | `arr devices` ; régler `[output]` |

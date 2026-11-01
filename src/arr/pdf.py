@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from arr import sheet as sheets
+
 PAGE = (210.0, 297.0)  # A4, en millimètres
 MARGIN, GUTTER, HEADER = 8.0, 6.0, 6.0
 MM = 0.3528  # un point typographique, en millimètres
@@ -12,7 +14,7 @@ SCALES = [s / 20 for s in range(32, 9, -1)]  # de 1,6 à 0,5 : la plus grande ta
 SMALL = 0.75  # en dessous, le texte ne se lit plus debout
 # Tailles en points, à l'échelle 1. Rien sous 9 points ni en gris : une imprimante de bureau les rend illisibles.
 # Ce qui distingue les lignes : le gras (accords), l'italique (structure, artiste), le rang en blanc sur noir.
-NUMBER, TITLE, ARTIST, KEY, BPM, STRUCTURE, PART, CHORDS, NOTE = 21, 14, 10, 17, 11, 9.5, 10, 12.5, 10.5
+NUMBER, TITLE, ARTIST, KEY, BPM, STRUCTURE, PART, CHORDS, NOTE, TAB = 21, 14, 10, 17, 11, 9.5, 10, 12.5, 10.5, 9.5
 SWAPS = {"–": "-", "—": "-", "…": "...", "•": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "→": ">", "♭": "b", "♯": "#"}
 
 
@@ -34,8 +36,9 @@ class Sheet:
         self.scale = scale
 
     def font(self, size: float, style: str) -> None:
-        """Helvetica ; le style « N » (négatif) est un gras, écrit en blanc sur un pavé noir."""
-        self.pdf.set_font("Helvetica", "B" if style == "N" else style, size * self.scale)
+        """Helvetica ; « N » (négatif) est un gras en blanc sur un pavé noir, « C » du Courier pour les tablatures."""
+        family, weight = ("Courier", "B") if style == "C" else ("Helvetica", "B" if style == "N" else style)
+        self.pdf.set_font(family, weight, size * self.scale)
 
     def width(self, text: str, size: float, style: str = "") -> float:
         self.font(size, style)
@@ -78,6 +81,116 @@ class Sheet:
         return lines + [line] if line else lines
 
 
+def pieces(slots: int, kind: str, start: int, length: int) -> list[tuple[int, int]]:
+    """Découpe une durée en valeurs qui s'écrivent : (case de départ, valeur en doubles croches : 1, 2, 3 ou 4).
+
+    Ce qui remplit le temps est une noire ou un soupir. Dans un temps de quatre doubles
+    croches, une valeur de croche ou plus commence sur une case paire, sauf la croche au
+    milieu du temps (double, croche, double) ; ailleurs chaque case est une croche.
+    """
+    if length == slots:
+        return [(start, 4)]
+    if slots != 4:
+        return [(start + i, 2) for i in range(length)]
+    if length == 3 and start == 0 and kind == "note":
+        return [(start, 3)]
+    out = []
+    while length:
+        size = 2 if length >= 2 and (start % 2 == 0 or (start == 1 and kind == "note")) else 1
+        out.append((start, size))
+        start, length = start + size, length - size
+    return out
+
+
+def staff(doc: Sheet, bars: list, width: float) -> list[tuple]:
+    """Les lignes de portée d'un rythme : (hauteur, [(0, dessin)]), les mesures repliées à la largeur."""
+    u = doc.scale
+    slot = min(2.3 * u, (width - 2 * u) / max(sum(n for n, _ in bar) + len(bar) * 0.6 for bar in bars))
+    span = lambda bar: sum(n for n, _ in bar) * slot + len(bar) * 0.6 * slot + 1.5 * u
+    rows: list[list] = [[]]
+    for bar in bars:
+        if rows[-1] and sum(map(span, rows[-1])) + span(bar) > width:
+            rows.append([])
+        rows[-1].append(bar)
+    return [(13.0 * u, [(0.0, lambda d, x, y, row=row: draw_rhythm(d, x, y, row, slot, span))]) for row in rows]
+
+
+def draw_rhythm(doc: Sheet, x: float, y: float, bars: list, slot: float, span) -> None:
+    """Dessine des mesures de rythme sur une ligne : têtes, hampes, ligatures, points, liaisons, silences."""
+    pdf, u = doc.pdf, doc.scale
+    line, top = y + 9.6 * u, y + 3.4 * u  # la ligne des têtes, et le haut des hampes
+    pdf.set_draw_color(0)
+    pdf.set_fill_color(0)
+    last_head = None
+    at = x
+    for bar in bars:
+        pdf.set_line_width(0.12 * u)
+        pdf.line(at, line, at + span(bar) - 1.5 * u, line)
+        for slots, events in bar:
+            left = at + 0.3 * slot
+            notes = []  # (x de la hampe, durée) des notes du temps, pour les ligatures
+            for kind, start, length, tied in events:
+                for i, (where, size) in enumerate(pieces(slots, kind, start, length)):
+                    cx = left + (where + 0.5) * slot
+                    if kind == "rest":
+                        draw_rest(doc, cx, line, size)
+                        continue
+                    pdf.ellipse(cx - 1.05 * u, line - 0.72 * u, 2.1 * u, 1.44 * u, style="F")
+                    stem = cx + 0.95 * u
+                    pdf.set_line_width(0.28 * u)
+                    pdf.line(stem, line - 0.2 * u, stem, top)
+                    if size == 3:
+                        pdf.circle(cx + 1.9 * u, line - 0.9 * u, 0.3 * u, style="F")
+                    if (tied or i > 0) and last_head is not None:
+                        a, b = last_head + 0.6 * u, cx - 0.6 * u
+                        pdf.set_line_width(0.22 * u)
+                        pdf.bezier([(a, line + 1.3 * u), ((a + b) / 2, line + 2.6 * u), (b, line + 1.3 * u)])
+                    last_head = cx
+                    notes.append((stem, size))
+            short = [n for n in notes if n[1] < 4]
+            if len(short) > 1:
+                pdf.rect(short[0][0] - 0.14 * u, top, short[-1][0] - short[0][0] + 0.28 * u, 0.85 * u, style="F")
+                for j, (stem, size) in enumerate(short):
+                    if size == 1:
+                        # La seconde barre va vers la voisine si elle est aussi une double, sinon un court tronçon.
+                        to_next = j + 1 < len(short) and (short[j + 1][1] == 1 or j == 0)
+                        end = (
+                            short[j + 1][0]
+                            if to_next and short[j + 1][1] == 1
+                            else stem + (1.3 * u if to_next else -1.3 * u)
+                        )
+                        pdf.rect(
+                            min(stem, end) - 0.14 * u, top + 1.25 * u, abs(end - stem) + 0.28 * u, 0.85 * u, style="F"
+                        )
+            elif short:
+                stem, size = short[0]
+                pdf.set_line_width(0.4 * u)
+                for k in range(2 if size == 1 else 1):
+                    pdf.line(stem, top + k * 1.2 * u, stem + 1.5 * u, top + (k * 1.2 + 2.0) * u)
+            if slots == 3 and notes:
+                doc.write(left + 1.2 * slot, top - 0.6 * u, "3", 8, "BI")
+            at += slots * slot + 0.6 * slot
+        pdf.set_line_width(0.25 * u)
+        pdf.line(at + 0.4 * u, line - 3.0 * u, at + 0.4 * u, line + 3.0 * u)
+        at += 1.5 * u
+
+
+def draw_rest(doc: Sheet, cx: float, line: float, size: int) -> None:
+    """Un silence : soupir (une noire), demi-soupir (une croche), quart de soupir (une double croche)."""
+    pdf, u = doc.pdf, doc.scale * 0.72
+    if size >= 4:
+        pdf.set_line_width(0.55 * u)
+        points = [(-0.6, -4.2), (0.6, -2.8), (-0.7, -1.4), (0.6, 0.0), (-0.4, 0.1), (-0.6, 1.2)]
+        pdf.polyline([(cx + a * u, line - 0.6 * u + b * u) for a, b in points])
+        return
+    pdf.set_line_width(0.34 * u)
+    pdf.line(cx + 0.8 * u, line - 4.2 * u, cx - 0.1 * u, line + 0.6 * u)
+    for k in range(2 if size == 1 else 1):
+        yy = line - 3.5 * u + k * 1.6 * u
+        pdf.circle(cx - 0.9 * u - k * 0.35 * u, yy - 0.5 * u, 0.5 * u, style="F")
+        pdf.line(cx - 0.6 * u - k * 0.35 * u, yy + 0.3 * u, cx + 0.7 * u - k * 0.35 * u, yy - 0.5 * u)
+
+
 def block(doc: Sheet, entry: dict, width: float) -> list[tuple]:
     """Les lignes d'un morceau : (hauteur, [(décalage x, texte, taille, style)])."""
     sheet = entry["sheet"]
@@ -113,6 +226,13 @@ def block(doc: Sheet, entry: dict, width: float) -> list[tuple]:
         for i, row in enumerate(rows):
             name = [(0.0, str(part.get("name", "")), PART, "")] if i == 0 else []
             lines.append((doc.high(CHORDS), [*name, (indent, row, CHORDS, "B")]))
+    for groove in sheet.get("grooves", []):
+        label = " · ".join(filter(None, (str(groove.get("instrument", "")), str(groove.get("part", "")))))
+        lines.append((doc.high(PART), [(0.0, label, PART, "I")]))
+        if groove.get("rhythm"):
+            lines += staff(doc, sheets.rhythm(str(groove["rhythm"])), width)
+        for row in groove.get("tab", []):
+            lines.append((doc.high(TAB) * 0.92, [(0.0, doc.fit(str(row), width, TAB, "C"), TAB, "C")]))
     for note in [*sheet.get("notes", []), *([entry["note"]] if entry.get("note") else [])]:
         for i, row in enumerate(doc.wrap(note, width - 3.0, NOTE)):
             lines.append((doc.high(NOTE), [(0.0, "-" if i == 0 else "", NOTE, ""), (3.0, row, NOTE, "")]))
@@ -160,6 +280,10 @@ def render(entries: list[dict], title: str, path: Path, columns: int = 2, pages:
             doc.pdf.line(x, y, x + width, y)
             at = y + gap
             for height, segments in lines:
+                if callable(segments[0][1]):
+                    segments[0][1](doc, x, at)
+                    at += height
+                    continue
                 # Tous les textes d'une ligne reposent sur la même ligne de base, celle du plus grand.
                 base = at + max(size for _, _, size, _ in segments) * doc.scale * MM
                 for dx, text, size, style in segments:
