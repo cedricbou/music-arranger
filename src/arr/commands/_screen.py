@@ -264,4 +264,4 @@ def live(screen):
     from rich.console import Console
     from rich.live import Live
 
-    return Live(screen(0.0), console=Console(), refresh_per_second=8)
+    return Live(screen(0.0), console=Console(), refresh_per_second=20)

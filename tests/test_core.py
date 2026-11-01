@@ -115,6 +115,13 @@ def test_count_in_leads_to_the_first_downbeat():
     assert len(audio.count_in(beats, [1.0, 3.0], bars=2)) == 8
 
 
+def test_count_in_keeps_the_true_tempo_despite_the_20_ms_steps():
+    beats = [round(0.4705 * i / 0.02) * 0.02 for i in range(64)]  # 127,5 BPM ; médiane de 0,48 s, soit 125
+    assert abs(audio.period(beats) - 0.4705) < 0.001
+    ticks = audio.count_in(beats, beats[::4], bars=1)
+    assert abs((ticks[1][0] - ticks[0][0]) - 0.4705) < 0.001
+
+
 def test_add_clicks_only_touches_click_positions():
     silent = np.zeros((audio.SR, 2), np.float32)
     out = audio.add_clicks(silent, [(0.5, True), (-0.2, False), (5.0, False)])

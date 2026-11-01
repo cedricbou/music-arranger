@@ -172,7 +172,7 @@ d'un instrument note à note.
 | `arr transcribe` | partition dans `score/`, tempo, tonalité, sections |
 | `arr lyrics fetch [ARTISTE TITRE] [--force]` | paroles dans `lyrics.txt`, rangées par section ; par défaut, le morceau du projet |
 | `arr analyze` | temps et tempo seulement, en quelques secondes (sans partition) |
-| `arr sections list`, `arr sections set "intro:1-8 ..."` | sections, en numéros de mesure |
+| `arr sections list`, `arr sections set "intro:1-8 ..."`, `arr sections snap` | sections, en numéros de mesure ; `snap` pose celles d'un ancien projet sur les mesures |
 
 ### Studio
 

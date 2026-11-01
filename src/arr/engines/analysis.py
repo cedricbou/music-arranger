@@ -39,7 +39,7 @@ def beats(path: Path) -> tuple[list[float], list[float]]:
 
 
 def tempo(beat_times: list[float]) -> float:
-    return round(60.0 / float(np.median(np.diff(beat_times))), 1)
+    return round(60.0 / audio.period(beat_times), 1)
 
 
 def key(path: Path) -> str:

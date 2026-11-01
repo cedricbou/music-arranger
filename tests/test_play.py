@@ -302,10 +302,10 @@ def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
     assert runner.invoke(app, ["transcribe"]).exit_code == 0
 
     monkeypatch.setenv("COLUMNS", "120")
-    out = runner.invoke(app, ["play", "-s", "chorus2"]).output  # de 2 à 4 s : une mesure, Fmaj7 puis C
-    assert "Accords · chorus2" in out and "│ Fmaj7 /     C     /     │" in out and "Dm" not in out
+    out = runner.invoke(app, ["play", "-s", "chorus2"]).output  # de 2 à 4 s : deux mesures, Fmaj7 puis C
+    assert "Accords · chorus2" in out and "│ Fmaj7 /     │ C     /     │" in out and "Dm" not in out
     out = runner.invoke(app, ["play"]).output  # l'écran de départ : l'intro, puis le refrain
-    assert "Accords · intro" in out and "── puis chorus ──" in out and out.count("│ –   /   Dm  /   │") == 2
+    assert "Accords · intro" in out and "── puis chorus ──" in out and "│ –   /   │" in out and "│ Dm  /   │" in out
 
     assert runner.invoke(app, ["render", "-s", "funk"]).exit_code == 0
     out = runner.invoke(app, ["play", "t001"]).output

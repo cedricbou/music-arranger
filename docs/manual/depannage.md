@@ -37,8 +37,12 @@ les trois commandes de diagnostic.
 | `rien n'a été enregistré sur ce canal : la prise n'est pas gardée` | l'instrument n'est pas sur ce canal, ou le gain est à zéro | `arr levels`, puis `--channel N` ou `input.channels` |
 | ma prise est en retard sur le morceau | latence non mesurée | `arr calibrate` |
 | `rien n'est revenu sur l'entrée` pendant `arr calibrate` | la sortie ne revient sur aucune entrée | relier une sortie à l'entrée, ou `--channel` vers la voie où revient le son |
+| `pas de sections (arr transcribe ou arr sections set)` | le projet n'a pas encore de sections | `arr transcribe`, ou les poser à la main avec `arr sections set` |
 | `pas de décompte : le tempo est inconnu` | le projet n'a pas encore de grille de temps | `arr transcribe` ou `arr analyze` |
-| le décompte tombe sur la musique | la section ne commence pas sur un temps fort | redéfinir les sections en mesures : `arr sections set` |
+| le décompte tombe sur la musique | la section ne commence pas sur un temps fort | `arr sections snap`, ou redéfinir les sections en mesures : `arr sections set` |
+| une section en boucle saute un bout de mesure à chaque tour, ou l'écran change de section à côté de la barre | les bornes viennent d'une transcription plus ancienne et ne tombent pas sur les mesures | `arr sections snap`, une fois par projet |
+| `plus courtes qu'une mesure, retirées : ...` | deux bornes d'une section tombaient sur la même barre | rien à faire ; `arr sections set` pour la redécouper autrement |
+| le BPM affiché est trop bas de quelques unités | projet analysé avant que le tempo ne soit corrigé | `arr analyze` |
 | pas d'accords à l'écran pendant `arr play` ou `arr record` | le projet n'a pas de transcription, ou c'est une prise brute (`arr play t001`), qui n'est pas calée sur l'original | `arr transcribe` ; pour une prise, jouer ses pistes : `arr play t001.guitar` |
 | les accords affichés ne sont pas ceux que j'ai écrits dans `score/score.abc` | l'écran montre les accords transcrits de l'original (`score/chord.lab`), pas la partition modifiée | pas de remède pour l'instant : se fier à la partition |
 | les accords affichés sont décalés d'un ou deux temps sur un passage | la transcription a compté les mesures autrement que le morceau (une mesure courte non vue) | `arr analyze` : la grille d'accords suit ses mesures et les accords y sont replacés ; si le décalage reste, le signaler avec le passage |

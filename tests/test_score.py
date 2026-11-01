@@ -115,3 +115,21 @@ def test_chords_are_read_from_the_transcription(tmp_path):
     assert transcription.beats(tmp_path) == []
     (tmp_path / "beat.lab").write_text("0.01\t1\t5\t8\n0.22\t2\t5\t8\n1.11\t1\t4\t4\n")
     assert transcription.beats(tmp_path) == [(0.01, 1), (0.22, 2), (1.11, 1)]
+
+
+def test_sections_snap_puts_an_existing_project_on_its_bars(tmp_path, monkeypatch):
+    p = Project.create(tmp_path / "song", "song")
+    p.song["duration"] = 20.0
+    p.set_sections([Section("intro", 0.0, 4.3), Section("blip", 4.3, 4.5), Section("verse", 4.5, 20.0)])
+    p.save()
+    monkeypatch.chdir(p.root)
+    assert runner.invoke(app, ["sections", "snap"]).exit_code != 0  # pas d'analyse
+
+    (p.root / "analysis.json").write_text(json.dumps({"beats": [], "downbeats": [2.0 * i for i in range(10)]}))
+    result = runner.invoke(app, ["sections", "snap"])
+    assert result.exit_code == 0, result.output
+    assert [vars(s) for s in Project.find().sections] == [
+        {"name": "intro", "start": 0.0, "end": 4.0},
+        {"name": "verse", "start": 4.0, "end": 20.0},
+    ]
+    assert "retirées : blip" in result.output

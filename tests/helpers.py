@@ -70,7 +70,7 @@ def song_project(tmp_path, monkeypatch):
     # l'original bat à 120 ; les prises sont en retard de 100 ms
     late = lambda path: 0.0 if path.name == "original.flac" else 0.1
     monkeypatch.setattr(
-        analysis, "beats", lambda path: ([0.5 * i + late(path) for i in range(8)], [late(path), 2.0 + late(path)])
+        analysis, "beats", lambda path: ([0.5 * i + late(path) for i in range(8)], [i + late(path) for i in range(4)])
     )
     p = Project.create(tmp_path / "song", "song")
     audio.save(p.root / "source/original.flac", tone(220, 4.0))

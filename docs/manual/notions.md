@@ -51,9 +51,10 @@ pistes pour une écoute sans changer les réglages.
 ## Les sections
 
 Les parties du morceau (`intro`, `verse`, `chorus`...), chacune avec un début et une fin en
-secondes. `arr transcribe` les trouve ; deux parties de même nom sont numérotées (`chorus`,
-`chorus2`). `arr sections set` les redéfinit en numéros de mesure. Elles servent à `arr
-play -s` et au rangement des paroles.
+secondes. `arr transcribe` les trouve et pose leurs bornes sur les barres de mesure ; deux
+parties de même nom sont numérotées (`chorus`, `chorus2`). `arr sections set` les redéfinit
+en numéros de mesure, `arr sections snap` remet celles d'un projet plus ancien sur les
+mesures. Elles servent à `arr play -s` et au rangement des paroles.
 
 ## La partition et les paroles
 

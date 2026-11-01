@@ -53,7 +53,7 @@ def transcribe() -> None:
     transcription.set_tempo(out, bpm)
     (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
     p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))
-    p.set_sections([Section(name, start, end) for name, start, end in info["sections"]])
+    p.set_sections([Section(*s) for s in measure.snap_sections(info["sections"], downbeats)])
     p.save()
     typer.echo(f"bpm {bpm}  tonalité {info['key']}  {len(downbeats)} mesures  -> {SCORE}")
     sections_list()
@@ -91,8 +91,10 @@ def lyrics_fetch(
 @sections_app.command("set")
 def sections_set(spec: str = typer.Argument(..., help='Ex. "intro:1-8 couplet:9-24 refrain:25-40".')) -> None:
     """Définit les sections en numéros de mesure (inclusifs, à partir de 1)."""
+    from arr import measure
+
     p = Project.find()
-    bars = downbeats(p)
+    bars = measure.steady_bars(downbeats(p))
     ends = bars[1:] + [p.song["duration"]]
     out = []
     for item in spec.split():
@@ -105,6 +107,30 @@ def sections_set(spec: str = typer.Argument(..., help='Ex. "intro:1-8 couplet:9-
     p.set_sections(out)
     p.save()
     sections_list()
+
+
+@sections_app.command("snap")
+def sections_snap() -> None:
+    """Pose les bornes des sections sur les barres de mesure, pour des boucles qui retombent juste.
+
+    `arr transcribe` le fait déjà ; cette commande sert aux projets transcrits avant, ou après
+    un nouvel `arr analyze`.
+    """
+    from arr import measure
+
+    p = Project.find()
+    before = [(s.name, s.start, s.end) for s in p.sections]
+    if not before:
+        raise ProjectError("pas de sections (arr transcribe ou arr sections set)")
+    after = measure.snap_sections(before, downbeats(p))
+    p.set_sections([Section(*s) for s in after])
+    p.save()
+    sections_list()
+    kept = {s[0] for s in after}
+    moved = max((abs(a[1] - b[1]) for a in after for b in before if a[0] == b[0]), default=0.0)
+    typer.echo(f"bornes déplacées de {moved * 1000:.0f} ms au plus")
+    if gone := [s[0] for s in before if s[0] not in kept]:
+        typer.secho(f"plus courtes qu'une mesure, retirées : {', '.join(gone)}", fg="yellow", err=True)
 
 
 @sections_app.command("list")

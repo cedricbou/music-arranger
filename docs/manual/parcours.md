@@ -58,6 +58,9 @@ arr play -s verse,chorus -w bass         # couplet puis refrain, sans la basse
 `arr analyze` suffit pour le tempo et les mesures, en quelques secondes ; les sections se
 posent alors à la main : `arr sections set "intro:1-8 verse:9-24 chorus:25-40"`.
 
+Une section qui ne boucle pas proprement vient d'une transcription plus ancienne : `arr
+sections snap` pose ses bornes sur les barres de mesure, une fois pour tout le projet.
+
 ## S'enregistrer sur le morceau
 
 ```

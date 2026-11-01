@@ -9,19 +9,56 @@ from __future__ import annotations
 import numpy as np
 
 from arr import audio
+from arr.audio import period
 
 ON_BEAT = 0.035  # un temps est « calé » s'il tombe à moins de 35 ms d'un temps de référence
 
 
-def period(beats: list[float]) -> float:
-    """Durée moyenne d'un temps, assez précise pour comparer deux tempos.
+def steady_bars(bars: list[float], reach: int = 8) -> list[float]:
+    """Les barres de mesure sans le pas de 20 ms de beat_this, pour couper des boucles de la bonne durée.
 
-    Les intervalles anormaux (temps manqué ou en trop) sont écartés avant de moyenner : une
-    simple régression sur les temps serait faussée par un seul temps manqué.
+    Chaque barre est replacée sur la droite ajustée à ses voisines. Une mesure de durée
+    inhabituelle (à deux temps, par exemple) borne l'ajustement : elle reste où elle est.
     """
-    gaps = np.diff(beats)
-    median = np.median(gaps)
-    return float(gaps[np.abs(gaps - median) < 0.1 * median].mean())
+    t = np.asarray(bars, dtype=float)
+    if len(t) < 3:
+        return [float(b) for b in t]
+    gaps = np.diff(t)
+    regular = np.abs(gaps - np.median(gaps)) < 0.1 * np.median(gaps)
+    out = t.copy()
+    for i in range(len(t)):
+        lo, hi = i, i
+        while lo > max(0, i - reach) and regular[lo - 1]:
+            lo -= 1
+        while hi < min(len(t) - 1, i + reach) and regular[hi]:
+            hi += 1
+        if hi - lo >= 2:
+            out[i] = np.polyval(np.polyfit(np.arange(lo, hi + 1), t[lo : hi + 1], 1), i)
+    return [float(b) for b in out]
+
+
+def snap_sections(sections: list[tuple[str, float, float]], bars: list[float]) -> list[tuple[str, float, float]]:
+    """Pose les bornes des sections (nom, début, fin) sur les barres de mesure les plus proches.
+
+    Le début du morceau et sa fin ne bougent pas : ils ne tombent pas sur une barre. Une borne
+    d'avant la première barre ou d'après la dernière non plus : aucune barre n'y est proche.
+    Une section plus courte qu'une mesure peut disparaître, ses deux bornes sur la même barre.
+    """
+    if len(bars) < 2 or not sections:
+        return sections
+    grid = np.asarray(steady_bars(bars))
+    half = float(np.median(np.diff(grid))) / 2
+
+    def near(t: float) -> float:
+        return round(float(grid[np.abs(grid - t).argmin()]), 3) if grid[0] - half <= t <= grid[-1] + half else t
+
+    out = []
+    for i, (name, start, end) in enumerate(sections):
+        start = start if i == 0 else near(start)
+        end = end if i == len(sections) - 1 else near(end)
+        if end > start:
+            out.append((name, start, end))
+    return out
 
 
 def beat_fit(beats: list[float], reference: list[float]) -> dict:
