@@ -72,3 +72,34 @@ def test_chords_stay_put_when_the_grids_agree():
     chords = [(2.0 * i + 0.03, 2.0 * i + 2.03, "C:maj") for i in range(6)]
     bars = [2.0 * i for i in range(6)]
     assert measure.seat_chords(chords, [b + 0.03 for b in bars], bars, [0.5 * i for i in range(24)], never) == chords
+
+
+def test_steady_bars_removes_the_20_ms_steps_and_keeps_a_short_bar():
+    true = [0.33 + 1.882 * i for i in range(20)]
+    stepped = [round(t / 0.02) * 0.02 for t in true]
+    steady = measure.steady_bars(stepped)
+    assert max(abs(a - b) for a, b in zip(steady[2:-2], true[2:-2], strict=True)) < 0.008
+    # la durée d'une boucle de 8 mesures est juste, à moins de 5 ms
+    assert abs((steady[12] - steady[4]) - 8 * 1.882) < 0.005
+
+    # une mesure à deux temps n'est pas lissée : les barres d'après restent décalées d'autant
+    bars = [2.0 * i for i in range(6)] + [11.0 + 2.0 * i for i in range(6)]
+    assert np.allclose(measure.steady_bars(bars), bars, atol=1e-6)
+    assert measure.steady_bars([1.0, 3.0]) == [1.0, 3.0]
+
+
+def test_snap_sections_puts_boundaries_on_bars_but_not_the_ends_of_the_song():
+    bars = [0.5 + 2.0 * i for i in range(10)]
+    sections = [
+        ("intro", 0.0, 4.2),
+        ("verse", 4.2, 8.7),
+        ("blip", 8.7, 9.0),
+        ("chorus", 9.0, 19.5),
+        ("outro", 19.5, 25.0),
+    ]
+    snapped = measure.snap_sections(sections, bars)
+    assert snapped == [("intro", 0.0, 4.5), ("verse", 4.5, 8.5), ("chorus", 8.5, 18.5), ("outro", 18.5, 25.0)]
+    assert measure.snap_sections(snapped, bars) == snapped  # sans effet la deuxième fois
+    assert measure.snap_sections(sections, []) == sections
+    # avant la première barre, aucune n'est proche : la borne reste
+    assert measure.snap_sections([("a", 0.0, 0.2), ("b", 0.2, 30.0)], [5.0 + 2.0 * i for i in range(9)])[0][2] == 0.2

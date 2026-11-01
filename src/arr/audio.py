@@ -130,15 +130,27 @@ def normalize(audio: np.ndarray, target: float, ceiling_db: float = -1.0) -> tup
     return audio * db(gain), gain
 
 
+def period(beats: list[float]) -> float:
+    """Durée moyenne d'un temps, assez précise pour comparer deux tempos.
+
+    Les intervalles anormaux (temps manqué ou en trop) sont écartés avant de moyenner : une
+    simple régression serait faussée par un seul temps manqué, et une médiane resterait sur
+    le pas de 20 ms de beat_this (125 BPM pour un morceau à 127,5).
+    """
+    gaps = np.diff(beats)
+    median = np.median(gaps)
+    return float(gaps[np.abs(gaps - median) < 0.1 * median].mean())
+
+
 def count_in(beats: list[float], downbeats: list[float], bars: int) -> list[tuple[float, bool]]:
     """Clics de décompte menant au premier temps fort : (instant, accentué).
 
     Les instants peuvent être négatifs quand le morceau commence trop tôt pour le décompte.
     """
-    period = float(np.median(np.diff(beats)))
-    per_bar = max(1, round(float(np.median(np.diff(downbeats))) / period)) if len(downbeats) > 1 else 4
+    beat = period(beats)
+    per_bar = max(1, round(float(np.median(np.diff(downbeats))) / beat)) if len(downbeats) > 1 else 4
     first = downbeats[0] if downbeats else beats[0]
-    return [(first - k * period, k % per_bar == 0) for k in range(bars * per_bar, 0, -1)]
+    return [(first - k * beat, k % per_bar == 0) for k in range(bars * per_bar, 0, -1)]
 
 
 def add_clicks(audio: np.ndarray, ticks: list[tuple[float, bool]]) -> np.ndarray:

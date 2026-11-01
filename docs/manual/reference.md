@@ -34,6 +34,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr devices`](#arr-devices) : Montre les réglages audio effectifs et les périphériques disponibles.
 - [`arr doctor`](#arr-doctor) : Vérifie la carte Intel Arc et la présence des modèles.
 - [`arr sections set`](#arr-sections-set) : Définit les sections en numéros de mesure (inclusifs, à partir de 1).
+- [`arr sections snap`](#arr-sections-snap) : Pose les bornes des sections sur les barres de mesure, pour des boucles qui retombent juste.
 - [`arr sections list`](#arr-sections-list) : Affiche les sections.
 - [`arr lyrics fetch`](#arr-lyrics-fetch) : Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
 - [`arr set new`](#arr-set-new) : Crée une setlist, à lancer depuis le dossier qui contient les projets.
@@ -465,6 +466,16 @@ Définit les sections en numéros de mesure (inclusifs, à partir de 1).
 | Argument | Défaut | Rôle |
 |---|---|---|
 | `SPEC` | obligatoire | Ex. "intro:1-8 couplet:9-24 refrain:25-40". |
+
+## `arr sections snap`
+
+```
+arr sections snap
+```
+
+Pose les bornes des sections sur les barres de mesure, pour des boucles qui retombent juste.
+
+`arr transcribe` le fait déjà ; cette commande sert aux projets transcrits avant, ou après un nouvel `arr analyze`.
 
 ## `arr sections list`
 
