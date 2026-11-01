@@ -1,11 +1,21 @@
 """Faux moteurs et projets d'essai partagés par les tests : aucun test ne charge de modèle ni n'ouvre de carte son."""
 
+import sys
+import types
+
 import numpy as np
 from typer.testing import CliRunner
 
 from arr import audio
 from arr.cli import add_track
 from arr.project import Project
+
+# Importer le vrai sounddevice initialise déjà PortAudio, qui échoue sans serveur de son.
+sounddevice = types.ModuleType("sounddevice")
+sounddevice.PortAudioError = type("PortAudioError", (Exception,), {})
+sounddevice.query_devices = lambda device=None: []
+sounddevice.query_hostapis = lambda index=None: []
+sys.modules["sounddevice"] = sounddevice
 
 # Une couleur forcée par le terminal de celui qui lance les tests fausserait les sorties comparées.
 runner = CliRunner(env={"FORCE_COLOR": "", "NO_COLOR": "1"})
