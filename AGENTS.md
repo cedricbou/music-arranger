@@ -77,12 +77,14 @@ src/arr/
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
   commands/play.py          play : mix, piste ou prise, sections, boucle ; clavier (pause, mesure voisine)
   commands/align.py         nudge, align : le calage d'une piste par section
+  commands/sheet.py         sheet : l'antisèche de scène d'un morceau
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   measure.py                mesures sans écoute : période, calage, retard, niveaux, accords replacés
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
+  sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
@@ -96,7 +98,7 @@ tests/
   test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
   test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
-  test_studio.py, test_system.py   un fichier par module de commandes, via CliRunner
+  test_sheet.py, test_studio.py, test_system.py   un fichier par module de commandes (CliRunner)
 ```
 
 Règles de structure :
@@ -104,8 +106,7 @@ Règles de structure :
 - Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
   nouveau module, importé dans `cli.py`. Un fichier de plus de 400 lignes se découpe.
 - Les commandes ne parlent aux modèles que par `engines/`, à la carte son que par `studio.py`.
-- Les imports lourds (`torch`, `demucs`, `sounddevice`) se font **dans** les fonctions, pour
-  que `arr --help`, `tracks`, `takes`, `mix` restent instantanés.
+- Imports lourds (`torch`, `demucs`, `sounddevice`) **dans** les fonctions : `arr --help` reste instantané.
 - Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
 - Les tests remplacent moteurs et carte son par `monkeypatch` sur `engines.*`, `studio`,
   `spotify`, `lyrics`. Tout ajout vient avec son test : signal synthétique ou `CliRunner`.
@@ -114,14 +115,13 @@ Règles de structure :
 ## Modèle de projet
 
 - `song.toml` : `[song]`, `[[sections]]` (name, start, end), `[tracks.<nom>]` (active, gain, mute).
-- **Prises** : `takes/tNNN.flac` + `.json` (model, engine, mode close/free, style, seed).
-  `Project.new_take(meta)` réserve le nom ; l'appelant écrit l'audio.
+- **Prises** : `takes/tNNN.flac` + `.json` (model, engine, mode, style, seed) ; `new_take()` réserve le nom.
 - **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
   l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
 - **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
 - **Calage** : `nudges` d'une piste dans `song.toml` (scope, ms, by) ; `load_track()` les
   applique à toute écoute. Les fichiers ne changent pas ; `align` n'écrase rien de manuel (fiche 006).
-- Sections homonymes numérotées (`chorus`, `chorus2`...) ; `lyrics.tagged()` retire le numéro.
+- Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi dès qu'il existe.
 
 ## Conventions audio
 

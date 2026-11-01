@@ -145,6 +145,36 @@ arr align t001                                # refaire le calage automatique
 - Le calage se fait par section. Si le décalage change au milieu d'une section, redécoupez-la
   d'abord avec `arr sections set`.
 
+## Préparer son antisèche de scène
+
+Un pense-bête par morceau : tonalité, tempo, structure, accords des passages clés, rappels.
+
+```
+arr sheet                             # l'antisèche, telle qu'elle est proposée
+arr sheet --note "départ batterie"    # ajoute un rappel
+arr sheet --edit                      # écrit sheet.toml et l'ouvre dans votre éditeur
+arr sheet --transpose=-2              # le groupe joue un ton plus bas : tonalité et accords suivent
+arr sheet --reset                     # revient à la proposition
+```
+
+```
+Man! I Feel Like A Woman! – Shania Twain  F · 125 BPM
+Intro 4 · C 20 · Pré 4 · R 17+2t · Int 3 · C 8 · Pré 4 · R 17 · Int 8 · Pont 4 · R 19 · Fin 12+2t
+Couplet      Bb | Bb | Bb | Bb | Bb | Eb Bb | Bb | Bb | Bb | Eb Bb  ×2
+Refrain      [F | F | F | F | F | Dm | Bb] ×2 | Gm | – ×3
+```
+
+- Il faut un morceau transcrit (`arr transcribe`).
+- **La proposition** vient du projet. La structure compte les mesures de chaque passage
+  (`C` couplet, `Pré` pré-refrain, `R` refrain, `Int` interlude) ; `+2t` signale deux temps
+  en plus. Les accords sont ceux du passage tel qu'il revient le plus souvent, réduits à ce
+  qui se répète : `×2` en bout de ligne pour tout le passage, `[...] ×2` pour un motif,
+  `F ×4` pour une mesure tenue ; un long passage sans répétition est coupé (`…`).
+- **Dès que `sheet.toml` existe, lui seul fait foi** : supprimez un bloc `[[parts]]` pour en
+  montrer moins, ajoutez-en un pour un riff ou une fin, corrigez un accord ou la tonalité.
+- Écrivez les accords dans la tonalité de l'original ; `transpose` les décale à l'affichage.
+- `$EDITOR` choisit l'éditeur ; sans lui, `--edit` indique seulement le fichier à ouvrir.
+
 ## Vérifier un projet sans l'écouter
 
 ```

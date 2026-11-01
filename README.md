@@ -201,6 +201,7 @@ d'un instrument note à note.
 | `arr graft t001 STEM... [--replace]` | fait entendre des stems d'une prise, en plus ou à la place de l'original |
 | `arr align t001 [--report]` | mesure le décalage d'une prise par section et le corrige par des réglages de calage |
 | `arr nudge [PISTE] [-s SECTION] [--beats=N] [--ms=N] [--add] [--reset]` | montre, règle ou annule le calage d'une piste, en entier ou par section |
+| `arr sheet [--edit] [--note TEXTE] [--transpose=N] [--reset]` | l'antisèche de scène du morceau : tonalité, tempo, structure, accords des passages clés, rappels |
 | `arr merge PISTE PISTE... --as NOM` | fusionne des pistes |
 | `arr rm NOM... [-v VERSION] [--purge]` | retire des pistes, une version ou une prise ; corbeille du projet par défaut |
 | `arr tracks [-v]`, `arr tracks PISTE` | ce qui joue (●), ce qui est muet (○), l'historique |
@@ -227,6 +228,7 @@ fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis
 gala/
   song.toml        titre, tempo, tonalité, sections, état du mix
   lyrics.txt       paroles avec balises [Verse], [Chorus]...
+  sheet.toml       antisèche de scène, une fois modifiée (`arr sheet --edit`)
   source/          morceau original, en FLAC 48 kHz stéréo
   score/           score.abc (éditable), fichiers MIDI, accords et structure horodatés
   takes/           t001.flac + t001.json (style, mode, graine)

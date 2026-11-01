@@ -6,19 +6,9 @@ from typing import Optional
 
 from arr import audio
 from arr.project import Project
+from arr.sheet import chord_name
 
 ORIGINS = {"align": "auto", "manual": "manuel"}
-# Qualités de la notation de chord.lab (« D:min »), telles qu'un musicien les écrit.
-QUALITIES = {
-    "maj": "",
-    "min": "m",
-    "maj6": "6",
-    "min6": "m6",
-    "min7": "m7",
-    "minmaj7": "m(maj7)",
-    "min9": "m9",
-    "hdim7": "m7b5",
-}
 PER_ROW = 4
 
 
@@ -58,15 +48,6 @@ def left_out(p: Project, track: str, without: tuple) -> str:
     if "." in track and take in p.takes():
         return f"stems de {take}"
     return f"{track} ({'écartée' if track in without else 'muette'})"
-
-
-def chord_name(label: str) -> str:
-    """« D:min » devient « Dm », « C:maj » devient « C » ; « N » (pas d'accord) devient un tiret."""
-    if label == "N":
-        return "–"
-    root, _, quality = label.partition(":")
-    quality, slash, bass = quality.partition("/")
-    return root + QUALITIES.get(quality, quality) + slash + bass
 
 
 def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
