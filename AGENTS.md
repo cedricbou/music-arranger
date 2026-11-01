@@ -77,7 +77,7 @@ src/arr/
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
   commands/play.py          play : mix, piste ou prise, sections, boucle ; clavier (pause, mesure voisine)
   commands/align.py         nudge, align : le calage d'une piste par section
-  commands/sheet.py         sheet : l'antisèche de scène d'un morceau
+  commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/studio.py        capture, record, calibrate, levels
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
@@ -85,6 +85,7 @@ src/arr/
   measure.py                mesures sans écoute : période, calage, retard, niveaux, accords replacés
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
+  pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
@@ -119,9 +120,8 @@ Règles de structure :
 - **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
   l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
 - **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
-- **Calage** : `nudges` d'une piste dans `song.toml` (scope, ms, by) ; `load_track()` les
-  applique à toute écoute. Les fichiers ne changent pas ; `align` n'écrase rien de manuel (fiche 006).
-- Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi dès qu'il existe.
+- **Calage** : `nudges` dans `song.toml`, appliqués par `load_track()` ; rien de manuel n'est écrasé (006).
+- Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi ; setlists à part (009).
 
 ## Conventions audio
 

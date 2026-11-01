@@ -27,6 +27,25 @@ setlist à l'autre.
   accords du motif le plus fréquent parmi les occurrences, réduits à ce qui se répète et
   bornés à 16 mesures.
 
+## La setlist et l'impression
+
+- **Une setlist est un fichier à part**, `setlists/<nom>.toml`, dans le dossier qui contient
+  les projets : un titre et une liste de dossiers de morceaux, `"---"` pour un entracte, et
+  au besoin `{ song, transpose, note }` pour un réglage propre au concert. Elle ne copie rien
+  des antisèches.
+- **Le PDF est produit par `fpdf2`** (pur Python, local, sans navigateur), avec les polices
+  de base : les accents français passent, les symboles hors Latin-1 sont remplacés (`plain`).
+  HTML imprimé par un navigateur a été écarté : pas de navigateur sans écran sur la machine,
+  et aucune garantie de tenir en N feuilles sans moteur de rendu.
+- **Blocs de hauteur variable en colonnes**, jamais coupés : la densité se règle par le
+  contenu de chaque antisèche. `--pages` cherche la plus grande échelle de texte, de 160 % à
+  50 %, qui tient ; sous 75 % la commande prévient.
+- **Tout en noir, rien sous 9 points** : le gris et les petits corps sortent illisibles sur
+  l'imprimante de Cédric. Les lignes se distinguent par le gras (accords), l'italique
+  (structure, artiste) et le rang en blanc sur un pavé noir.
+- **Un agent peut voir le résultat** : `pdftoppm` en fait une image. La lisibilité debout,
+  feuilles au sol, reste à juger par le musicien.
+
 ## Limites
 
 - Les accords et la tonalité viennent de la transcription : la proposition est à relire.

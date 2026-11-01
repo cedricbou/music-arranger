@@ -201,7 +201,10 @@ d'un instrument note à note.
 | `arr graft t001 STEM... [--replace]` | fait entendre des stems d'une prise, en plus ou à la place de l'original |
 | `arr align t001 [--report]` | mesure le décalage d'une prise par section et le corrige par des réglages de calage |
 | `arr nudge [PISTE] [-s SECTION] [--beats=N] [--ms=N] [--add] [--reset]` | montre, règle ou annule le calage d'une piste, en entier ou par section |
-| `arr sheet [--edit] [--note TEXTE] [--transpose=N] [--reset]` | l'antisèche de scène du morceau : tonalité, tempo, structure, accords des passages clés, rappels |
+| `arr sheet [--edit] [--note TEXTE] [--transpose=N] [--reset] [--pdf]` | l'antisèche de scène du morceau : tonalité, tempo, structure, accords des passages clés, rappels |
+| `arr set new NOM MORCEAU...` / `arr set add NOM MORCEAU... [--at N] [--break]` | crée ou complète une setlist (`setlists/NOM.toml`, dans le dossier des projets) |
+| `arr set show NOM` / `arr set edit NOM` | l'ordre du concert avec tonalités, tempos et durée ; ouvre le fichier pour le régler |
+| `arr set print NOM [--pages N] [--columns N] [--out FICHIER]` | le PDF A4 des antisèches du concert, au plus grand texte qui tient en N feuilles |
 | `arr merge PISTE PISTE... --as NOM` | fusionne des pistes |
 | `arr rm NOM... [-v VERSION] [--purge]` | retire des pistes, une version ou une prise ; corbeille du projet par défaut |
 | `arr tracks [-v]`, `arr tracks PISTE` | ce qui joue (●), ce qui est muet (○), l'historique |

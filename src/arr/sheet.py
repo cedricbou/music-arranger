@@ -185,6 +185,17 @@ def save(root: Path, sheet: dict) -> None:
     (root / SHEET_FILE).write_text(HEADER + tomli_w.dumps(sheet, multiline_strings=False))
 
 
+def setlist_entries(data: dict) -> list[dict]:
+    """Les lignes d'une setlist, mises sous une seule forme : {song, transpose?, note?} ou {break: True}."""
+    out = []
+    for item in data.get("songs", []):
+        if isinstance(item, str):
+            out.append({"break": True} if item.strip("- ") == "" else {"song": item})
+        else:
+            out.append(dict(item))
+    return out
+
+
 def played(sheet: dict, semitones: int | None = None) -> dict:
     """L'antisèche telle qu'elle se joue : tonalité et accords transposés (de `semitones`, sinon du réglage du fichier)."""
     shift = int(sheet.get("transpose", 0)) if semitones is None else semitones

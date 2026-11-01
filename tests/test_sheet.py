@@ -70,9 +70,9 @@ def test_transposition_moves_key_and_chords_with_the_right_spelling():
     assert sheet.played({"key": "F", "transpose": -2, "parts": []}, 0)["key"] == "F"
 
 
-def transcribed(tmp_path, monkeypatch) -> Project:
-    p = Project.create(tmp_path / "song", "song")
-    p.song.update(title="Freed From Desire", artist="Gala", key="D minor", bpm=121.0)
+def transcribed(tmp_path, monkeypatch, folder: str = "song", title: str = "Freed From Desire") -> Project:
+    p = Project.create(tmp_path / folder, folder)
+    p.song.update(title=title, artist="Gala", key="D minor", bpm=121.0, duration=200.0)
     p.set_sections([Section("verse", 0.0, 2.0), Section("chorus", 2.0, 4.0)])
     p.save()
     fake_transcription(None, p.root / "score")
@@ -126,3 +126,106 @@ def test_sheet_needs_a_transcribed_song(tmp_path, monkeypatch):
     monkeypatch.chdir(p.root)
     result = runner.invoke(app, ["sheet"])
     assert result.exit_code != 0 and "arr transcribe" in str(result.exception)
+
+
+def test_pdf_blocks_wrap_and_flow_without_cutting_a_song():
+    from arr import pdf
+
+    song = {
+        "key": "Dm",
+        "bpm": 121,
+        "structure": "Intro 4 · C 16 · R 8",
+        "parts": [{"name": "Couplet", "chords": " | ".join(["Dm | Fmaj7 C | Bb | C"] * 6), "repeat": 2}],
+        "notes": ["départ batterie seule"],
+    }
+    entry = lambda n: {"number": n, "title": "Freed From Desire", "artist": "Gala", "sheet": song, "note": "enchaîner"}
+    doc = pdf.Sheet()
+    lines = pdf.block(doc, entry(3), 90.0)
+    text = [[segment[1] for segment in segments] for _, segments in lines]
+    assert text[0][:2] == ["3", "Freed From Desire"] and "Dm" in text[0] and "  121" in text[0]
+    assert text[1] == ["Intro 4 · C 16 · R 8"]
+    chords = [row for row in text if row[-1].startswith(("Dm", "Fmaj7", "Bb", "C"))]
+    assert len(chords) > 1 and chords[0][0] == "Couplet" and chords[-1][-1].endswith("×2")  # la ligne est repliée
+    assert all(doc.width(row[-1], pdf.CHORDS, "B") <= 90.0 for row in chords)
+    assert text[-2:] == [["-", "départ batterie seule"], ["-", "enchaîner"]]
+    # un titre trop long est écrit plus petit, puis coupé
+    long = pdf.block(doc, {**entry(1), "title": "Un titre vraiment beaucoup trop long pour une colonne"}, 90.0)[0][1]
+    assert long[1][2] < pdf.TITLE and long[1][1].endswith("...")
+
+    pages = pdf.layout(doc, [entry(n) for n in range(1, 25)], columns=2)
+    assert len(pages) > 1 and sum(len(page) for page in pages) == 24
+    for page in pages:
+        for _, y, _, block, gap in page:
+            assert y + sum(height for height, _ in block) + 2 * gap <= pdf.PAGE[1] - pdf.MARGIN + 1e-6
+    # ni gris ni petit corps : tout est noir, et rien sous 9 points
+    assert min(size for _, segments in lines for _, _, size, _ in segments) >= 9
+    assert pdf.plain("Maldòn – « F♯ » … ×2") == "Maldòn - « F# » ... ×2"
+
+
+def test_pdf_takes_the_largest_text_that_fits_the_pages(tmp_path):
+    from arr import pdf
+
+    song = {
+        "key": "F",
+        "bpm": 125,
+        "structure": "C 16 · R 8",
+        "parts": [{"name": "Refrain", "chords": "F | Dm | Bb | C"}],
+    }
+    entries = [{"number": n, "title": f"Morceau {n}", "sheet": song} for n in range(1, 25)]
+    free = pdf.render(entries, "Essai", tmp_path / "libre.pdf")
+    assert free["scale"] == 1.0 and (tmp_path / "libre.pdf").read_bytes().startswith(b"%PDF")
+    three = pdf.render(entries, "Essai", tmp_path / "trois.pdf", pages=3)
+    assert three["pages"] <= 3 and three["scale"] > 1.0 and three["fits"] and three["readable"]
+    tight = pdf.render(entries, "Essai", tmp_path / "serre.pdf", pages=1)
+    assert tight["pages"] == 1 and tight["fits"] and tight["scale"] < three["scale"]
+    one = pdf.render(entries * 6, "Essai", tmp_path / "une.pdf", pages=1)
+    assert one["scale"] == 0.5 and not one["fits"] and not one["readable"]
+
+
+def test_setlist_orders_songs_and_prints_their_sheets(tmp_path, monkeypatch):
+    transcribed(tmp_path, monkeypatch, "gala", "Freed From Desire")
+    transcribed(tmp_path, monkeypatch, "whats-up", "What's Up?")
+    Project.create(tmp_path / "brouillon", "brouillon")
+    monkeypatch.chdir(tmp_path)
+
+    assert runner.invoke(app, ["set", "new", "bar", "gala/", "--title", "Bar du Port"]).exit_code == 0
+    assert runner.invoke(app, ["set", "new", "bar"]).exit_code != 0  # elle existe déjà
+    assert runner.invoke(app, ["set", "add", "bar", "nope"]).exit_code != 0  # pas un projet
+    assert runner.invoke(app, ["set", "add", "bar", "whats-up", "--at", "1"]).exit_code == 0
+    assert runner.invoke(app, ["set", "add", "bar", "--break", "brouillon"]).exit_code == 0
+    file = tmp_path / "setlists/bar.toml"
+    assert sheet.setlist_entries(sheet.tomllib.loads(file.read_text())) == [
+        {"song": "whats-up"},
+        {"song": "gala"},
+        {"break": True},
+        {"song": "brouillon"},
+    ]
+
+    # un morceau non transcrit se voit dans la liste, et empêche l'impression
+    shown = runner.invoke(app, ["set", "show", "bar"])
+    assert "Bar du Port" in shown.output and "incomplet" in shown.output and "entracte" in shown.output
+    assert "3 morceaux" in shown.output
+    refused = runner.invoke(app, ["set", "print", "bar"])
+    assert (
+        refused.exit_code != 0 and "brouillon" in str(refused.exception) and "arr transcribe" in str(refused.exception)
+    )
+
+    # réglages du concert : une transposition et une note, sans toucher à l'antisèche du morceau
+    file.write_text(
+        'title = "Bar du Port"\nsongs = ["whats-up", { song = "gala", transpose = -2, note = "enchaîner" }]\n'
+    )
+    shown = runner.invoke(app, ["set", "show", "bar"]).output
+    line = next(row for row in shown.splitlines() if "Freed From Desire" in row)
+    assert line.startswith("2") and "Cm" in line and "transposé de -2 · enchaîner" in line and "3:20" in line
+    assert "2 morceaux, 6 min 40 s" in shown
+    printed = runner.invoke(app, ["set", "print", "bar", "--pages", "1"])
+    assert printed.exit_code == 0 and "1 feuille(s)" in printed.output
+    assert (tmp_path / "setlists/bar.pdf").read_bytes().startswith(b"%PDF")
+    assert not (tmp_path / "gala/sheet.toml").exists()
+
+    # depuis le dossier d'un morceau, la setlist se trouve aussi ; une inconnue cite celles qui existent
+    monkeypatch.chdir(tmp_path / "gala")
+    assert runner.invoke(app, ["set", "show", "bar"]).exit_code == 0
+    unknown = runner.invoke(app, ["set", "show", "nope"])
+    assert unknown.exit_code != 0 and "connues : bar" in str(unknown.exception)
+    assert runner.invoke(app, ["sheet", "--pdf"]).exit_code == 0 and (tmp_path / "gala/export/sheet.pdf").exists()

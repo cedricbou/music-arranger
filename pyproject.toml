@@ -16,6 +16,7 @@ dependencies = [
     "demucs>=4.1.0",
     "beat-this>=1.1.0",
     "sounddevice>=0.5.6",
+    "fpdf2>=2.8",
 ]
 
 [project.scripts]
