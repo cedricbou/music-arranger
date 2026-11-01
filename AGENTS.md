@@ -94,6 +94,7 @@ src/arr/
   engines/separation.py     Demucs ; MODELS liste les modèles acceptés par `split`
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
+  conftest.py               remplace sounddevice : aucun test n'initialise PortAudio
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
   test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
