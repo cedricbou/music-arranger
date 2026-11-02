@@ -79,6 +79,26 @@ arr rm bass-moi -v v002       # retirer une prise ratée
 - `--click` garde le métronome pendant tout le morceau.
 - Le décompte a besoin du tempo : `arr transcribe` ou `arr analyze` d'abord.
 
+## Piloter sa pédale d'effets
+
+Si votre carte son a une prise MIDI OUT reliée à l'entrée MIDI d'un multi-effets, `arr` peut
+lui envoyer des messages. D'abord pour vérifier que tout est en place :
+
+```
+arr midi ports                  # les ports MIDI ; ▶ marque celui qu'arr utilise
+arr midi send --pc 5            # la pédale doit changer de son
+arr midi send --cc 7 --value 0  # un contrôleur, ici le volume à 0
+arr midi monitor                # ce que la pédale envoie quand vous appuyez dessus
+```
+
+- Les numéros de programme vont de 1 à 128, comme sur la pédale. Les octets envoyés sont
+  affichés : si votre pédale compte à partir de 0, l'écart se voit tout de suite.
+- La pédale doit écouter le même canal : `--channel N`, ou `midi.channel` dans `audio.toml`.
+- Rien n'est jamais écrit dans la pédale : aucun patch n'est modifié.
+
+Les réglages, les autres installations et les pannes courantes sont dans [Configuration
+audio](audio.md) et [Dépannage](depannage.md).
+
 ## Donner sa partie à un musicien
 
 ```

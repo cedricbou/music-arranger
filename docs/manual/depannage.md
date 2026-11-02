@@ -64,6 +64,18 @@ les trois commandes de diagnostic.
 | je n'entends rien avec `arr play` | la sortie configurée n'est pas celle de vos enceintes | `arr devices` ; régler `[output]` |
 | le fichier `mix/mix.flac` semble muet dans un lecteur | le lecteur joue sur une autre sortie | `arr play` joue le même mix sur la sortie configurée ; `arr check` montre son niveau |
 
+## Pédales MIDI
+
+| Symptôme | Cause | Remède |
+|---|---|---|
+| `aseqsend est absent : installe alsa-utils` | les outils du séquenceur ALSA ne sont pas installés | `pacman -S alsa-utils` (ou l'équivalent de votre distribution) |
+| `port MIDI introuvable : « X »` | le fragment de nom ou l'adresse ne correspond à aucun port | `arr midi ports` donne la liste, puis corriger `midi.port` |
+| `aucun port MIDI matériel` | l'interface qui porte la prise MIDI n'est pas branchée, ou elle n'expose pas de port MIDI | la rebrancher ; `arr midi ports` ; au besoin nommer un port à la main |
+| `rien à envoyer` | `arr midi send` sans message | `--pc 5`, ou `--cc 7 --value 100` |
+| la pédale ne réagit pas à `arr midi send` | câble MIDI absent ou inversé, mauvais canal, ou numéro de programme non attribué dans la pédale | vérifier le câble (MIDI OUT de la carte vers MIDI IN de la pédale), le canal (`--channel`), et la table de correspondance de la pédale |
+| la pédale change de son, mais pas celui attendu | la pédale compte ses patches à partir de 0, ou sa table de correspondance en décide autrement | comparer avec l'octet affiché (`C0 04` = programme 5 chez `arr`) et régler la table de la pédale |
+| `arr midi monitor` n'affiche rien | la pédale n'envoie pas ses changements de programme, ou son MIDI OUT n'est pas relié à l'entrée MIDI de la carte | activer l'envoi dans la pédale (chez Boss, « MIDI PC OUT »), vérifier le câble retour |
+
 ## Pistes et prises
 
 | Symptôme | Cause | Remède |

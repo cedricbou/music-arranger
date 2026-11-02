@@ -1,8 +1,12 @@
 """Vrais moteurs sur un signal synthétique : `uv run pytest -m slow`.
 
-Exclus par défaut et de la CI : il faut les modèles installés (`arr models pull`). Ils
-vérifient qu'une machine fraîchement installée fonctionne, pas la qualité musicale.
+Exclus par défaut et de la CI : il faut les modèles installés (`arr models pull`), et pour
+le MIDI le séquenceur ALSA. Ils vérifient qu'une machine fraîchement installée fonctionne,
+pas la qualité musicale.
 """
+
+import threading
+import time
 
 import numpy as np
 import pytest
@@ -43,3 +47,23 @@ def test_separation_stems_add_up_to_the_song(tmp_path):
     assert all(len(s) == len(song) for s in stems.values())
     total = sum(stems.values())
     assert np.corrcoef(total[:, 0], song[:, 0])[0, 1] > 0.95
+
+
+def test_midi_goes_out_and_comes_back_through_the_alsa_loopback():
+    """Le vrai `aseqsend` vers le port de bouclage du noyau, relu par le vrai `aseqdump`.
+
+    Aucun matériel et aucune pédale touchée : « Midi Through » existe dès que le module
+    snd-seq-dummy est chargé, et c'est ainsi qu'on vérifie la chaîne sans rien brancher.
+    """
+    from arr import midi
+
+    if not any("Midi Through" in name for _, name in midi.ports()):
+        pytest.skip("pas de port « Midi Through » (module snd-seq-dummy absent)")
+    heard: list[str] = []
+    listening = threading.Thread(target=lambda: heard.extend(midi.events("Midi Through", seconds=4)), daemon=True)
+    listening.start()
+    time.sleep(1.0)  # aseqdump doit être abonné au port avant l'envoi
+    midi.send(midi.program_change(5) + midi.control_change(7, 100), "Midi Through")
+    listening.join(6)
+    assert any("Program change" in line and "program 4" in line for line in heard), heard
+    assert any("Control change" in line and "controller 7, value 100" in line for line in heard), heard

@@ -42,6 +42,9 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr set edit`](#arr-set-edit) : Ouvre le fichier de la setlist : réordonner, retirer, transposer un morceau pour ce concert.
 - [`arr set show`](#arr-set-show) : Affiche l'ordre du concert : tonalité, tempo et durée de chaque morceau, et ce qui manque.
 - [`arr set print`](#arr-set-print) : Écrit le PDF des antisèches du concert : une feuille A4 en colonnes, un bloc par morceau.
+- [`arr midi ports`](#arr-midi-ports) : Liste les ports MIDI de la machine, et montre celui qu'arr utilise.
+- [`arr midi send`](#arr-midi-send) : Envoie un changement de programme ou un contrôleur, pour tester une pédale.
+- [`arr midi monitor`](#arr-midi-monitor) : Affiche les messages MIDI reçus, pour voir ce qu'envoie une pédale ou un clavier.
 - [`arr models pull`](#arr-models-pull) : Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
 
 ## `arr init`
@@ -582,6 +585,54 @@ Chaque bloc porte le rang, le titre, la tonalité, le tempo, puis l'antisèche d
 | `--pages` |  | Nombre de feuilles A4 à ne pas dépasser : le texte prend la plus grande taille qui tient. |
 | `--columns` | `2` | Colonnes par feuille. |
 | `--out` |  | Fichier PDF à écrire ; sinon setlists/NOM.pdf. |
+
+## `arr midi ports`
+
+```
+arr midi ports
+```
+
+Liste les ports MIDI de la machine, et montre celui qu'arr utilise.
+
+Le port à retenir est celui de l'interface qui porte la prise MIDI OUT (« iTwo » ici) : c'est par elle que les messages partent vers la pédale.
+
+## `arr midi send`
+
+```
+arr midi send [OPTIONS]
+```
+
+Envoie un changement de programme ou un contrôleur, pour tester une pédale.
+
+De quoi vérifier le câble, le canal et les réglages de la pédale avant de compter dessus :
+
+arr midi send --pc 5 # la pédale doit changer de son arr midi send --cc 7 --value 0 # le contrôleur 7, à 0
+
+Les numéros de programme vont de 1 à 128, comme les affichent les pédales ; les octets réellement envoyés sont repris dans la sortie. Rien n'est écrit dans la pédale.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--pc` |  | Numéro de programme à envoyer, de 1 à 128 comme l'affiche la pédale. |
+| `--cc` |  | Numéro de contrôleur à envoyer, de 0 à 127. |
+| `--value` | `127` | Valeur du contrôleur, de 0 à 127. |
+| `--bank` |  | Banque à sélectionner juste avant le programme (contrôleurs 0 et 32). |
+| `--channel` |  | Canal MIDI ; sinon celui d'audio.toml (1 par défaut). |
+| `--port` |  | Fragment du nom du port MIDI, ou son adresse ; sinon celui d'audio.toml. |
+
+## `arr midi monitor`
+
+```
+arr midi monitor [OPTIONS]
+```
+
+Affiche les messages MIDI reçus, pour voir ce qu'envoie une pédale ou un clavier.
+
+L'autre moitié du test : appuie sur un sélecteur de la pédale et regarde ce qui arrive. Rien ne vient si la pédale n'envoie pas ses changements de programme (chez Boss, un réglage « MIDI PC OUT » dans l'utilitaire) ou si son câble MIDI OUT n'est pas branché.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--port` |  | Fragment du nom du port MIDI, ou son adresse ; sinon celui d'audio.toml. |
+| `--seconds` |  | Durée de l'écoute ; sinon jusqu'à Ctrl+C. |
 
 ## `arr models pull`
 

@@ -22,6 +22,8 @@ Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
                              # sinon le nom PipeWire d'une source (arr devices)
     channels = [7, 8]        # [] = la paire de canaux qui porte le signal
     loudness = -16.0         # volume cible des captures, en LUFS
+
+Le même fichier porte la section [midi], lue par `arr.midi` : port et canal des pédales.
 """
 
 from __future__ import annotations
@@ -60,9 +62,17 @@ def sources() -> list[tuple[str, int]]:
     return [(s["name"], len(s["channel_map"].split(","))) for s in json.loads(listing.stdout)]
 
 
+def user_settings() -> dict:
+    """Le fichier audio.toml tel qu'il est écrit ; vide s'il n'existe pas.
+
+    Seul lecteur du fichier : chaque module complète ensuite sa section par ses défauts.
+    """
+    return tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+
+
 def config() -> dict:
-    """Réglages effectifs : le fichier, complété par des défauts selon le matériel branché."""
-    user = tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+    """Réglages effectifs du son : le fichier, complété par des défauts selon le matériel branché."""
+    user = user_settings()
     present = any(INTERFACE.lower() in n.lower() for n in _device_names())
     defaults = {
         "output": {"device": "", "channels": [1, 2]},
@@ -366,7 +376,7 @@ def save_latency(seconds: float) -> None:
     """Note la latence mesurée dans audio.toml, en gardant les autres réglages."""
     import tomli_w
 
-    user = tomllib.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+    user = user_settings()
     user.setdefault("input", {})["latency_ms"] = round(seconds * 1000, 1)
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     CONFIG.write_text(tomli_w.dumps(user))
