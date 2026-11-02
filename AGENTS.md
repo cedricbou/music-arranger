@@ -86,7 +86,7 @@ src/arr/
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
   pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
-  midi.py                   MIDI en direct : ports ALSA, messages, envoi (aseqsend), écoute (aseqdump)
+  midi.py                   MIDI en direct : ports et envoi (aplaymidi), écoute (aseqdump), messages
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
@@ -146,5 +146,5 @@ sortie par défaut** (fiche 003). Les autres installations sont décrites dans `
   et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
 - **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
   virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.
-- **MIDI** : `midi.py` envoie par `aseqsend` et écoute par `aseqdump` (alsa-utils). Tester sur
-  le port noyau « Midi Through », jamais sur la pédale ; rien n'est écrit dedans (fiche 011).
+- **MIDI** : `midi.py` envoie par `aplaymidi` (`aseqsend` n'atteint pas la carte), écoute par `aseqdump`.
+  Tester sur « Midi Through », jamais la pédale ; `/proc/asound/card*/midi0` prouve ce qui sort (fiche 011).

@@ -19,15 +19,25 @@ PORTS = """ Port    Client name                      Port name
 """
 
 
+def played(song: bytes) -> bytes:
+    """Les octets des messages d'un fichier MIDI minimal, dans l'ordre où ils sont joués."""
+    track, out = song[22:-4], b""  # après l'en-tête et l'entête de piste, sans la fin de piste
+    while track:
+        assert track[0] == 0, "les messages sont tous au temps zéro"
+        message = midi.split(track[1:])[0]
+        out, track = out + message, track[1 + len(message) :]
+    return out
+
+
 @pytest.fixture
 def alsa(monkeypatch, tmp_path):
-    """Remplace `aseqsend` : renvoie la liste de ports ci-dessus, et garde les envois."""
+    """Remplace `aplaymidi` : renvoie la liste de ports ci-dessus, et garde les envois."""
     sent = []
 
     def run(args, **kwargs):
         if args[1:] == ["-l"]:
             return subprocess.CompletedProcess(args, 0, PORTS, "")
-        sent.append((args[args.index("-p") + 1], Path(args[args.index("-s") + 1]).read_bytes()))
+        sent.append((args[args.index("-p") + 1], played(Path(args[-1]).read_bytes())))
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(midi, "_run", run)
@@ -61,6 +71,13 @@ def test_messages_are_the_bytes_the_manuals_print():
 def test_out_of_range_values_are_refused(call):
     with pytest.raises(ProjectError):
         call()
+
+
+def test_a_minimal_midi_file_carries_the_messages_at_time_zero():
+    song = midi.smf([midi.program_change(5), midi.control_change(7, 100)])
+    assert song.startswith(b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x00\x60MTrk")
+    assert song.endswith(b"\x00\xc0\x04\x00\xb0\x07\x64\x00\xff\x2f\x00")
+    assert played(song) == b"\xc0\x04\xb0\x07\x64"
 
 
 def test_describe_splits_a_stream_into_messages():
@@ -111,6 +128,20 @@ def test_ports_marks_the_one_in_use(alsa):
 
 
 # --- envoyer
+
+
+def test_send_calls_aplaymidi_without_its_tail(monkeypatch):
+    """`aseqsend` dit envoyer sans rien faire sortir vers la carte : c'est `aplaymidi` (fiche 011)."""
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, PORTS if args[1:] == ["-l"] else "", "")
+
+    monkeypatch.setattr(midi, "_run", run)
+    midi.send(midi.program_change(5), "14:0")
+    assert calls[0] == ["aplaymidi", "-l"]
+    assert calls[1][:5] == ["aplaymidi", "-d", "0", "-p", "14:0"]  # sans -d 0 : deux secondes d'attente
 
 
 def test_send_a_program_change(alsa):

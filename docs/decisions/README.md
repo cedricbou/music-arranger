@@ -20,4 +20,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [008](008-grille-de-reference.md) | Une seule grille de mesures, celle d'`arr analyze` ; les accords transcrits y sont replacés |
 | [009](009-antiseche-portee-par-le-morceau.md) | L'antisèche de scène vit dans le projet : proposition déduite, puis `sheet.toml` qui fait foi |
 | [010](010-sections-sur-les-mesures.md) | Les bornes des sections tombent sur les mesures de référence, lissées du pas de 20 ms |
-| [011](011-pilotage-midi-des-pedales.md) | Le MIDI des pédales passe par le séquenceur ALSA (`aseqsend`, `aseqdump`), testé sur « Midi Through » |
+| [011](011-pilotage-midi-des-pedales.md) | Le MIDI des pédales passe par le séquenceur ALSA (`aplaymidi`, `aseqdump`), et seul le compteur du noyau prouve une sortie |

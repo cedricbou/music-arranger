@@ -5,9 +5,10 @@ va à l'entrée MIDI d'un multi-effets (un Boss GT-6B pour la basse). La pédale
 sur un changement de programme ; ses pédales d'expression et ses assignations répondent à
 des contrôleurs (CC).
 
-Tout passe par le séquenceur ALSA, en sous-processus (`alsa-utils`) : `aseqsend` pour
-envoyer, `aseqdump` pour écouter. Rien n'est jamais écrit dans la pédale : ni SysEx, ni
-sauvegarde, ni restauration de patches.
+Tout passe par le séquenceur ALSA, en sous-processus (`alsa-utils`) : `aplaymidi` pour
+envoyer, `aseqdump` pour écouter. `aseqsend` dit envoyer mais n'atteint pas la carte, d'où
+le fichier MIDI minimal que `send()` fabrique pour `aplaymidi` (fiche 011). Rien n'est
+jamais écrit dans la pédale : ni SysEx, ni sauvegarde, ni restauration de patches.
 
 Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
 
@@ -19,6 +20,7 @@ Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
 from __future__ import annotations
 
 import re
+import struct
 import subprocess
 import tempfile
 from collections.abc import Iterator
@@ -49,8 +51,8 @@ def _run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
 
 
 def ports() -> list[tuple[str, str]]:
-    """Ports du séquenceur ALSA : (adresse « 20:0 », nom)."""
-    listing = _run(["aseqsend", "-l"]).stdout
+    """Ports du séquenceur ALSA où l'on peut envoyer : (adresse « 20:0 », nom)."""
+    listing = _run(["aplaymidi", "-l"]).stdout
     found = []
     for line in listing.splitlines():
         if match := re.match(r"\s*(\d+:\d+)\s+(.+?)\s{2,}(.+?)\s*$", line):
@@ -109,20 +111,31 @@ def bank_select(bank: int, channel: int = 1) -> bytes:
     return control_change(0, index // VALUES, channel) + control_change(32, index % VALUES, channel)
 
 
-def describe(data: bytes) -> list[tuple[str, bytes]]:
-    """Découpe une suite d'octets en messages, chacun avec sa description en clair."""
-    said, i = [], 0
+# Longueur de chaque message, par type de statut ; le reste part en un seul bloc.
+LENGTHS = {0x80: 3, 0x90: 3, 0xA0: 3, 0xB0: 3, 0xC0: 2, 0xD0: 2, 0xE0: 3}
+
+
+def split(data: bytes) -> list[bytes]:
+    """Découpe une suite d'octets en messages MIDI."""
+    found, i = [], 0
     while i < len(data):
-        kind, channel = data[i] & 0xF0, (data[i] & 0x0F) + 1
-        if kind == 0xC0:
-            said.append((f"changement de programme {data[i + 1] + 1}, canal {channel}", data[i : i + 2]))
-            i += 2
-        elif kind == 0xB0:
-            said.append((f"contrôleur {data[i + 1]} = {data[i + 2]}, canal {channel}", data[i : i + 3]))
-            i += 3
+        size = LENGTHS.get(data[i] & 0xF0, len(data) - i)
+        found.append(data[i : i + size])
+        i += size
+    return found
+
+
+def describe(data: bytes) -> list[tuple[str, bytes]]:
+    """Les messages d'une suite d'octets, chacun avec sa description en clair."""
+    said = []
+    for message in split(data):
+        kind, channel = message[0] & 0xF0, (message[0] & 0x0F) + 1
+        if kind == 0xC0 and len(message) == 2:
+            said.append((f"changement de programme {message[1] + 1}, canal {channel}", message))
+        elif kind == 0xB0 and len(message) == 3:
+            said.append((f"contrôleur {message[1]} = {message[2]}, canal {channel}", message))
         else:
-            said.append((f"message {data[i]:02X}", data[i:]))
-            break
+            said.append((f"message {hexa(message)}", message))
     return said
 
 
@@ -131,13 +144,23 @@ def hexa(data: bytes) -> str:
     return " ".join(f"{b:02X}" for b in data)
 
 
+def smf(messages: list[bytes]) -> bytes:
+    """Un fichier MIDI standard minimal : les messages au temps zéro, dans l'ordre donné."""
+    track = b"".join(b"\x00" + m for m in messages) + b"\x00\xff\x2f\x00"  # deltas nuls, puis fin de piste
+    return b"MThd" + struct.pack(">IHHH", 6, 0, 1, 96) + b"MTrk" + struct.pack(">I", len(track)) + track
+
+
 def send(data: bytes, port: str = "") -> tuple[str, str]:
-    """Envoie des octets MIDI bruts, et renvoie l'adresse et le nom du port utilisé."""
+    """Envoie des octets MIDI bruts, et renvoie l'adresse et le nom du port utilisé.
+
+    `aplaymidi` ne joue qu'un fichier, d'où le fichier temporaire ; `-d 0` supprime les deux
+    secondes d'attente qu'il ajoute après la fin.
+    """
     address, name = find_port(port)
     with tempfile.TemporaryDirectory() as folder:
-        message = Path(folder) / "message.mid"  # aseqsend n'envoie que le contenu d'un fichier
-        message.write_bytes(data)
-        _run(["aseqsend", "-p", address, "-s", str(message)])
+        song = Path(folder) / "message.mid"
+        song.write_bytes(smf(split(data)))
+        _run(["aplaymidi", "-d", "0", "-p", address, str(song)])
     return address, name
 
 

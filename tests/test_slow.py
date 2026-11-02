@@ -50,10 +50,11 @@ def test_separation_stems_add_up_to_the_song(tmp_path):
 
 
 def test_midi_goes_out_and_comes_back_through_the_alsa_loopback():
-    """Le vrai `aseqsend` vers le port de bouclage du noyau, relu par le vrai `aseqdump`.
+    """Le vrai `aplaymidi` vers le port de bouclage du noyau, relu par le vrai `aseqdump`.
 
     Aucun matériel et aucune pédale touchée : « Midi Through » existe dès que le module
-    snd-seq-dummy est chargé, et c'est ainsi qu'on vérifie la chaîne sans rien brancher.
+    snd-seq-dummy est chargé. Attention : ce bouclage prouve les octets et leur ordre, pas
+    qu'ils sortent de l'ordinateur — seul « Tx bytes » de `/proc/asound/card*/midi0` le dit.
     """
     from arr import midi
 
@@ -63,7 +64,8 @@ def test_midi_goes_out_and_comes_back_through_the_alsa_loopback():
     listening = threading.Thread(target=lambda: heard.extend(midi.events("Midi Through", seconds=4)), daemon=True)
     listening.start()
     time.sleep(1.0)  # aseqdump doit être abonné au port avant l'envoi
-    midi.send(midi.program_change(5) + midi.control_change(7, 100), "Midi Through")
+    midi.send(midi.bank_select(2) + midi.program_change(5, 2), "Midi Through")
     listening.join(6)
-    assert any("Program change" in line and "program 4" in line for line in heard), heard
-    assert any("Control change" in line and "controller 7, value 100" in line for line in heard), heard
+    assert len(heard) == 3, heard  # les trois messages, dans l'ordre où ils ont été écrits
+    assert "controller 0, value 0" in heard[0] and "controller 32, value 1" in heard[1]
+    assert "Program change" in heard[2] and "1, program 4" in heard[2]  # canal 2, programme 5
