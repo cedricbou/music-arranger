@@ -1,0 +1,31 @@
+name: pr-rules
+# Règles du cycle de développement (la protection de branche n'est pas disponible sur ce dépôt
+# privé) : toute PR référence une issue, depuis une branche qui porte son numéro.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Titre, corps et branche viennent de la PR : passés par l'environnement, jamais interpolés
+      # dans le script, où ils pourraient s'exécuter.
+      - name: La PR référence une issue (Closes #n / Refs #n)
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! grep -qE '(Closes|Fixes|Refs) #[0-9]+' <<<"$BODY$TITLE"; then
+            echo "::error::La PR doit référencer une issue (« Closes #n » ou « Refs #n ») : scripts/feature.sh pr"
+            exit 1
+          fi
+      - name: Branche nommée feat|fix|chore|docs/<n°>-...
+        env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          [[ $HEAD =~ ^(feat|fix|chore|docs)/[0-9]+- ]] || { echo "::error::branche « $HEAD » : attendu feat|fix|chore|docs/<n° d'issue>-... (scripts/feature.sh start)"; exit 1; }

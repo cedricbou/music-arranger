@@ -8,6 +8,7 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 | ce que fait l'outil, en aperçu | `README.md` |
 | le mode d'emploi complet : parcours, configuration audio, dépannage | `docs/manual/` |
 | pourquoi il est construit ainsi, et ce qui a déjà été essayé | `docs/decisions/` |
+| le modèle d'un projet sur le disque, les moteurs externes | `docs/architecture.md` |
 | ce qui reste à faire, et dans quel état sont les choses | les issues GitHub (`gh issue list`) |
 
 ## Contraintes non négociables
@@ -29,16 +30,31 @@ partition, puis séparer la prise. Lire les fiches avant de toucher à la géné
 
 ## Comment travailler ici
 
-1. **Une issue, une branche partie de `main`, une PR.** Jamais de commit direct sur `main`.
-2. **Langues** : interface, docstrings et docs en français ; identifiants, issues et PR en anglais.
-3. **Terminé** veut dire : tests ajoutés, `uv run pytest` et `uv run ruff check .` verts,
-   `uv run ruff format .` appliqué, documentation à jour (ci-dessous), carte du code à jour
-   si un fichier apparaît, fiche dans `docs/decisions/` si un choix structurant est fait.
-4. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure`, dire dans la
-   PR ce qui est mesuré et ce qui reste à juger à l'oreille. Ne jamais annoncer une qualité sonore.
-5. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test.** Le son se teste sur une
+1. **Le cycle est imposé** : issue → branche → PR → CI verte → squash merge, par
+   `scripts/feature.sh`, les hooks (`scripts/install-hooks.sh`, une fois) et la CI `pr-rules`.
+   Jamais de commit ni de push sur `main` (`ARR_ALLOW_MAIN=1` : urgence demandée par l'utilisateur).
+   ```
+   scripts/feature.sh issue story "Title" body.md framing.md   # cadrage en commentaire
+   scripts/feature.sh start 12             # branche feat/12-... ; relit le style de l'issue
+   scripts/feature.sh pr --notes notes.md  # check.sh, push, PR « Closes #12 », ce qui est mesuré
+   scripts/feature.sh merge                # attend la CI, squash merge, main à jour
+   ```
+2. **Les issues s'écrivent pour le musicien** (`docs/style-issues.md`, skill `ecrire-issue`) :
+   type `epic`, `story`, `chore` ou `bug`, corps sans nom de module ni de fichier, critères
+   « Done when » observables. Le détail technique est dans le commentaire `## Technical framing` :
+   le lire avant de coder. Une issue `needs-refinement` se cadre **avec** l'utilisateur, ne se
+   code pas. Une limite découverte en codant devient une issue du même style.
+3. **Langues** : interface, docstrings et docs en français ; identifiants, issues et PR en anglais.
+4. **Terminé** veut dire : tests ajoutés, `scripts/check.sh` vert (ruff, format, pytest),
+   documentation à jour (ci-dessous), carte du code à jour si un fichier apparaît, fiche dans
+   `docs/decisions/` si un choix structurant est fait.
+5. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure`, dire dans la PR
+   ce qui est mesuré et ce qui reste à l'oreille (`--notes`). Ne jamais annoncer une qualité
+   sonore. Une issue livrée dont il ne reste que l'écoute se ferme ; l'essai rejoint l'issue de
+   session d'écoute.
+6. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test.** Le son se teste sur une
    sortie PipeWire virtuelle, le MIDI sur « Midi Through » (voir « Audio en direct »).
-6. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
+7. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
    ailleurs (`~/Musique/...`) et se lisent sans les modifier.
 
 ## Tenir la documentation à jour
@@ -55,10 +71,9 @@ Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue
 
 ```
 uv sync                   # environnement (Python 3.11, épinglé dans .python-version)
-uv run pytest -q          # ~5 s, sans GPU, sans modèle, sans carte son
-uv run ruff check . && uv run ruff format .
+scripts/check.sh          # ruff, format, pytest, sans GPU ni modèle ni carte son ; aussi en CI
+scripts/check.sh --fix    # applique d'abord le formatage et les corrections sûres
 uv run arr doctor         # GPU et moteurs ; `uv run arr <commande>` depuis un projet (demo/gala-yue2)
-# La CI (.github/workflows/ci.yml) lance lint, format et tests sur chaque PR.
 ```
 
 ## Carte du code
@@ -96,7 +111,8 @@ src/arr/
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
-  test_docs.py, test_slow.py   la doc suit le code ; vrais moteurs sur signal (`-m slow`, hors CI)
+  test_docs.py, test_workflow.py   la doc suit le code ; le cycle de scripts/feature.sh (faux gh)
+  test_slow.py              vrais moteurs sur signal (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
   test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module (CliRunner)
 ```
@@ -112,28 +128,12 @@ Règles de structure :
   `spotify`, `lyrics`. Tout ajout vient avec son test : signal synthétique ou `CliRunner`.
 - Peu de commentaires (une contrainte non évidente), pas d'abstraction sans deuxième usage.
 
-## Modèle de projet
-
-- `song.toml` : `[song]`, `[[sections]]` (name, start, end), `[tracks.<nom>]` (active, gain, mute).
-- **Prises** : `takes/tNNN.flac` + `.json` (model, engine, mode, style, seed) ; `new_take()` réserve le nom.
-- **Pistes** : `tracks/<nom>/vNNN.flac` + `.json`, créées par `add_track()`. Stems de
-  l'original : `drums`, `bass`... ; ceux d'une prise : `t001.drums`..., et ils naissent muets.
-- **Greffe** = sourdines : `graft` réactive `tNNN.<stem>` et, avec `--replace`, coupe `<stem>`.
-- **Calage** : `nudges` dans `song.toml`, appliqués par `load_track()` ; rien de manuel n'est écrasé (006).
-- Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi ; setlists à part (009).
-
 ## Conventions audio
 
 - Partout : 48 kHz, stéréo, `float32`, forme `(échantillons, 2)`. `audio.convert()` normalise
   tout import et toute sortie de modèle ; `audio.load()` refuse un autre taux.
 - Pistes à la longueur de l'original (`audio.fit`) ; une prise garde la sienne (stems par `split`).
 - Une plage seulement : `audio.splice()`. Volume : `audio.normalize()`, jamais `loudnorm`.
-
-## Moteurs externes
-
-Installés par `arr models pull` sous `~/.local/share/arr` (`ARR_HOME`), lancés en sous-processus :
-`audiocpp/<version>/` (**vulkan-portable**, lien `current`), `yue2/` (GGUF Q8), `envs/ss2/` (SheetSage2).
-Les poids viennent de Hugging Face, audio.cpp de sa release GitHub : fiches 002 et 007. Jamais lancés en test.
 
 ## Audio en direct
 
