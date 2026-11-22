@@ -1,21 +1,12 @@
-Closes #
+Closes #<!-- issue number (or "Refs #n" if the issue must stay open). scripts/feature.sh pr writes this body. -->
 
 ## What changes
 
 
-## Documentation
-
-<!-- Tick what applies; delete the rest. tests/test_docs.py checks most of it. -->
-
-- [ ] `uv run python scripts/gen_reference.py` after changing a command, an option or a help text
-- [ ] `docs/manual/` updated (parcours, audio, depannage) for a behaviour, setting or error message change
-- [ ] `README.md` overview still accurate
-- [ ] no user-facing change
-
 ## Testing
 
-- `uv run pytest`: 
-- `uv run ruff check .` and `uv run ruff format --check .`: 
+- [ ] `scripts/check.sh` (ruff, format, pytest)
+- [ ] Docs: `uv run python scripts/gen_reference.py` after changing a command or an option; `docs/manual/` for a behaviour, setting or error message change; `README.md` overview still accurate
 
 ## Verified by measurement
 
@@ -24,4 +15,5 @@ Closes #
 
 ## Not verified
 
-<!-- What still needs ears or the real hardware (Soundcraft, Spotify playing, a musician). -->
+<!-- What still needs ears or the real hardware (Soundcraft, Spotify playing, a musician).
+     Each item becomes a box of the open listening session issue. -->
