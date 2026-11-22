@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scripts/check.sh)",
+      "Bash(scripts/check.sh *)",
+      "Bash(scripts/feature.sh *)",
+      "Bash(scripts/loopback.sh *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run python scripts/gen_reference.py)",
+      "Bash(uv run arr --help)",
+      "Bash(uv run arr doctor)"
+    ],
+    "deny": [
+      "Bash(pw-play *)",
+      "Bash(paplay *)",
+      "Bash(speaker-test *)",
+      "Bash(playerctl *)",
+      "Bash(git push origin main)",
+      "Bash(git push origin main *)",
+      "Bash(git push origin HEAD:main *)",
+      "Bash(git push --force *)",
+      "Edit(~/Musique/**)"
+    ]
+  }
+}

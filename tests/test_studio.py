@@ -255,3 +255,17 @@ def test_record_shows_the_shared_screen_with_chords(tmp_path, monkeypatch):
     assert "Enregistrement de bass" in out and "Ctrl+C arrête et garde la prise" in out
     assert "drums" in out and "Accords · chorus2" in out and "│ Fmaj7 /" in out  # la dernière image, à 3 s
     assert "bass v002" in out
+
+
+def test_looping_plays_on_the_configured_output_and_always_stops(monkeypatch):
+    import sounddevice as sd
+
+    from arr import studio
+
+    calls = []
+    monkeypatch.setattr(studio, "config", lambda: {"output": {"device": "", "channels": [3, 4]}})
+    monkeypatch.setattr(sd, "play", lambda data, sr, **kw: calls.append(("play", sr, kw)), raising=False)
+    monkeypatch.setattr(sd, "stop", lambda: calls.append(("stop",)), raising=False)
+    with pytest.raises(KeyboardInterrupt), studio.looping(tone(440, 1.0)):
+        raise KeyboardInterrupt  # Ctrl+C pendant les vumètres
+    assert calls == [("play", audio.SR, {"loop": True, "mapping": [3, 4], "device": None}), ("stop",)]

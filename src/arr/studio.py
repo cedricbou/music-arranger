@@ -5,25 +5,9 @@ dont les sorties arrivent en analogique sur les voies 7/8 d'une Soundcraft Signa
 on enregistre donc ce que joue l'ordinateur sur les entrées 7/8 de la Soundcraft, où se
 règle le gain.
 
-Réglages dans ~/.config/arr/audio.toml (tous facultatifs) :
-
-    [output]                 # où jouer (arr play, arr record)
-    device = ""              # fragment du nom du périphérique ; "" = sortie par défaut
-    channels = [1, 2]
-
-    [input]                  # l'instrument (arr record)
-    device = "Soundcraft"
-    channels = [1]           # un canal = mono, deux = stéréo
-    latency_ms = 21.3        # retard de l'enregistrement sur le playback ; écrit par arr calibrate
-
-    [capture]                # ce que joue l'ordinateur (arr capture)
-    source = ""              # "" = les entrées de la Soundcraft si elle est branchée ;
-                             # "monitor" = copie numérique de la sortie par défaut ;
-                             # sinon le nom PipeWire d'une source (arr devices)
-    channels = [7, 8]        # [] = la paire de canaux qui porte le signal
-    loudness = -16.0         # volume cible des captures, en LUFS
-
-Le même fichier porte la section [midi], lue par `arr.midi` : port et canal des pédales.
+Réglages dans ~/.config/arr/audio.toml (`ARR_AUDIO`), tous facultatifs : chacun est décrit dans
+docs/manual/audio.md, qu'un test tient à jour. Le même fichier porte la section [midi], lue par
+`arr.midi` : port et canal des pédales.
 """
 
 from __future__ import annotations
@@ -34,6 +18,7 @@ import subprocess
 import time
 import tomllib
 from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -117,6 +102,13 @@ def find_device(fragment: str, kind: str, channels: list[int]) -> int | None:
             f"{'entrée' if kind == 'input' else 'sortie'} (arr devices)"
         )
     return max(found)[1]  # de préférence par JACK : c'est le graphe PipeWire, synchronisé
+
+
+def jack_devices() -> list[dict]:
+    """Les périphériques vus par l'API JACK de PipeWire : ceux que `[output]` et `[input]` nomment."""
+    import sounddevice as sd
+
+    return [d for d in sd.query_devices() if sd.query_hostapis(d["hostapi"])["name"].startswith("JACK")]
 
 
 def duplex_devices(inp: dict, out: dict, wanted: list[int]) -> tuple[int | None, int | None]:
@@ -322,6 +314,20 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
                         jump = int(order[1] * audio.SR)
     except KeyboardInterrupt:
         pass
+
+
+@contextmanager
+def looping(data: np.ndarray) -> Iterator[None]:
+    """Joue `data` en boucle sur la sortie réglée, le temps du bloc."""
+    import sounddevice as sd
+
+    out = config()["output"]
+    device = find_device(out["device"], "output", out["channels"])
+    sd.play(data, audio.SR, loop=True, mapping=out["channels"], device=device)
+    try:
+        yield
+    finally:
+        sd.stop()
 
 
 def play_and_record(playback: np.ndarray, channel: int | None = None, watch=None) -> tuple[np.ndarray, float]:

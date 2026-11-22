@@ -11,3 +11,6 @@ demo/
 *.wav
 *.ogg
 *.mp3
+
+# Réglages personnels de Claude Code pour ce dépôt
+.claude/settings.local.json
