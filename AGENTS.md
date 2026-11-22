@@ -14,13 +14,13 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 ## Contraintes non négociables
 
 Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
-
 - **Local uniquement.** Aucun service distant ne reçoit l'audio. Réseau limité à deux commandes :
   `arr models pull` et `arr lyrics fetch` (artiste et titre à lrclib.net) ; sinon `engines.offline()`.
 - **Intel Arc A770, 16 Go.** PyTorch XPU et Vulkan ; pas de CUDA, ni float64 ni bf16 sur le GPU (non vérifié).
 - **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version, jamais
   elle n'écrase un fichier audio (non vérifié). Seul `arr rm` retire, vers `trash/` par défaut.
-- **Usage non commercial** : YuE2 et SheetSage2 sont sous CC BY-NC 4.0.
+- **Usage non commercial** : YuE2 et SheetSage2 sont sous CC BY-NC 4.0. **Dépôt public** : ni musique,
+  paroles ni poids ; artistes inventés ; le hook refuse les noms des projets (`scripts/check_names.py`).
 
 ## Avant de proposer une idée
 

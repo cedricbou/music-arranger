@@ -41,12 +41,17 @@ def repo(tmp_path, monkeypatch):
         monkeypatch.setenv(f"GIT_COMMITTER_{key}", value)
     monkeypatch.delenv("ARR_ALLOW_MAIN", raising=False)
     monkeypatch.delenv("ARR_ALLOW_ISSUE", raising=False)
+    monkeypatch.delenv("ARR_ALLOW_NAMES", raising=False)
+    library = tmp_path / "library"
+    (library / "zorglub--hymne").mkdir(parents=True)
+    (library / "zorglub--hymne/song.toml").write_text('title = "Hymne du Zorglub"\nartist = "Zorglub"\n')
+    monkeypatch.setenv("ARR_LIBRARY", str(library))
     origin, work, bin_dir, gh = (tmp_path / d for d in ("origin.git", "work", "bin", "gh"))
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
     subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True, capture_output=True)
     git(work, "symbolic-ref", "HEAD", "refs/heads/main")
     (work / "scripts").mkdir()
-    for script in ("feature.sh", "install-hooks.sh"):
+    for script in ("feature.sh", "install-hooks.sh", "check_names.py"):
         shutil.copy(ROOT / "scripts" / script, work / "scripts" / script)
     check = work / "scripts/check.sh"
     check.write_text('#!/usr/bin/env bash\necho check >> "$FAKE_GH/calls"\n')
@@ -227,3 +232,11 @@ def test_a_commit_on_an_issue_branch_runs_the_checks_and_cites_the_issue(hooked)
     message = git(hooked, "log", "-1", "--format=%B")
     assert message.index("Refs #12") < message.index("Co-Authored-By")
     assert "check" in calls()
+
+
+def test_a_commit_naming_a_song_of_the_library_is_refused(hooked):
+    git(hooked, "checkout", "-q", "-b", "feat/12-loop")
+    refused = commit(hooked, "Exemple : hymne du zorglub")
+    assert refused.returncode != 0
+    assert "file.txt:1 : « hymne du zorglub » (title de zorglub--hymne)" in refused.stderr
+    assert commit(hooked, "Exemple : hymne du zorglub", env={"ARR_ALLOW_NAMES": "1"}).returncode == 0

@@ -2,6 +2,7 @@
 
 import ast
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -153,8 +154,89 @@ def test_files_are_removed_only_at_the_known_places():
     assert not unknown, "fichiers retirés hors des endroits connus :\n" + "\n".join(unknown)
 
 
-def test_no_audio_or_model_weights_are_versioned():
-    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
-    heavy = (".flac", ".wav", ".ogg", ".mp3", ".m4a", ".gguf", ".safetensors", ".pt", ".pth", ".ckpt", ".bin")
-    found = [f for f in tracked if f.lower().endswith(heavy)]
-    assert not found, f"audio ou poids versionnés : {found}"
+# --- Pas de musique d'autrui dans le dépôt, qui est public
+
+MUSIC = (".flac", ".wav", ".ogg", ".mp3", ".m4a", ".opus", ".aif", ".aiff", ".mid", ".midi", ".musicxml", ".mxl")
+SHEETS = (".pdf", ".lrc", ".gp", ".gpx", ".gp5", ".mscz", ".sib")
+WEIGHTS = (".gguf", ".safetensors", ".pt", ".pth", ".ckpt", ".bin", ".onnx", ".npy", ".npz")
+# Les seuls artistes que nomment les exemples et les tests : ils sont inventés.
+INVENTED_ARTISTS = {"Paper Lanterns", "The Night Shifts", "Hélène Faure", "4 Walls", "Artiste"}
+
+
+def tracked() -> list[str]:
+    return subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+
+
+def test_no_music_lyrics_or_model_weights_are_versioned():
+    found = [f for f in tracked() if f.lower().endswith(MUSIC + SHEETS + WEIGHTS) or Path(f).name == "lyrics.txt"]
+    assert not found, f"audio, partition, paroles ou poids versionnés : {found}"
+    binary = [f for f in tracked() if (ROOT / f).is_file() and b"\0" in (ROOT / f).read_bytes()[:8192]]
+    assert not binary, f"fichiers binaires versionnés (le dépôt ne porte que du texte) : {binary}"
+
+
+def test_examples_and_tests_name_only_invented_artists():
+    """Un vrai morceau n'a rien à faire dans un dépôt public : les fiches de décision seules en gardent."""
+    files = [
+        *(f for f in (ROOT / "tests").glob("*.py") if f.name != "test_rules.py"),  # qui porte les motifs
+        ROOT / "README.md",
+        *(ROOT / "docs/manual").glob("*.md"),
+        *SRC.rglob("*.py"),
+    ]
+    patterns = [
+        r'\bartist\s*=\s*"([^"]+)"',
+        r'"artist"\s*:\s*"([^"]+)"\s*[,}]',
+        r'\["artist"\]\s*=\s*"([^"]+)"',
+        r'folder_name\("[^"]*",\s*"([^"]+)"\)',
+        r'\bsong\("[^"]*",\s*"[^"]*",\s*"([^"]+)"\)',
+        r'lyrics fetch "([^"]+)"',
+        r"« ([^»]+) » donne `",
+    ]
+    found = [
+        f"{f.relative_to(ROOT)} : {m.group(1)}"
+        for f in files
+        for pattern in patterns
+        for m in re.finditer(pattern, f.read_text())
+        if m.group(1) not in INVENTED_ARTISTS
+    ]
+    assert not found, "artistes réels dans les exemples ou les tests (INVENTED_ARTISTS) :\n" + "\n".join(found)
+
+
+def check_names():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_names", ROOT / "scripts/check_names.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_names_from_the_local_library_are_refused(tmp_path):
+    """Le hook pre-commit compare ce qu'ajoute un commit aux titres, artistes et paroles des projets."""
+    names = check_names()
+    song = tmp_path / "zorglub--la-riviere"
+    song.mkdir()
+    (song / "song.toml").write_text('title = "La Rivière noire"\nartist = "Zorglub"\n')
+    (song / "lyrics.txt").write_text("[Verse]\nsous le pont passe la rivière noire\noh oh oh\n")
+    (tmp_path / "vide").mkdir()
+    library = names.library_names([tmp_path])
+    lines = [
+        ("tests/test_x.py", 1, 'title = "la riviere NOIRE"'),  # plusieurs mots : ni casse ni accents
+        ("README.md", 2, "Un morceau de Zorglub."),  # un seul mot : avec sa majuscule
+        ("src/arr/x.py", 3, "zorglub = Path.home()"),  # ... sinon un mot courant ferait échouer
+        ("docs/manual/a.md", 4, "« Sous le pont passe la rivière noire »"),
+        ("docs/decisions/012-x.md", 5, "mesuré sur La Rivière noire de Zorglub"),  # les fiches gardent leurs mesures
+        ("tests/test_y.py", 6, "oh oh oh"),  # trop court pour dire quel morceau
+    ]
+    found = names.leaks(lines, library)
+    assert [f.split(" : ")[0] for f in found] == [
+        "tests/test_x.py:1",
+        "README.md:2",
+        "docs/manual/a.md:4",
+        "docs/manual/a.md:4",
+    ]
+    assert names.library_names([tmp_path / "absent"]) == {}
+
+
+def test_the_pre_commit_hook_checks_names_before_anything_else():
+    hooks = (ROOT / "scripts/install-hooks.sh").read_text()
+    assert "check_names.py --staged" in hooks.split('cat > "$dir/pre-commit"')[1].split("HOOK")[1]
