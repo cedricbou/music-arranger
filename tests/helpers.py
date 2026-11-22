@@ -47,7 +47,7 @@ V: Vocal clef=treble name="Vocal Melody" snm="Vocal"
 K:Dm
 % verse
 V: Vocal
-"Dm"f4d4z4d4|"C"A4z8e4|
+"Dm"a4f4z4a4|"C"g4z8c4|
 """
 
 
@@ -96,7 +96,7 @@ def chunks_of(data, seconds=0.05):
 def fake_studio(monkeypatch, heard):
     from arr import spotify, studio
 
-    track = {"id": "/t/1", "title": "Freed From Desire", "artist": "Gala", "length": 2.0}
+    track = {"id": "/t/1", "title": "Night Drive", "artist": "Paper Lanterns", "length": 2.0}
     calls = {"played": [], "restart": [], "pause": 0}
     monkeypatch.setattr(
         studio,

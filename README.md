@@ -47,10 +47,10 @@ N'utilise pas un alias : la complétion appelle `arr` hors du shell et ne le tro
 ## Parcours type
 
 ```
-arr init gala --from ~/Musique/freed-from-desire.flac
-cd gala
+arr init night-drive --from ~/Musique/night-drive.flac
+cd night-drive
 arr transcribe                          # partition, tempo, tonalité, sections (3 à 12 min)
-arr lyrics fetch "Gala" "Freed from Desire"
+arr lyrics fetch "Paper Lanterns" "Night Drive"
 $EDITOR lyrics.txt                      # relire le découpage par section
 
 arr render -s "funk pop cover, live band, female lead vocals, clean funk rhythm guitar, \
@@ -74,9 +74,9 @@ arr share t001.guitar                   # dossier pour le guitariste
 
 ```
 arr levels                         # vérifie que le son arrive sur 7/8 et règle le gain
-arr capture --play                 # enregistre le morceau en cours dans Spotify, du début à la fin
-cd freed-from-desire               # le projet porte le titre du morceau
-arr lyrics fetch                   # artiste et titre sont déjà connus
+arr capture night-drive            # enregistre le morceau que tu lances ensuite dans ton lecteur
+cd night-drive
+arr lyrics fetch "Paper Lanterns" "Night Drive"
 
 arr split
 arr play --without bass            # le morceau sans la basse, pour jouer par-dessus
@@ -94,10 +94,16 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
 ```
 
 - **`arr capture`** enregistre ce que joue l'ordinateur tel qu'il revient sur la table :
-  par défaut, les entrées 7/8 de la Soundcraft. Il démarre au premier son et s'arrête à la
-  fin du morceau (changement de titre dans Spotify, sinon 3 s de silence). Avec `--play`,
-  il relance lui-même le morceau depuis le début et met Spotify en pause à la fin. Sans
-  Spotify : `arr capture mon-projet`, puis lance la lecture dans n'importe quel lecteur.
+  par défaut, les entrées 7/8 de la Soundcraft. Il démarre au premier son et s'arrête après
+  3 s de silence. Avec le lecteur Spotify de bureau, il lit aussi le titre et l'artiste,
+  s'arrête au changement de morceau, et `--play` relance le morceau depuis le début
+  ([configuration audio](docs/manual/audio.md)).
+- **Droits** : une capture sert à travailler un morceau chez soi, avec son groupe. Capture
+  seulement des sources dont tu as le droit de faire une copie privée (CD, fichiers achetés,
+  tes propres enregistrements). Les services de streaming interdisent en général
+  d'enregistrer leurs contenus : lis leurs conditions d'utilisation avant d'y capturer quoi
+  que ce soit. Ni les captures, ni les stems, ni les prises tirées d'un morceau protégé ne
+  se redistribuent.
 - **Volume des captures** : chaque capture est ramenée au même volume perçu (-16 LUFS par
   défaut) par un seul gain global, plafonné pour que les crêtes restent sous -1 dB. Le
   réglage de gain de la table n'a donc plus besoin d'être identique d'un jour à l'autre ;
@@ -245,7 +251,7 @@ fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis
 ## Dossier d'un projet
 
 ```
-gala/
+night-drive/
   song.toml        titre, tempo, tonalité, sections, état du mix
   lyrics.txt       paroles avec balises [Verse], [Chorus]...
   sheet.toml       antisèche de scène, une fois modifiée (`arr sheet --edit`)
@@ -270,6 +276,27 @@ ouvrir dans MuseScore ou un séquenceur pour les partager avec le groupe.
   règle à la main.
 - **Paroles** : sans `lyrics.txt`, la prise est instrumentale. Le découpage automatique par
   section est approximatif, à relire.
-- **Licence** : les poids de YuE2 et SheetSage2 sont sous CC BY-NC 4.0 (usage non commercial).
+- **Modèles** : les poids de YuE2 et SheetSage2 sont sous CC BY-NC 4.0 (usage non commercial).
 - **Paroles et réseau** : `arr lyrics fetch` envoie l'artiste et le titre à lrclib.net,
   rien d'autre.
+
+## Licence
+
+Le code d'`arr` est un logiciel libre sous **GPL-3.0-or-later** ([`LICENSE`](LICENSE)) : on peut
+l'utiliser, l'étudier, le modifier et le redistribuer, à condition qu'une version redistribuée
+reste sous la même licence avec son code source.
+
+Le dépôt ne contient aucun modèle ni aucune musique. `arr models pull` télécharge les modèles,
+qui gardent leur propre licence :
+
+| Modèle ou programme | Licence |
+| :--- | :--- |
+| YuE2, SheetSage2 (poids) | CC BY-NC 4.0 : usage non commercial |
+| Demucs, beat_this | MIT |
+| audio.cpp | celle de sa release officielle |
+
+Les morceaux, les paroles téléchargées et tout ce qui en est tiré restent la propriété de leurs
+auteurs. Les morceaux et artistes des exemples sont inventés.
+
+Spotify, PreSonus, Soundcraft, Boss, MuseScore et les autres marques citées appartiennent à leurs
+propriétaires respectifs ; `arr` les nomme pour décrire une compatibilité, sans affiliation.

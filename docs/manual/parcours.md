@@ -9,8 +9,8 @@ Capturer un morceau qui joue sur l'ordinateur, le découper en pistes, jouer par
 
 ```
 arr levels                    # le son arrive-t-il sur les bons canaux ? régler le gain
-arr capture --play            # enregistre le morceau en cours dans Spotify, du début à la fin
-cd murder-on-the-dancefloor   # le projet porte le titre du morceau
+arr capture night-drive       # enregistre le morceau que vous lancez ensuite dans votre lecteur
+cd night-drive
 arr split                     # sépare en pistes : drums, bass, guitar, piano, vocals, other
 arr tracks                    # ce qui joue dans le mix
 arr play --without bass       # le morceau sans la basse
@@ -39,8 +39,10 @@ arr play --without bass       # le morceau sans la basse
   compris en pause. En boucle, → sur la dernière mesure revient à la première. Sans
   `arr transcribe` ni `arr analyze`, les flèches avancent par pas de cinq secondes.
 - Une piste écoutée seule joue sans son gain de mix ; une prise brute, sans calage.
-- Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel
-  lecteur. L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence.
+- L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence. Avec le
+  lecteur Spotify de bureau, `arr capture --play` nomme le projet d'après le morceau et le
+  relance depuis le début ([configuration audio](audio.md), qui dit aussi ce qu'on a le droit
+  de capturer).
 - Avec un fichier que vous avez déjà : `arr init mon-projet --from morceau.flac`.
 - Sur de la musique électronique, la distinction guitare/piano n'a pas de sens : `arr split
   --model htdemucs_ft` donne quatre pistes plus propres, ou `arr merge guitar piano other
@@ -182,10 +184,10 @@ arr sheet --pdf                       # écrit aussi export/sheet.pdf
 ```
 
 ```
-Man! I Feel Like A Woman! – Shania Twain  F · 125 BPM
-Intro 4 · C 20 · Pré 4 · R 17+2t · Int 3 · C 8 · Pré 4 · R 17 · Int 8 · Pont 4 · R 19 · Fin 12+2t
-Couplet      Bb | Bb | Bb | Bb | Bb | Eb Bb | Bb | Bb | Bb | Eb Bb  ×2
-Refrain      [F | F | F | F | F | Dm | Bb] ×2 | Gm | – ×3
+Night Drive – Paper Lanterns  Dm · 121 BPM
+Intro 4 · C 16 · Pré 4 · R 16+2t · Int 4 · C 16 · R 16 · Fin 8
+Couplet      Dm | Dm | Bb | C | Dm | Dm | Bb | A  ×2
+Refrain      [F | C | Dm | Bb] ×2 | Gm | – ×3
 ```
 
 - Il faut un morceau transcrit (`arr transcribe`).
@@ -228,12 +230,12 @@ donc une nouvelle setlist les reprend telles quelles.
 
 ```
 cd ~/Musique                                   # le dossier des projets
-arr set new bar-du-port gala what-s-up maldon --title "Bar du Port, 14 novembre"
-arr set add bar-du-port murder-on-the-dancefloor --at 2    # en deuxième
-arr set add bar-du-port --break                            # un entracte
-arr set show bar-du-port                       # ordre, tonalités, tempos, durée totale
-arr set edit bar-du-port                       # réordonner, retirer, régler pour ce concert
-arr set print bar-du-port --pages 3            # écrit setlists/bar-du-port.pdf
+arr set new printemps night-drive blue-hour riviere --title "Concert de printemps"
+arr set add printemps fil-rouge --at 2         # en deuxième
+arr set add printemps --break                  # un entracte
+arr set show printemps                         # ordre, tonalités, tempos, durée totale
+arr set edit printemps                         # réordonner, retirer, régler pour ce concert
+arr set print printemps --pages 3              # écrit setlists/printemps.pdf
 ```
 
 - **La feuille** : A4, deux colonnes, un bloc par morceau (rang, titre, tonalité, tempo, puis
@@ -242,8 +244,8 @@ arr set print bar-du-port --pages 3            # écrit setlists/bar-du-port.pdf
 - **`--pages 3`** choisit la plus grande taille de texte qui fait tenir le concert sur trois
   feuilles. Sans lui, le texte garde sa taille normale. La commande prévient quand le texte
   devient petit : allégez alors des antisèches, ou ajoutez une feuille.
-- **Pour un concert seulement** : dans le fichier, un morceau s'écrit `"gala"`, ou
-  `{ song = "gala", transpose = -2, note = "enchaîner" }` ; `"---"` est un entracte. Cette
+- **Pour un concert seulement** : dans le fichier, un morceau s'écrit `"night-drive"`, ou
+  `{ song = "night-drive", transpose = -2, note = "enchaîner" }` ; `"---"` est un entracte. Cette
   transposition ne touche pas à l'antisèche du morceau.
 - Un morceau non transcrit apparaît « incomplet » dans `arr set show` et bloque l'impression.
 - `arr sheet --pdf` écrit `export/sheet.pdf` : l'antisèche d'un seul morceau, pour la voir.
