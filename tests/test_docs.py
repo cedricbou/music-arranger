@@ -135,3 +135,119 @@ def test_manual_pages_are_indexed_and_links_resolve():
 
 def test_readme_points_to_the_manual():
     assert "docs/manual/" in README, "le README doit renvoyer vers le manuel"
+
+
+# --- le style de la documentation : les règles de docs/style-doc.md qui se mécanisent
+
+DOCS = ROOT / "docs"
+CODE = sorted([*(ROOT / "src/arr").rglob("*.py"), *(ROOT / "tests").glob("*.py"), *(ROOT / "scripts").glob("*.py")])
+SHELL = sorted((ROOT / "scripts").glob("*.sh"))
+# Une fiche de décision dit ce qui était le cas pour justifier son choix, et se remplace au lieu
+# de se réécrire ; la référence est engendrée ; le guide de style doit nommer ce qu'il proscrit.
+EXEMPT = {DOCS / "manual/reference.md", DOCS / "style-doc.md"}
+WRITTEN = [
+    ROOT / "AGENTS.md",
+    ROOT / "README.md",
+    *(p for p in DOCS.rglob("*.md") if "decisions" not in p.relative_to(DOCS).parts and p not in EXEMPT),
+    *(ROOT / ".claude").rglob("*.md"),
+]
+ISSUE_NUMBER = re.compile(r"(?<![\w&/])#\d+\b")
+# Le sous-ensemble mécanisable de la règle 1 : « ne … plus » et « l'ancien » sont aussi du
+# vocabulaire du domaine (une prise qui n'est plus active, l'ancienne version d'une piste).
+PAST = re.compile(
+    r"désormais|auparavant|anciennement|c'était|ont disparu"
+    r"|(a|ont) été (retiré|remplacé|écarté|supprimé|déplacé|abandonné|introduit)e?s?"
+    r"|(avant|depuis) (la PR )?#\d|[Cc]orrigé le \d{2}/\d{2}",
+    re.I,
+)
+# Les fichiers d'un projet de morceau ou de la configuration de l'utilisateur : le manuel doit les
+# nommer, et ils ne sont jamais dans le dépôt.
+USER_FILES = ("song.toml", "sheet.toml", "audio.toml", "lyrics.txt", "analysis.json")
+USER_DIRS = ("setlists/", "takes/", "tracks/", "score/", "export/", "trash/")
+
+
+def code_tokens(path: Path, kinds: tuple) -> list[tuple[int, str]]:
+    import io
+    import tokenize
+
+    tokens = tokenize.generate_tokens(io.StringIO(path.read_text()).readline)
+    return [(t.start[0], t.string) for t in tokens if t.type in kinds]
+
+
+def docstrings(path: Path) -> list[tuple[int, str]]:
+    import ast
+
+    nodes = ast.walk(ast.parse(path.read_text()))
+    kinds = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+    return [(getattr(n, "lineno", 1), d) for n in nodes if isinstance(n, kinds) and (d := ast.get_docstring(n))]
+
+
+def where(path: Path, line: int, text: str) -> str:
+    return f"{path.relative_to(ROOT)}:{line}: {text.strip()[:70]}"
+
+
+def test_no_issue_number_in_the_code():
+    """Règle 2 : l'historique est dans git ; un numéro d'issue dans le code ne dit rien à qui le lit."""
+    import tokenize
+
+    data = {ROOT / "tests/test_workflow.py"}  # les numéros y sont les données d'essai du cycle
+    found = [
+        where(f, n, s)
+        for f in CODE
+        if f not in data
+        for n, s in code_tokens(f, (tokenize.COMMENT, tokenize.STRING))
+        if ISSUE_NUMBER.search(s)
+    ]
+    found += [
+        where(f, n, line)
+        for f in SHELL
+        for n, line in enumerate(f.read_text().splitlines(), 1)
+        if ISSUE_NUMBER.search(line)
+    ]
+    assert not found, "numéros d'issue dans le code (règle 2 de docs/style-doc.md) :\n" + "\n".join(found)
+
+
+def test_docs_and_comments_describe_the_present():
+    """Règle 1 : un texte faux se supprime, un texte vrai se dit au présent."""
+    import tokenize
+
+    found = [
+        where(f, n, line) for f in WRITTEN for n, line in enumerate(f.read_text().splitlines(), 1) if PAST.search(line)
+    ]
+    found += [
+        where(f, n, s)
+        for f in CODE
+        for n, s in [*code_tokens(f, (tokenize.COMMENT,)), *docstrings(f)]
+        if PAST.search(s)
+    ]
+    assert not found, "le passé raconté au lieu de l'état actuel (règle 1 de docs/style-doc.md) :\n" + "\n".join(found)
+
+
+def test_every_cited_path_exists():
+    """Un chemin cité qui n'existe plus envoie le lecteur nulle part, et personne ne le voit."""
+    import subprocess
+
+    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    cited = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_./-]*\.(py|md|toml|sh|yml|txt|json)")
+    stale = [
+        f"{doc.relative_to(ROOT)} : `{ref}`"
+        for doc in [*WRITTEN, DOCS / "style-doc.md"]
+        for ref in sorted(set(re.findall(r"`([^`\s]+)`", doc.read_text())))
+        if cited.fullmatch(ref)
+        and ref not in USER_FILES
+        and not ref.startswith(USER_DIRS)
+        and not (ROOT / ref).exists()
+        and not any(t.endswith(f"/{ref}") for t in tracked)
+    ]
+    assert not stale, "chemins cités qui n'existent pas :\n" + "\n".join(stale)
+
+
+def test_written_docs_stay_readable_in_one_go():
+    """Au-delà de 600 lignes, un agent lit un document en morceaux et rate des invariants."""
+    import warnings
+
+    for doc in WRITTEN:
+        if (n := len(doc.read_text().splitlines())) > 600:
+            warnings.warn(
+                f"{doc.relative_to(ROOT)} : {n} lignes (> 600) : découper par famille de sujets", stacklevel=1
+            )

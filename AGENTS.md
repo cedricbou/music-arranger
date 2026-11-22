@@ -59,7 +59,8 @@ partition, puis séparer la prise. Lire les fiches avant de toucher à la géné
 
 ## Tenir la documentation à jour
 
-Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue s'il dérive.
+Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue s'il dérive. On écrit
+au présent, sans numéro d'issue ni chemin mort (`docs/style-doc.md`, skill `relire-docs` pour une zone).
 
 - **Une commande ou une option change** : écrire sa docstring et ses `help=` (la référence
   en sort), puis `uv run python scripts/gen_reference.py`. Ne jamais éditer `reference.md`.
@@ -71,8 +72,7 @@ Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue
 
 ```
 uv sync                   # environnement (Python 3.11, épinglé dans .python-version)
-scripts/check.sh          # ruff, format, pytest, sans GPU ni modèle ni carte son ; aussi en CI
-scripts/check.sh --fix    # applique d'abord le formatage et les corrections sûres
+scripts/check.sh [--fix]  # ruff, format, pytest, sans GPU ni modèle ni carte son ; aussi en CI
 uv run arr doctor         # GPU et moteurs ; `uv run arr <commande>` depuis un projet (demo/gala-yue2)
 ```
 
