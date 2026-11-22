@@ -82,7 +82,7 @@ src/arr/
   cli.py                    point d'entrée : importe les modules de commandes, dans l'ordre de `arr --help`
   app.py                    l'application Typer, ses sous-groupes, les constantes partagées, `run()`
   commands/_common.py       aides partagées : render_mix, add_track, convert, confirm, describe...
-  commands/project.py       init, import
+  commands/project.py       init, import, rename
   commands/score.py         analyze, transcribe, lyrics fetch, sections
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix

@@ -48,7 +48,7 @@ def test_stereo_picks_requested_or_loudest_pair():
     assert studio.stereo(captured, [7]).shape == (1000, 2)  # mono dupliqué
 
 
-def test_capture_creates_a_project_named_after_the_song(tmp_path, monkeypatch):
+def test_capture_creates_a_project_named_after_the_artist_and_song(tmp_path, monkeypatch):
     quiet = np.zeros((audio.SR, 2), np.float32)
     # 1 s de silence, le morceau (2 s), puis le morceau suivant enchaîné sans silence
     heard = np.concatenate([quiet, tone(220, 2.0, amp=0.3), tone(880, 3.0, amp=0.3)])
@@ -57,12 +57,14 @@ def test_capture_creates_a_project_named_after_the_song(tmp_path, monkeypatch):
 
     result = runner.invoke(app, ["capture", "--play"])
     assert result.exit_code == 0, result.output
-    p = Project(tmp_path / "freed-from-desire")
+    p = Project(tmp_path / "gala--freed-from-desire")
     assert p.song["title"] == "Freed From Desire" and p.song["artist"] == "Gala"
     assert calls["restart"] == ["/t/1"] and calls["pause"] == 1
     # coupé à la durée annoncée par Spotify (+ marge) : le morceau suivant n'y est presque pas
     assert 2.0 <= p.song["duration"] <= 3.3
-    assert runner.invoke(app, ["capture", "freed-from-desire"]).exit_code != 0  # n'écrase pas un projet
+    assert runner.invoke(app, ["capture", "gala--freed-from-desire"]).exit_code != 0  # n'écrase pas un projet
+    assert runner.invoke(app, ["capture", "Gala"]).exit_code == 0  # un nom donné reste tel quel
+    assert Project(tmp_path / "Gala").song["artist"] == "Gala"
 
 
 def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, monkeypatch):

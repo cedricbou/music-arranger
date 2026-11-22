@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -93,7 +94,14 @@ def confirm(question: str) -> bool:
 
 
 def slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    """`Dieu m'a donné la foi` donne `dieu-m-a-donne-la-foi` : les accents perdent leur signe, pas leur lettre."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
+
+
+def folder_name(title: str, artist: str = "") -> str:
+    """Le dossier d'un morceau : `avril-lavigne--complicated`, l'artiste d'abord pour trier ; le titre seul sans artiste."""
+    return f"{slug(artist)}--{slug(title)}" if slug(artist) else slug(title)
 
 
 def downbeats(p: Project) -> list[float]:

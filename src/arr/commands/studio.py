@@ -15,9 +15,9 @@ from arr import audio
 from arr.app import ANALYSIS, ORIGINAL, app
 from arr.commands._common import (
     add_track,
+    folder_name,
     lead_in,
     load_track,
-    slug,
 )
 from arr.commands._screen import live, song_chart, timeline, view
 from arr.project import Project, ProjectError
@@ -25,7 +25,10 @@ from arr.project import Project, ProjectError
 
 @app.command()
 def capture(
-    name: Optional[str] = typer.Argument(None, help="Nom du projet à créer ; par défaut, le titre lu dans Spotify."),
+    name: Optional[str] = typer.Argument(
+        None,
+        help="Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (avril-lavigne--complicated).",
+    ),
     play_: bool = typer.Option(
         False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."
     ),
@@ -77,7 +80,7 @@ def capture(
     track = state["track"]
     if track and track["length"]:
         data = data[: int((track["length"] + 1.0) * audio.SR)]  # coupe le début du morceau suivant
-    name = name or (slug(track["title"]) if track else None)
+    name = name or (folder_name(track["title"], track["artist"]) if track else None)
     if not name:
         raise ProjectError("donne un nom de projet : arr capture <nom>")
     p = Project.create(Path(name), track["title"] if track else name)
