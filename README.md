@@ -75,7 +75,7 @@ arr share t001.guitar                   # dossier pour le guitariste
 ```
 arr levels                         # vérifie que le son arrive sur 7/8 et règle le gain
 arr capture --play                 # enregistre le morceau en cours dans Spotify, du début à la fin
-cd freed-from-desire               # le projet porte le titre du morceau
+cd gala--freed-from-desire         # le projet porte l'artiste et le titre du morceau
 arr lyrics fetch                   # artiste et titre sont déjà connus
 
 arr split
@@ -98,6 +98,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   fin du morceau (changement de titre dans Spotify, sinon 3 s de silence). Avec `--play`,
   il relance lui-même le morceau depuis le début et met Spotify en pause à la fin. Sans
   Spotify : `arr capture mon-projet`, puis lance la lecture dans n'importe quel lecteur.
+- **Nom du projet** : l'artiste puis le titre lus dans Spotify (`avril-lavigne--complicated`),
+  pour trier et retrouver ses morceaux. `arr rename`, depuis le dossier des projets, nomme
+  ainsi les plus anciens et met les setlists à jour.
 - **Volume des captures** : chaque capture est ramenée au même volume perçu (-16 LUFS par
   défaut) par un seul gain global, plafonné pour que les crêtes restent sous -1 dB. Le
   réglage de gain de la table n'a donc plus besoin d'être identique d'un jour à l'autre ;
@@ -181,6 +184,7 @@ d'un instrument note à note.
 | Commande | Effet |
 |---|---|
 | `arr init NOM [--from FICHIER]` | crée le projet, importe le morceau |
+| `arr rename [--yes]` | nomme chaque dossier de morceau `artiste--titre`, setlists comprises |
 | `arr import FICHIER` | remplace le morceau original |
 | `arr import FICHIER --as PISTE` | ajoute un enregistrement comme piste |
 | `arr transcribe` | partition dans `score/`, tempo, tonalité, sections |

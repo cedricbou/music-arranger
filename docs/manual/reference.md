@@ -6,8 +6,10 @@ Toutes les commandes d'`arr`, avec leurs arguments et leurs options, dans l'ordr
 `arr --help`. Cette page est produite à partir du code : elle est toujours à jour. Pour
 des explications et des exemples, voir les autres pages du [manuel](README.md).
 
+- [`arr sheet`](#arr-sheet) : Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
 - [`arr init`](#arr-init) : Crée un projet dans le dossier NAME.
 - [`arr import`](#arr-import) : Ajoute un morceau complet, ou une piste avec --as.
+- [`arr rename`](#arr-rename) : Nomme le dossier de chaque morceau d'après son artiste et son titre (avril-lavigne--complicated).
 - [`arr analyze`](#arr-analyze) : Détecte temps, mesures, tempo et tonalité.
 - [`arr transcribe`](#arr-transcribe) : Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections.
 - [`arr render`](#arr-render) : Rend une prise complète du morceau (voix et groupe) à partir de la partition.
@@ -25,7 +27,6 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 - [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
 - [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
-- [`arr sheet`](#arr-sheet) : Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -46,6 +47,24 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr midi send`](#arr-midi-send) : Envoie un changement de programme ou un contrôleur, pour tester une pédale.
 - [`arr midi monitor`](#arr-midi-monitor) : Affiche les messages MIDI reçus, pour voir ce qu'envoie une pédale ou un clavier.
 - [`arr models pull`](#arr-models-pull) : Installe les modèles et leurs moteurs, et les met à jour (seule commande qui télécharge des modèles).
+
+## `arr sheet`
+
+```
+arr sheet [OPTIONS]
+```
+
+Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
+
+Tant que sheet.toml n'existe pas, elle est déduite du projet. Dès qu'il existe, lui seul fait foi : modifie-le pour montrer moins, plus, ou autre chose.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--edit` | non | Écrit la proposition dans sheet.toml s'il manque, et l'ouvre. |
+| `--note` |  | Ajoute un rappel à l'antisèche. |
+| `--transpose` |  | Demi-tons de transposition : --transpose=-2 joue un ton plus bas ; 0 pour l'original. |
+| `--reset` | non | Revient à la proposition ; sheet.toml part dans trash/. |
+| `--pdf` | non | Écrit aussi export/sheet.pdf, pour voir l'antisèche imprimée. |
 
 ## `arr init`
 
@@ -78,6 +97,20 @@ Ajoute un morceau complet, ou une piste avec --as.
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--as` |  | Importer comme piste (stem ou idée), ex. bass. |
+
+## `arr rename`
+
+```
+arr rename [OPTIONS]
+```
+
+Nomme le dossier de chaque morceau d'après son artiste et son titre (avril-lavigne--complicated).
+
+À lancer depuis le dossier qui contient les projets. Les setlists suivent. Un morceau sans artiste, ou dont le nouveau nom est déjà pris, garde son dossier.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--yes`, `-y` | non | Renomme sans demander. |
 
 ## `arr analyze`
 
@@ -340,24 +373,6 @@ Mesure le décalage de la prise (harmonie, puis attaques) et l'inscrit comme ré
 |---|---|---|
 | `--report` | non | Mesure et affiche le décalage par section, sans rien régler. |
 
-## `arr sheet`
-
-```
-arr sheet [OPTIONS]
-```
-
-Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
-
-Tant que sheet.toml n'existe pas, elle est déduite du projet. Dès qu'il existe, lui seul fait foi : modifie-le pour montrer moins, plus, ou autre chose.
-
-| Option | Défaut | Rôle |
-|---|---|---|
-| `--edit` | non | Écrit la proposition dans sheet.toml s'il manque, et l'ouvre. |
-| `--note` |  | Ajoute un rappel à l'antisèche. |
-| `--transpose` |  | Demi-tons de transposition : --transpose=-2 joue un ton plus bas ; 0 pour l'original. |
-| `--reset` | non | Revient à la proposition ; sheet.toml part dans trash/. |
-| `--pdf` | non | Écrit aussi export/sheet.pdf, pour voir l'antisèche imprimée. |
-
 ## `arr capture`
 
 ```
@@ -372,7 +387,7 @@ L'enregistrement démarre tout seul au premier son et s'arrête à la fin du mor
 
 | Argument | Défaut | Rôle |
 |---|---|---|
-| `NAME` |  | Nom du projet à créer ; par défaut, le titre lu dans Spotify. |
+| `NAME` |  | Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (avril-lavigne--complicated). |
 
 | Option | Défaut | Rôle |
 |---|---|---|

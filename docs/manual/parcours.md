@@ -10,7 +10,7 @@ Capturer un morceau qui joue sur l'ordinateur, le découper en pistes, jouer par
 ```
 arr levels                    # le son arrive-t-il sur les bons canaux ? régler le gain
 arr capture --play            # enregistre le morceau en cours dans Spotify, du début à la fin
-cd murder-on-the-dancefloor   # le projet porte le titre du morceau
+cd sophie-ellis-bextor--murder-on-the-dancefloor   # l'artiste, puis le titre
 arr split                     # sépare en pistes : drums, bass, guitar, piano, vocals, other
 arr tracks                    # ce qui joue dans le mix
 arr play --without bass       # le morceau sans la basse
@@ -42,6 +42,11 @@ arr play --without bass       # le morceau sans la basse
 - Sans Spotify : `arr capture mon-projet`, puis lancez la lecture dans n'importe quel
   lecteur. L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence.
 - Avec un fichier que vous avez déjà : `arr init mon-projet --from morceau.flac`.
+- Le dossier porte l'artiste puis le titre, `ls` les trie donc par artiste. Les accents
+  perdent leur signe : « Ophélie Winter » donne `ophelie-winter`. Pour nommer ainsi des
+  morceaux plus anciens, lancez `arr rename` depuis le dossier des projets : la commande
+  montre les renommages prévus, demande confirmation, puis met les setlists à jour. Un
+  morceau sans artiste, ou dont le nom voulu est déjà pris, garde son dossier.
 - Sur de la musique électronique, la distinction guitare/piano n'a pas de sens : `arr split
   --model htdemucs_ft` donne quatre pistes plus propres, ou `arr merge guitar piano other
   --as synth` réunit les pistes après coup.
@@ -229,7 +234,7 @@ donc une nouvelle setlist les reprend telles quelles.
 ```
 cd ~/Musique                                   # le dossier des projets
 arr set new bar-du-port gala what-s-up maldon --title "Bar du Port, 14 novembre"
-arr set add bar-du-port murder-on-the-dancefloor --at 2    # en deuxième
+arr set add bar-du-port sophie-ellis-bextor--murder-on-the-dancefloor --at 2   # en deuxième
 arr set add bar-du-port --break                            # un entracte
 arr set show bar-du-port                       # ordre, tonalités, tempos, durée totale
 arr set edit bar-du-port                       # réordonner, retirer, régler pour ce concert
