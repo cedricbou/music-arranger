@@ -383,15 +383,15 @@ Enregistre ce que joue l'ordinateur dans un nouveau projet.
 
 Le volume est ramené à une cible commune (-16 LUFS par défaut), pour que toutes les captures soient au même niveau quel que soit le gain réglé sur la table ce jour-là.
 
-L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau (changement de titre dans Spotify, ou silence). Ctrl+C arrête aussi.
+L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau (changement de titre dans le lecteur multimédia, ou silence). Ctrl+C arrête aussi. Le lecteur suivi est celui qui joue, ou celui que nomme `player` dans audio.toml.
 
 | Argument | Défaut | Rôle |
 |---|---|---|
-| `NAME` |  | Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (paper-lanterns--night-drive). |
+| `NAME` |  | Nom du projet à créer ; par défaut, l'artiste et le titre lus dans le lecteur multimédia (paper-lanterns--night-drive). |
 
 | Option | Défaut | Rôle |
 |---|---|---|
-| `--play` | non | Relance le morceau Spotify courant depuis le début, et met en pause à la fin. |
+| `--play` | non | Relance le morceau courant du lecteur multimédia depuis le début, et le met en pause à la fin. |
 | `--silence` | `3.0` | Secondes de silence qui terminent l'enregistrement. |
 | `--raw` | non | Garde le niveau tel qu'enregistré, sans le ramener au volume cible. |
 
@@ -439,7 +439,7 @@ arr levels [OPTIONS]
 
 Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
 
-Lance Spotify (ou --tone), regarde quels canaux bougent et règle le gain pour que les crêtes arrivent entre -18 et -3 dB. Ctrl+C affiche le bilan.
+Lance la lecture (ou --tone), regarde quels canaux bougent et règle le gain pour que les crêtes arrivent entre -18 et -3 dB. Ctrl+C affiche le bilan.
 
 | Option | Défaut | Rôle |
 |---|---|---|

@@ -51,7 +51,7 @@ partition, puis séparer la prise. Lire les fiches avant de toucher à la géné
 5. **Un agent ne peut pas écouter.** Mesurer (`arr check`, `arr.measure`), dire dans la PR ce qui est
    mesuré et ce qui reste à l'oreille (`--notes`) ; jamais une qualité sonore. Livrée, une issue dont
    il ne reste que l'écoute se ferme : l'essai rejoint l'issue de session d'écoute.
-6. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test** : sortie PipeWire virtuelle,
+6. **Ni enceintes, ni lecteur multimédia, ni MIDI vers la pédale pour un test** : sortie PipeWire virtuelle,
    « Midi Through » (« Audio en direct »). Ne rien supprimer hors du dépôt sans demande ; les projets
    (`~/Musique/...`) se lisent sans les modifier. `.claude/settings.json` refuse les lecteurs directs,
    le push sur `main` et l'écriture dans `~/Musique` ; le reste n'est pas vérifié.
@@ -101,7 +101,7 @@ src/arr/
   pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   midi.py                   MIDI en direct : ports et envoi (aplaymidi), écoute (aseqdump), messages
-  spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
+  player.py                 lecteur multimédia local par D-Bus MPRIS (choix, titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
   engines/_sheetsage2.py    script exécuté par l'environnement SheetSage2, n'importe pas arr
@@ -121,11 +121,11 @@ Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifi
 
 - Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
   nouveau module, importé dans `cli.py` (non vérifié). Un fichier de plus de 400 lignes se découpe.
-- Les commandes parlent à la carte son par `studio.py`, au MIDI par `midi.py`, à Spotify par
-  `spotify.py`, aux modèles par `engines/` (ce dernier point non vérifié).
+- Les commandes parlent à la carte son par `studio.py`, au MIDI par `midi.py`, au lecteur par
+  `player.py`, aux modèles par `engines/` (ce dernier point non vérifié).
 - Imports lourds (`torch`, `demucs`, `sounddevice`) **dans** les fonctions : `arr --help` reste instantané.
 - Non vérifiées : les erreurs pour l'utilisateur sont des `ProjectError` (`run()` les affiche sans
-  trace) ; les tests remplacent moteurs et carte son par `monkeypatch` (`engines.*`, `studio`, `spotify`,
+  trace) ; les tests remplacent moteurs et carte son par `monkeypatch` (`engines.*`, `studio`, `player`,
   `lyrics`), tout ajout vient avec son test ; peu de commentaires, pas d'abstraction sans deuxième usage.
 
 ## Conventions audio

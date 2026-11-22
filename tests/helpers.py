@@ -94,17 +94,19 @@ def chunks_of(data, seconds=0.05):
 
 
 def fake_studio(monkeypatch, heard):
-    from arr import spotify, studio
+    from arr import player, studio
 
-    track = {"id": "/t/1", "title": "Night Drive", "artist": "Paper Lanterns", "length": 2.0}
-    calls = {"played": [], "restart": [], "pause": 0}
+    track = {"id": "/t/1", "title": "Night Drive", "artist": "Paper Lanterns", "length": 2.0, "seek": True}
+    # un lecteur ouvert, qui joue ; un test en change la liste par calls["players"] et calls["playing"]
+    vlc = "org.mpris.MediaPlayer2.vlc"
+    calls = {"played": [], "restart": [], "pause": [], "players": [vlc], "playing": {vlc}, "track": track}
     monkeypatch.setattr(
         studio,
         "config",
         lambda: {
             "output": {"device": "", "channels": [1, 2]},
             "input": {"device": "", "channels": [1], "latency_ms": 0},
-            "capture": {"source": "", "channels": [], "loudness": -16.0},
+            "capture": {"source": "", "channels": [], "loudness": -16.0, "player": calls.get("player", "")},
         },
     )
     monkeypatch.setattr(studio, "capture_source", lambda: ("fake.monitor", heard.shape[1]))
@@ -121,9 +123,19 @@ def fake_studio(monkeypatch, heard):
         calls["orders"] += [watch(seconds) for seconds in calls.get("positions", [])]
 
     monkeypatch.setattr(studio, "play", play)
-    monkeypatch.setattr(spotify, "now_playing", lambda playing_only=False: track)
-    monkeypatch.setattr(spotify, "restart", lambda tid: calls["restart"].append(tid))
-    monkeypatch.setattr(spotify, "pause", lambda: calls.__setitem__("pause", calls["pause"] + 1))
+    monkeypatch.setattr(player, "players", lambda: calls["players"])
+    monkeypatch.setattr(player, "playing", lambda name: name in calls["playing"])
+    monkeypatch.setattr(
+        player,
+        "now_playing",
+        lambda name, playing_only=False: (
+            calls["track"] if name in calls["players"] and (name in calls["playing"] or not playing_only) else None
+        ),
+    )
+    monkeypatch.setattr(
+        player, "restart", lambda name, tid: (calls["restart"].append((name, tid)), calls["playing"].add(name))
+    )
+    monkeypatch.setattr(player, "pause", lambda name: calls["pause"].append(name))
     return calls
 
 

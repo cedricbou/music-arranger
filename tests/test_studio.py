@@ -59,12 +59,79 @@ def test_capture_creates_a_project_named_after_the_artist_and_song(tmp_path, mon
     assert result.exit_code == 0, result.output
     p = Project(tmp_path / "paper-lanterns--night-drive")
     assert p.song["title"] == "Night Drive" and p.song["artist"] == "Paper Lanterns"
-    assert calls["restart"] == ["/t/1"] and calls["pause"] == 1
-    # coupé à la durée annoncée par Spotify (+ marge) : le morceau suivant n'y est presque pas
+    vlc = "org.mpris.MediaPlayer2.vlc"
+    assert calls["restart"] == [(vlc, "/t/1")] and calls["pause"] == [vlc]
+    # coupé à la durée annoncée par le lecteur (+ marge) : le morceau suivant n'y est presque pas
     assert 2.0 <= p.song["duration"] <= 3.3
     assert runner.invoke(app, ["capture", "paper-lanterns--night-drive"]).exit_code != 0  # n'écrase pas un projet
     assert runner.invoke(app, ["capture", "Lanterns"]).exit_code == 0  # un nom donné reste tel quel
     assert Project(tmp_path / "Lanterns").song["artist"] == "Paper Lanterns"
+
+
+def test_pick_follows_the_setting_then_the_only_player_then_the_one_playing():
+    from arr.player import pick
+
+    vlc, mpv = "org.mpris.MediaPlayer2.vlc", "org.mpris.MediaPlayer2.mpv"
+    firefox = "org.mpris.MediaPlayer2.firefox.instance_1234"
+    assert pick([vlc], "", set(), required=True) == vlc  # un seul lecteur : pas de réglage à écrire
+    assert pick([vlc], "", set(), required=False) is None  # en pause : le son vient d'ailleurs
+    assert pick([vlc, mpv], "", {mpv}, required=True) == mpv
+    assert pick([vlc, mpv], "", {mpv}, required=False) == mpv
+    assert pick([vlc, firefox], "Firefox", set(), required=True) == firefox  # un fragment du nom suffit
+    assert pick([vlc, mpv], "", set(), required=False) is None
+    with pytest.raises(ProjectError, match=r'player = "vlc"'):  # plusieurs, aucun ne joue : comment choisir
+        pick([vlc, mpv], "", set(), required=True)
+    with pytest.raises(ProjectError, match="lecteurs ouverts : vlc, mpv"):
+        pick([vlc, mpv], "rhythmbox", {vlc}, required=False)
+    with pytest.raises(ProjectError, match="à la main, sans --play"):
+        pick([], "", set(), required=True)
+
+
+def test_now_playing_says_when_the_player_cannot_go_back_to_the_start(monkeypatch):
+    from arr import player
+
+    meta = {"xesam:title": {"data": "Night Drive"}, "mpris:trackid": {"data": "/t/1"}, "mpris:length": {"data": 2e6}}
+    props = {"Metadata": meta, "CanSeek": True, "CanControl": True, "PlaybackStatus": "Playing"}
+    monkeypatch.setattr(player, "_property", lambda name, prop: props[prop])
+    assert player.now_playing("x") == {"id": "/t/1", "title": "Night Drive", "artist": "", "length": 2.0, "seek": True}
+    props["CanSeek"] = False
+    assert not player.now_playing("x")["seek"]
+    props["CanSeek"], meta["mpris:trackid"] = True, {"data": player.NO_TRACK}  # un onglet de navigateur
+    assert not player.now_playing("x")["seek"]
+    props["PlaybackStatus"] = "Paused"
+    assert player.now_playing("x", playing_only=True) is None
+
+
+def test_capture_play_refuses_a_player_that_cannot_seek(tmp_path, monkeypatch):
+    calls = fake_studio(monkeypatch, tone(220, 1.0, amp=0.3))
+    calls["track"] = {**calls["track"], "seek": False}
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["capture", "--play"])
+    assert result.exit_code != 0 and "sans --play" in str(result.exception)
+    assert calls["restart"] == [] and not list(tmp_path.iterdir())
+
+
+def test_capture_play_with_several_players_says_how_to_choose(tmp_path, monkeypatch):
+    calls = fake_studio(monkeypatch, tone(220, 1.0, amp=0.3))
+    calls["players"], calls["playing"] = ["org.mpris.MediaPlayer2.mpv", "org.mpris.MediaPlayer2.vlc"], set()
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["capture", "--play"])
+    assert result.exit_code != 0 and "audio.toml" in str(result.exception) and "mpv, vlc" in str(result.exception)
+    calls["player"] = "vlc"  # le réglage tranche
+    assert runner.invoke(app, ["capture", "--play"]).exit_code == 0
+    assert calls["restart"] == [("org.mpris.MediaPlayer2.vlc", "/t/1")]
+
+
+def test_capture_without_a_player_stops_on_silence_and_needs_a_name(tmp_path, monkeypatch):
+    quiet = np.zeros((4 * audio.SR, 2), np.float32)
+    calls = fake_studio(monkeypatch, np.concatenate([tone(220, 2.0, amp=0.3), quiet, tone(440, 1.0, amp=0.3)]))
+    calls["players"], calls["playing"] = [], set()
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["capture"])
+    assert result.exit_code != 0 and "arr capture <nom>" in str(result.exception)
+    assert runner.invoke(app, ["capture", "my-song"]).exit_code == 0
+    p = Project(tmp_path / "my-song")
+    assert "artist" not in p.song and 2.0 <= p.song["duration"] <= 3.0  # arrêt sur le silence
 
 
 def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, monkeypatch):

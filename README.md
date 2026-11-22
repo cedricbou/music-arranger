@@ -95,10 +95,10 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
 
 - **`arr capture`** enregistre ce que joue l'ordinateur tel qu'il revient sur la table :
   par défaut, les entrées 7/8 de la Soundcraft. Il démarre au premier son et s'arrête après
-  3 s de silence. Avec le lecteur Spotify de bureau, il lit aussi le titre et l'artiste,
-  s'arrête au changement de morceau, et `--play` relance le morceau depuis le début
+  3 s de silence. Avec un lecteur multimédia de bureau (VLC, mpv, Rhythmbox...), il lit aussi le titre et
+  l'artiste, s'arrête au changement de morceau, et `--play` relance le morceau depuis le début
   ([configuration audio](docs/manual/audio.md)).
-- **Nom du projet** : sans nom donné, l'artiste puis le titre lus dans Spotify
+- **Nom du projet** : sans nom donné, l'artiste puis le titre lus dans le lecteur
   (`paper-lanterns--night-drive`), pour trier et retrouver ses morceaux. `arr rename`, depuis
   le dossier des projets, nomme ainsi les plus anciens et met les setlists à jour.
 - **Droits** : une capture sert à travailler un morceau chez soi, avec son groupe. Capture
@@ -111,7 +111,7 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   défaut) par un seul gain global, plafonné pour que les crêtes restent sous -1 dB. Le
   réglage de gain de la table n'a donc plus besoin d'être identique d'un jour à l'autre ;
   il suffit qu'il ne sature pas. `--raw` garde le niveau tel qu'enregistré.
-- **`arr levels`** affiche un vumètre par canal de la table. Lance Spotify (ou
+- **`arr levels`** affiche un vumètre par canal de la table. Lance la lecture (ou
   `arr levels --tone`, qui joue un son de référence à -12 dB), regarde quels canaux bougent
   et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
 - **Pause et retour en arrière** : pendant `arr play`, Espace met en pause, ← revient à la
@@ -308,5 +308,5 @@ lire ses conditions.
 Les morceaux, les paroles téléchargées et tout ce qui en est tiré restent la propriété de leurs
 auteurs. Les morceaux et artistes des exemples sont inventés.
 
-Spotify, PreSonus, Soundcraft, Boss, MuseScore et les autres marques citées appartiennent à leurs
+PreSonus, Soundcraft, Boss, MuseScore et les autres marques citées appartiennent à leurs
 propriétaires respectifs ; `arr` les nomme pour décrire une compatibilité, sans affiliation.

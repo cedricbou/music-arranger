@@ -28,7 +28,9 @@ règle sur la table. Tout passe par PipeWire.
 - **Latence** : mesurée par `arr calibrate` (clics rejoués, corrélation), écrite dans
   `~/.config/arr/audio.toml`. Le son de l'ordinateur revient déjà sur le canal 7 : aucun
   câble à ajouter.
-- **Spotify** : lecture du titre, relance et pause par D-Bus (MPRIS), en local.
+- **Lecteur multimédia** : lecture du titre, relance et pause par D-Bus (MPRIS), en local,
+  avec n'importe quel lecteur de bureau. Le lecteur suivi est celui qui joue, ou celui dont
+  `capture.player` (un fragment du nom, comme `device`) désigne le nom D-Bus.
 
 ## Mesures
 
@@ -39,5 +41,5 @@ réelle, `calibrate` a mesuré 68 ms.
 ## Conséquences
 
 - Pour tester l'audio en direct, un agent crée une sortie virtuelle silencieuse et pointe
-  `ARR_AUDIO` dessus. Il ne joue jamais sur les enceintes et ne pilote jamais Spotify.
+  `ARR_AUDIO` dessus. Il ne joue jamais sur les enceintes et ne pilote jamais un vrai lecteur multimédia.
 - `arr record` refuse de garder une prise silencieuse.
