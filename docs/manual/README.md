@@ -12,7 +12,7 @@ complète.
 | [Installation](installation.md) | prérequis, installation, modèles, vérification, mise à jour |
 | [Notions](notions.md) | projet, pistes, versions, prises, sections : le vocabulaire de l'outil |
 | [Parcours](parcours.md) | les enchaînements de commandes pour les usages courants |
-| [Configuration audio](audio.md) | carte son, canaux, latence, selon votre matériel |
+| [Configuration audio](audio.md) | carte son, canaux, latence, pédales MIDI, selon votre matériel |
 | [Référence des commandes](reference.md) | chaque commande, chaque option (page générée) |
 | [Dépannage](depannage.md) | les messages d'erreur et les symptômes, avec leur remède |
 

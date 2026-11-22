@@ -24,7 +24,8 @@ greffés (sa guitare, sa batterie, tout le groupe) ; `arr split` mesure si c'est
 ## Installation
 
 Prérequis : `uv`, `ffmpeg`, PipeWire (avec `pipewire-pulse` et `pipewire-jack`), `portaudio`,
-pilotes Intel (`intel-compute-runtime`, `level-zero-loader`, `vulkan-intel`).
+`alsa-utils` (pour le MIDI), pilotes Intel (`intel-compute-runtime`, `level-zero-loader`,
+`vulkan-intel`).
 
 ```
 cd ~/dev/music-arranger
@@ -83,6 +84,9 @@ arr play -o drums -o vocals        # seulement batterie et voix
 arr play -s chorus --loop --count-in 1   # le refrain en boucle, après une mesure de décompte
 arr play -s verse,chorus -w bass         # couplet puis refrain, sans la basse
 
+arr midi ports                     # les ports MIDI ; ▶ marque celui qui sert
+arr midi send --pc 5               # la pédale doit changer de son
+
 arr calibrate                      # une fois : mesure la latence de ton installation
 arr record bass                    # décompte d'une mesure, puis tu joues sur le playback
 arr record bass --click -w guitar  # avec métronome, playback sans la guitare
@@ -110,6 +114,12 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   même flux. Le décompte mène au premier temps fort du morceau ; il lui faut le tempo
   (`arr transcribe` ou `arr analyze`). Tu t'entends par la table, pas par l'ordinateur. Une
   prise silencieuse n'est pas gardée.
+- **Pédales MIDI** : si la carte son a une prise MIDI OUT, `arr midi send --pc 5` fait
+  changer de son un multi-effets (un Boss GT-6B par exemple), `arr midi send --cc 7
+  --value 0` envoie un contrôleur, et `arr midi monitor` montre ce que la pédale envoie
+  quand tu appuies dessus. `arr midi ports` liste les ports et marque celui qui sert.
+  Les programmes se comptent de 1 à 128 comme sur la pédale, et les octets envoyés sont
+  affichés. Rien n'est jamais écrit dans la pédale.
 - **`arr calibrate`** joue six clics et les réenregistre sur le canal où revient le son de
   l'ordinateur (le 7), puis note le retard mesuré : aucun câble à ajouter. Sans calibration,
   `arr record` compense 21 ms, le minimum du système.
@@ -140,6 +150,10 @@ source = ""              # "" = entrées de la Soundcraft ; "monitor" = copie nu
                          # la sortie, sans passer par la table ni régler de gain
 channels = [7, 8]
 loudness = -16.0         # volume cible des captures, en LUFS
+
+[midi]
+port = ""                # fragment du nom du port MIDI ; "" = le premier port matériel
+channel = 1              # canal des messages envoyés aux pédales
 ```
 
 ## Itérer
@@ -183,6 +197,9 @@ d'un instrument note à note.
 | `arr levels [--tone] [--seconds S] [--source NOM]` | vumètre par canal, pour vérifier le câblage et régler le gain |
 | `arr calibrate [--channel N]` | mesure et note la latence d'enregistrement |
 | `arr devices` | réglages audio effectifs et périphériques |
+| `arr midi ports` | ports MIDI de la machine, et celui qu'`arr` utilise |
+| `arr midi send [--pc N] [--cc N --value V] [--bank N] [--channel N] [--port NOM]` | envoie un changement de programme ou un contrôleur à une pédale |
+| `arr midi monitor [--port NOM] [--seconds S]` | affiche les messages MIDI reçus d'une pédale ou d'un clavier |
 
 ### Prises
 

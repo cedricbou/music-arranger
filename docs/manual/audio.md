@@ -1,12 +1,13 @@
 # Configuration audio
 
-`arr` a besoin de savoir trois choses sur votre matériel :
+`arr` a besoin de savoir quatre choses sur votre matériel :
 
 | Question | Réglage | Commandes concernées |
 |---|---|---|
 | Où jouer le son ? | `[output]` | `arr play`, `arr record`, `arr calibrate`, `arr levels --tone` |
 | Où écouter ce que joue l'ordinateur ? | `[capture]` | `arr capture`, `arr levels` |
 | Sur quelle entrée est votre instrument ? | `[input]` | `arr record`, `arr calibrate` |
+| Par où sortent les messages MIDI ? | `[midi]` | `arr midi send`, `arr midi monitor` |
 
 Les réglages vivent dans `~/.config/arr/audio.toml`. Le fichier est facultatif : sans lui,
 `arr` applique les valeurs par défaut décrites plus bas. La variable d'environnement
@@ -44,6 +45,10 @@ latency_ms = 68.0        # écrit par arr calibrate ; à ne pas remplir à la ma
 source = ""              # voir le tableau ci-dessous
 channels = [7, 8]        # [] = la paire de canaux qui porte le signal
 loudness = -16.0         # volume cible des captures, en LUFS
+
+[midi]
+port = ""                # fragment du nom du port MIDI, ou son adresse ; "" = le premier port matériel
+channel = 1              # canal des messages envoyés aux pédales
 ```
 
 | Clé | Valeurs | Sans réglage |
@@ -56,6 +61,8 @@ loudness = -16.0         # volume cible des captures, en LUFS
 | `capture.source` | `""`, `"monitor"`, ou le nom d'une source PipeWire | voir ci-dessous |
 | `capture.channels` | deux numéros de canaux, ou `[]` | `[7, 8]` avec la Soundcraft, sinon `[]` |
 | `capture.loudness` | un volume en LUFS | `-16.0` |
+| `midi.port` | fragment d'un nom de port MIDI, son adresse (`20:0`), ou `""` | le premier port matériel |
+| `midi.channel` | un canal de 1 à 16 | `1` |
 
 Les trois valeurs de `capture.source` :
 
@@ -171,6 +178,33 @@ résultat dans `audio.toml`. `arr record` décale ensuite chaque prise d'autant.
 - `arr calibrate --channel N` mesure sur une autre entrée.
 - Refaites la mesure si vous changez de carte son ou de réglage de tampon.
 - Sans mesure, `arr record` compense 21,3 ms, et vos prises seront un peu en retard.
+
+## Pédales MIDI
+
+Si votre carte son a une prise MIDI OUT, `arr` peut y envoyer des messages : de quoi faire
+changer de son un multi-effets (un Boss GT-6B, par exemple) depuis l'ordinateur. Rien n'est
+jamais écrit dans la pédale : aucun SysEx, aucune sauvegarde ni restauration de patches.
+
+```
+arr midi ports                     # les ports MIDI, et celui qu'arr utilise (marqué ▶)
+arr midi send --pc 5               # changement de programme : la pédale doit changer de son
+arr midi send --cc 7 --value 0     # un contrôleur, ici le volume à 0
+arr midi monitor                   # ce que la pédale envoie, quand vous appuyez dessus
+```
+
+Le port à retenir est celui de l'interface qui porte la prise MIDI OUT (ici `iTwo`) ; les
+ports `System`, `Midi Through` et `PipeWire` ne mènent à aucun instrument et ne sont jamais
+choisis tout seuls.
+
+- Les numéros de programme vont de **1 à 128**, comme les affichent les pédales. Les octets
+  réellement envoyés sont repris dans la sortie (`changement de programme 5, canal 1
+  (C0 04)`) : si votre pédale compte à partir de 0, l'écart se voit tout de suite.
+- `--channel N` pour un autre canal que celui d'`audio.toml`, `--port NOM` pour un autre
+  port, `--bank N` pour une banque (contrôleurs 0 et 32) avant le programme.
+- La pédale doit écouter le même canal, et sa table de correspondance décide quel patch
+  répond à quel numéro de programme (chez Boss : « MIDI » dans l'utilitaire).
+- `arr midi monitor` ne montre rien si la pédale n'envoie pas ses changements de programme
+  (chez Boss, le réglage « MIDI PC OUT ») ou si son câble MIDI OUT n'est pas branché.
 
 ## Spotify
 

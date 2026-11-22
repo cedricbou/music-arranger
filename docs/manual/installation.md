@@ -7,6 +7,7 @@
 | Linux avec PipeWire, `pipewire-pulse` et `pipewire-jack` | lecture, capture et enregistrement |
 | `uv` | installe Python 3.11 et les dépendances |
 | `ffmpeg`, `portaudio` | conversions audio, accès à la carte son |
+| `alsa-utils` | messages MIDI vers les pédales (`arr midi`) ; inutile sans pédale |
 | une carte Intel Arc avec ses pilotes (`intel-compute-runtime`, `level-zero-loader`, `vulkan-intel`) | séparation en pistes, transcription, prises |
 | environ 6 Go de disque | modèles et moteurs |
 

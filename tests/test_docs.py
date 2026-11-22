@@ -101,16 +101,14 @@ def test_every_command_and_parameter_is_described():
 
 
 def test_every_audio_setting_is_in_the_manual(monkeypatch):
-    from arr import studio
+    from arr import midi, studio
 
     monkeypatch.setattr(studio, "CONFIG", ROOT / "absent.toml")
     monkeypatch.setattr(studio, "_device_names", lambda: [])
     page = (MANUAL / "audio.md").read_text()
+    settings = {**studio.config(), "midi": midi.settings()}  # audio.toml porte aussi la section [midi]
     missing = [
-        f"{section}.{key}"
-        for section, keys in studio.config().items()
-        for key in keys
-        if f"`{section}.{key}`" not in page
+        f"{section}.{key}" for section, keys in settings.items() for key in keys if f"`{section}.{key}`" not in page
     ]
     assert not missing, f"réglages d'audio.toml absents de docs/manual/audio.md : {missing}"
 

@@ -12,9 +12,11 @@ sections_app = typer.Typer(help="Parties du morceau (intro, couplet, refrain...)
 models_app = typer.Typer(help="Poids des modèles.", no_args_is_help=True)
 lyrics_app = typer.Typer(help="Paroles du morceau.", no_args_is_help=True)
 set_app = typer.Typer(help="Setlists : l'ordre d'un concert, et ses antisèches à imprimer.", no_args_is_help=True)
+midi_app = typer.Typer(help="MIDI : tester et piloter les pédales de scène.", no_args_is_help=True)
 app.add_typer(sections_app, name="sections")
 app.add_typer(lyrics_app, name="lyrics")
 app.add_typer(set_app, name="set")
+app.add_typer(midi_app, name="midi")
 app.add_typer(models_app, name="models")
 
 

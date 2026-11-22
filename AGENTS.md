@@ -12,9 +12,8 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 
 ## Contraintes non négociables
 
-- **Local uniquement.** Aucun service distant ne reçoit l'audio de l'utilisateur.
-- **Réseau limité à deux commandes** : `arr models pull` et `arr lyrics fetch` (artiste et
-  titre envoyés à lrclib.net). Le reste tourne hors ligne (`engines.offline()`).
+- **Local uniquement.** Aucun service distant ne reçoit l'audio. Réseau limité à deux commandes :
+  `arr models pull` et `arr lyrics fetch` (artiste et titre à lrclib.net) ; sinon `engines.offline()`.
 - **Intel Arc A770, 16 Go.** PyTorch XPU et Vulkan ; pas de CUDA, pas de float64 ni de bf16
   sur le GPU.
 - **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version, jamais
@@ -26,7 +25,7 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 Générer une piste d'instrument qui s'accorde à une bande existante a été essayé de cinq
 façons et abandonné. Ce qui marche : faire rejouer le morceau entier par YuE2 à partir de sa
 partition, puis séparer la prise. Lire les fiches avant de toucher à la génération (001,
-002), à la chaîne audio (003), au calage (004), au volume (005) ou à la grille de mesures (008).
+002), à la chaîne audio (003), au calage (004), au volume (005), à la grille (008) ou au MIDI (011).
 
 ## Comment travailler ici
 
@@ -37,8 +36,8 @@ partition, puis séparer la prise. Lire les fiches avant de toucher à la géné
    si un fichier apparaît, fiche dans `docs/decisions/` si un choix structurant est fait.
 4. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure`, dire dans la
    PR ce qui est mesuré et ce qui reste à juger à l'oreille. Ne jamais annoncer une qualité sonore.
-5. **Ne jamais jouer sur les enceintes ni piloter Spotify pour un test.** L'audio en direct
-   se teste sur une sortie PipeWire virtuelle (voir « Audio en direct »).
+5. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test.** Le son se teste sur une
+   sortie PipeWire virtuelle, le MIDI sur « Midi Through » (voir « Audio en direct »).
 6. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
    ailleurs (`~/Musique/...`) et se lisent sans les modifier.
 
@@ -58,8 +57,7 @@ Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue
 uv sync                   # environnement (Python 3.11, épinglé dans .python-version)
 uv run pytest -q          # ~5 s, sans GPU, sans modèle, sans carte son
 uv run ruff check . && uv run ruff format .
-uv run arr doctor         # GPU et présence des moteurs
-uv run arr <commande>     # depuis un dossier de projet, ex. demo/gala-yue2 (hors git)
+uv run arr doctor         # GPU et moteurs ; `uv run arr <commande>` depuis un projet (demo/gala-yue2)
 # La CI (.github/workflows/ci.yml) lance lint, format et tests sur chaque PR.
 ```
 
@@ -79,6 +77,7 @@ src/arr/
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/studio.py        capture, record, calibrate, levels
+  commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
@@ -87,6 +86,7 @@ src/arr/
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
   pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
+  midi.py                   MIDI en direct : ports et envoi (aplaymidi), écoute (aseqdump), messages
   spotify.py                lecteur Spotify local par D-Bus MPRIS (titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
@@ -96,17 +96,16 @@ src/arr/
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
-  test_docs.py              la documentation suit le code (README, manuel, carte du code, fiches)
-  test_slow.py              vrais moteurs sur signal synthétique : `uv run pytest -m slow`, hors CI
+  test_docs.py, test_slow.py   la doc suit le code ; vrais moteurs sur signal (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
-  test_sheet.py, test_studio.py, test_system.py   un fichier par module de commandes (CliRunner)
+  test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module (CliRunner)
 ```
 
 Règles de structure :
 
 - Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
   nouveau module, importé dans `cli.py`. Un fichier de plus de 400 lignes se découpe.
-- Les commandes ne parlent aux modèles que par `engines/`, à la carte son que par `studio.py`.
+- Les commandes parlent aux modèles par `engines/`, à la carte son par `studio.py`, au MIDI par `midi.py`.
 - Imports lourds (`torch`, `demucs`, `sounddevice`) **dans** les fonctions : `arr --help` reste instantané.
 - Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
 - Les tests remplacent moteurs et carte son par `monkeypatch` sur `engines.*`, `studio`,
@@ -127,8 +126,7 @@ Règles de structure :
 
 - Partout : 48 kHz, stéréo, `float32`, forme `(échantillons, 2)`. `audio.convert()` normalise
   tout import et toute sortie de modèle ; `audio.load()` refuse un autre taux.
-- Les pistes d'un projet ont toutes la longueur de l'original (`audio.fit`) ; les prises
-  gardent la leur, leurs stems sont ajustés par `split`.
+- Pistes à la longueur de l'original (`audio.fit`) ; une prise garde la sienne (stems par `split`).
 - Une plage seulement : `audio.splice()`. Volume : `audio.normalize()`, jamais `loudnorm`.
 
 ## Moteurs externes
@@ -148,3 +146,5 @@ sortie par défaut** (fiche 003). Les autres installations sont décrites dans `
   et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
 - **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
   virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.
+- **MIDI** : `midi.py` envoie par `aplaymidi` (`aseqsend` n'atteint pas la carte), écoute par `aseqdump`.
+  Tester sur « Midi Through », jamais la pédale ; `/proc/asound/card*/midi0` prouve ce qui sort (fiche 011).
