@@ -21,6 +21,14 @@ demo/
 *.midi
 *.pdf
 *.lrc
+
+# Poids des modèles : arr models pull les range hors du dépôt
+*.gguf
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
 lyrics.txt
 export/
 setlists/

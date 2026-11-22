@@ -295,9 +295,15 @@ qui gardent leur propre licence :
 
 | Modèle ou programme | Licence |
 | :--- | :--- |
-| YuE2, SheetSage2 (poids) | CC BY-NC 4.0 : usage non commercial |
-| Demucs, beat_this | MIT |
+| YuE2 (M-A-P, conversion GGUF `audio-cpp/Yue2-3B-GGUF`) | CC BY-NC 4.0 : attribution, usage non commercial |
+| SheetSage2 (M-A-P) | CC BY-NC 4.0 : attribution, usage non commercial |
+| beat_this (CPJKU, université Johannes Kepler de Linz) | MIT |
+| Demucs (Alexandre Défossez, Meta AI) | MIT |
 | audio.cpp | celle de sa release officielle |
+
+Ces licences ne s'étendent pas au code d'`arr`, qui ne contient ni ne redistribue aucun poids.
+Les prises rendues par YuE2 restent soumises à sa licence : avant tout usage commercial,
+lire ses conditions.
 
 Les morceaux, les paroles téléchargées et tout ce qui en est tiré restent la propriété de leurs
 auteurs. Les morceaux et artistes des exemples sont inventés.

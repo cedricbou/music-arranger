@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installe les hooks git qui imposent le cycle issue -> branche -> PR -> merge
 # (la protection de branche GitHub n'est pas disponible sur ce dépôt privé) :
-#   pre-commit  refuse un commit sur main ; lance scripts/check.sh
+#   pre-commit  refuse un commit sur main, puis les titres, artistes et paroles des projets de
+#               l'utilisateur (scripts/check_names.py) ; lance scripts/check.sh
 #   commit-msg  ajoute « Refs #n » (n° d'issue de la branche) si le message n'en cite aucune
 #   pre-push    refuse de pousser sur main (passer par scripts/feature.sh merge)
 # Contourner exceptionnellement, à la demande de l'utilisateur : ARR_ALLOW_MAIN=1 git ...
@@ -17,6 +18,7 @@ if [[ ($b == main || $b == master) && -z ${ARR_ALLOW_MAIN:-} ]]; then
   echo "✗ pas de commit direct sur $b : scripts/feature.sh start <issue> pour ouvrir une branche" >&2
   exit 1
 fi
+uv run -q python scripts/check_names.py --staged || exit 1
 exec scripts/check.sh
 HOOK
 
