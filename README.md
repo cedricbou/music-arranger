@@ -98,6 +98,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   3 s de silence. Avec le lecteur Spotify de bureau, il lit aussi le titre et l'artiste,
   s'arrête au changement de morceau, et `--play` relance le morceau depuis le début
   ([configuration audio](docs/manual/audio.md)).
+- **Nom du projet** : sans nom donné, l'artiste puis le titre lus dans Spotify
+  (`paper-lanterns--night-drive`), pour trier et retrouver ses morceaux. `arr rename`, depuis
+  le dossier des projets, nomme ainsi les plus anciens et met les setlists à jour.
 - **Droits** : une capture sert à travailler un morceau chez soi, avec son groupe. Capture
   seulement des sources dont tu as le droit de faire une copie privée (CD, fichiers achetés,
   tes propres enregistrements). Les services de streaming interdisent en général
@@ -187,6 +190,7 @@ d'un instrument note à note.
 | Commande | Effet |
 |---|---|
 | `arr init NOM [--from FICHIER]` | crée le projet, importe le morceau |
+| `arr rename [--yes]` | nomme chaque dossier de morceau `artiste--titre`, setlists comprises |
 | `arr import FICHIER` | remplace le morceau original |
 | `arr import FICHIER --as PISTE` | ajoute un enregistrement comme piste |
 | `arr transcribe` | partition dans `score/`, tempo, tonalité, sections |

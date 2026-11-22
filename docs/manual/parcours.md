@@ -44,6 +44,11 @@ arr play --without bass       # le morceau sans la basse
   relance depuis le début ([configuration audio](audio.md), qui dit aussi ce qu'on a le droit
   de capturer).
 - Avec un fichier que vous avez déjà : `arr init mon-projet --from morceau.flac`.
+- Le dossier porte l'artiste puis le titre, `ls` les trie donc par artiste. Les accents
+  perdent leur signe : « Hélène Faure » donne `helene-faure`. Pour nommer ainsi des
+  morceaux plus anciens, lancez `arr rename` depuis le dossier des projets : la commande
+  montre les renommages prévus, demande confirmation, puis met les setlists à jour. Un
+  morceau sans artiste, ou dont le nom voulu est déjà pris, garde son dossier.
 - Sur de la musique électronique, la distinction guitare/piano n'a pas de sens : `arr split
   --model htdemucs_ft` donne quatre pistes plus propres, ou `arr merge guitar piano other
   --as synth` réunit les pistes après coup.
