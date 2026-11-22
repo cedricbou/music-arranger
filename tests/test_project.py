@@ -58,11 +58,11 @@ def test_import_replaces_the_song_or_adds_a_track(tmp_path, monkeypatch):
 
 
 def test_song_folders_are_named_artist_then_title():
-    assert slug("Dieu m'a donné la foi") == "dieu-m-a-donne-la-foi"
-    assert slug("Maldòn - Version originale") == "maldon-version-originale"
-    assert folder_name("Complicated", "Avril Lavigne") == "avril-lavigne--complicated"
-    assert folder_name("What's Up?", "4 Non Blondes") == "4-non-blondes--what-s-up"
-    assert folder_name("shepardxp-cover") == "shepardxp-cover"
+    assert slug("L'été n'a pas duré") == "l-ete-n-a-pas-dure"
+    assert slug("Rivière - Version originale") == "riviere-version-originale"
+    assert folder_name("Night Drive", "Paper Lanterns") == "paper-lanterns--night-drive"
+    assert folder_name("It's Late?", "4 Walls") == "4-walls--it-s-late"
+    assert folder_name("demo-cover") == "demo-cover"
 
 
 def test_rename_names_folders_after_artist_and_title_and_follows_setlists(tmp_path, monkeypatch):
@@ -72,37 +72,37 @@ def test_rename_names_folders_after_artist_and_title_and_follows_setlists(tmp_pa
             p.song["artist"] = artist
         p.save()
 
-    song("complicated", "Complicated", "Avril Lavigne")
-    song("dieu-m-a-donn-la-foi", "Dieu m'a donné la foi", "Ophélie Winter")
-    song("starlight", "Starlight", "The Supermen Lovers")
-    song("the-supermen-lovers--starlight", "Starlight", "The Supermen Lovers")  # le même morceau, capturé deux fois
+    song("night-drive", "Night Drive", "Paper Lanterns")
+    song("l-t-n-a-pas-dur", "L'été n'a pas duré", "Hélène Faure")
+    song("blue-hour", "Blue Hour", "The Night Shifts")
+    song("the-night-shifts--blue-hour", "Blue Hour", "The Night Shifts")  # le même morceau, capturé deux fois
     song("cover", "cover")
     (tmp_path / "setlists").mkdir()
     setlist = tmp_path / "setlists/bar.toml"
     setlist.write_text(
-        'title = "Bar"\nsongs = ["complicated", "---", { song = "dieu-m-a-donn-la-foi", transpose = -2 }, "starlight"]\n'
+        'title = "Bar"\nsongs = ["night-drive", "---", { song = "l-t-n-a-pas-dur", transpose = -2 }, "blue-hour"]\n'
     )
     monkeypatch.chdir(tmp_path)
 
     before = sorted(d.name for d in tmp_path.iterdir())
     result = runner.invoke(app, ["rename"], input="n\n")
-    assert "complicated  ->  avril-lavigne--complicated" in result.output
-    assert "starlight : the-supermen-lovers--starlight existe déjà" in result.output
+    assert "night-drive  ->  paper-lanterns--night-drive" in result.output
+    assert "blue-hour : the-night-shifts--blue-hour existe déjà" in result.output
     assert "cover : pas d'artiste" not in result.output  # déjà au bon nom, rien à dire
     assert sorted(d.name for d in tmp_path.iterdir()) == before  # refusé : rien ne bouge
 
     result = runner.invoke(app, ["rename"], input="o\n")
     assert result.exit_code == 0, result.output
-    assert Project(tmp_path / "avril-lavigne--complicated").song["title"] == "Complicated"
-    assert (tmp_path / "ophelie-winter--dieu-m-a-donne-la-foi/song.toml").exists()
-    assert (tmp_path / "starlight/song.toml").exists() and (tmp_path / "cover/song.toml").exists()
+    assert Project(tmp_path / "paper-lanterns--night-drive").song["title"] == "Night Drive"
+    assert (tmp_path / "helene-faure--l-ete-n-a-pas-dure/song.toml").exists()
+    assert (tmp_path / "blue-hour/song.toml").exists() and (tmp_path / "cover/song.toml").exists()
     assert tomllib.loads(setlist.read_text()) == {
         "title": "Bar",
         "songs": [
-            "avril-lavigne--complicated",
+            "paper-lanterns--night-drive",
             "---",
-            {"song": "ophelie-winter--dieu-m-a-donne-la-foi", "transpose": -2},
-            "starlight",
+            {"song": "helene-faure--l-ete-n-a-pas-dure", "transpose": -2},
+            "blue-hour",
         ],
     }
     assert runner.invoke(app, ["rename", "--yes"]).output.endswith("rien à renommer\n")

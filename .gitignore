@@ -11,6 +11,19 @@ demo/
 *.wav
 *.ogg
 *.mp3
+*.m4a
+*.opus
+*.aif
+*.aiff
+
+# Partitions, paroles et antisèches d'un morceau : elles restent dans les projets
+*.mid
+*.midi
+*.pdf
+*.lrc
+lyrics.txt
+export/
+setlists/
 
 # Réglages personnels de Claude Code pour ce dépôt
 .claude/settings.local.json

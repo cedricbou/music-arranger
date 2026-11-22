@@ -43,7 +43,7 @@ def test_melody_only_strips_chords_but_not_voice_names():
     from arr.engines.yue2 import melody_only
 
     out = melody_only(ABC)
-    assert '"Dm"' not in out and '"C"' not in out and "f4d4z4d4|A4z8e4|" in out
+    assert '"Dm"' not in out and '"C"' not in out and "a4f4z4a4|g4z8c4|" in out
     assert 'name="Vocal Melody"' in out
 
 

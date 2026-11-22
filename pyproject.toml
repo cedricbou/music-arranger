@@ -2,6 +2,7 @@
 name = "arr"
 version = "0.1.0"
 description = "CLI local pour réarranger des morceaux : partition, prises complètes, greffe de stems"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "torch==2.11.0",

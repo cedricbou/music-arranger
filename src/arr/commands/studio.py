@@ -27,7 +27,7 @@ from arr.project import Project, ProjectError
 def capture(
     name: Optional[str] = typer.Argument(
         None,
-        help="Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (avril-lavigne--complicated).",
+        help="Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (paper-lanterns--night-drive).",
     ),
     play_: bool = typer.Option(
         False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."

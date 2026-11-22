@@ -72,7 +72,7 @@ au présent, sans numéro d'issue ni chemin mort (`docs/style-doc.md`, skill `re
 ```
 uv sync                   # environnement (Python 3.11, épinglé dans .python-version)
 scripts/check.sh [--fix]  # ruff, format, pytest, sans GPU ni modèle ni carte son ; aussi en CI
-uv run arr doctor         # GPU et moteurs ; `uv run arr <commande>` depuis un projet (demo/gala-yue2)
+uv run arr doctor         # GPU et moteurs ; `uv run arr <commande>` depuis un projet (par exemple sous demo/)
 ```
 
 ## Carte du code

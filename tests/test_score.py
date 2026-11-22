@@ -53,15 +53,15 @@ def test_lyrics_timestamps_are_shifted_to_the_recording():
 def test_lyrics_fetch_defaults_to_the_project_song(tmp_path, monkeypatch):
     from arr import lyrics
 
-    p = Project.create(tmp_path / "song", "Freed From Desire")
+    p = Project.create(tmp_path / "song", "Night Drive")
     monkeypatch.chdir(p.root)
     asked = []
     monkeypatch.setattr(lyrics, "fetch", lambda artist, title: asked.append((artist, title)) or {"plainLyrics": "la"})
     assert runner.invoke(app, ["lyrics", "fetch"]).exit_code != 0  # pas d'artiste connu
-    p.song["artist"] = "Gala"
+    p.song["artist"] = "Paper Lanterns"
     p.save()
     assert runner.invoke(app, ["lyrics", "fetch"]).exit_code == 0
-    assert asked == [("Gala", "Freed From Desire")]
+    assert asked == [("Paper Lanterns", "Night Drive")]
 
 
 def test_analyze_writes_tempo_key_and_beat_grid(tmp_path, monkeypatch):

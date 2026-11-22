@@ -9,7 +9,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr sheet`](#arr-sheet) : Montre l'antisèche du morceau : tonalité, tempo, structure, accords des passages clés, rappels.
 - [`arr init`](#arr-init) : Crée un projet dans le dossier NAME.
 - [`arr import`](#arr-import) : Ajoute un morceau complet, ou une piste avec --as.
-- [`arr rename`](#arr-rename) : Nomme le dossier de chaque morceau d'après son artiste et son titre (avril-lavigne--complicated).
+- [`arr rename`](#arr-rename) : Nomme le dossier de chaque morceau d'après son artiste et son titre (paper-lanterns--night-drive).
 - [`arr analyze`](#arr-analyze) : Détecte temps, mesures, tempo et tonalité.
 - [`arr transcribe`](#arr-transcribe) : Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections.
 - [`arr render`](#arr-render) : Rend une prise complète du morceau (voix et groupe) à partir de la partition.
@@ -104,7 +104,7 @@ Ajoute un morceau complet, ou une piste avec --as.
 arr rename [OPTIONS]
 ```
 
-Nomme le dossier de chaque morceau d'après son artiste et son titre (avril-lavigne--complicated).
+Nomme le dossier de chaque morceau d'après son artiste et son titre (paper-lanterns--night-drive).
 
 À lancer depuis le dossier qui contient les projets. Les setlists suivent. Un morceau sans artiste, ou dont le nouveau nom est déjà pris, garde son dossier.
 
@@ -387,7 +387,7 @@ L'enregistrement démarre tout seul au premier son et s'arrête à la fin du mor
 
 | Argument | Défaut | Rôle |
 |---|---|---|
-| `NAME` |  | Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (avril-lavigne--complicated). |
+| `NAME` |  | Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (paper-lanterns--night-drive). |
 
 | Option | Défaut | Rôle |
 |---|---|---|

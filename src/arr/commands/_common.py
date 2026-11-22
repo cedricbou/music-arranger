@@ -94,13 +94,13 @@ def confirm(question: str) -> bool:
 
 
 def slug(text: str) -> str:
-    """`Dieu m'a donné la foi` donne `dieu-m-a-donne-la-foi` : les accents perdent leur signe, pas leur lettre."""
+    """`L'été n'a pas duré` donne `l-ete-n-a-pas-dure` : les accents perdent leur signe, pas leur lettre."""
     plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
 
 
 def folder_name(title: str, artist: str = "") -> str:
-    """Le dossier d'un morceau : `avril-lavigne--complicated`, l'artiste d'abord pour trier ; le titre seul sans artiste."""
+    """Le dossier d'un morceau : `paper-lanterns--night-drive`, l'artiste d'abord pour trier ; le titre seul sans artiste."""
     return f"{slug(artist)}--{slug(title)}" if slug(artist) else slug(title)
 
 

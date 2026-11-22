@@ -51,7 +51,7 @@ def import_(
 
 @app.command()
 def rename(yes: bool = typer.Option(False, "--yes", "-y", help="Renomme sans demander.")) -> None:
-    """Nomme le dossier de chaque morceau d'après son artiste et son titre (avril-lavigne--complicated).
+    """Nomme le dossier de chaque morceau d'après son artiste et son titre (paper-lanterns--night-drive).
 
     À lancer depuis le dossier qui contient les projets. Les setlists suivent. Un morceau sans
     artiste, ou dont le nouveau nom est déjà pris, garde son dossier.

@@ -212,3 +212,10 @@ choisis tout seuls.
 changement de morceau, et avec `--play` relance le morceau depuis le début puis le met en
 pause à la fin. Tout cela se fait en local. Sans Spotify, la capture démarre au premier son
 et s'arrête sur le silence (`--silence`, 3 secondes par défaut) ou sur Ctrl+C.
+
+**Ce qu'on a le droit de capturer.** Une capture sert à travailler un morceau chez soi, avec
+son groupe. Capturez seulement des sources dont vous avez le droit de faire une copie privée :
+CD, fichiers achetés, vos propres enregistrements. Les conditions d'utilisation de Spotify,
+comme celles de la plupart des services de streaming, interdisent d'enregistrer leurs
+contenus : lisez-les avant de capturer depuis un tel service. Ni les captures, ni les stems,
+ni les prises tirées d'un morceau protégé ne se redistribuent.
