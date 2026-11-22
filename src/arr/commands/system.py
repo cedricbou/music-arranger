@@ -75,8 +75,6 @@ def check() -> None:
 @app.command()
 def devices() -> None:
     """Montre les réglages audio effectifs et les périphériques disponibles."""
-    import sounddevice as sd
-
     from arr import studio
 
     cfg = studio.config()
@@ -96,9 +94,8 @@ def devices() -> None:
     for name, count in studio.sources():
         typer.echo(f"  {name}  ({count} canaux)")
     typer.echo("périphériques (pour [output] et [input] device)")
-    for d in sd.query_devices():
-        if sd.query_hostapis(d["hostapi"])["name"].startswith("JACK"):
-            typer.echo(f"  {d['name']}  ({d['max_input_channels']} entrées, {d['max_output_channels']} sorties)")
+    for d in studio.jack_devices():
+        typer.echo(f"  {d['name']}  ({d['max_input_channels']} entrées, {d['max_output_channels']} sorties)")
 
 
 AUDIOCPP_RELEASES = "https://api.github.com/repos/0xShug0/audio.cpp/releases"

@@ -13,12 +13,13 @@ complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le 
 
 ## Contraintes non négociables
 
+Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
+
 - **Local uniquement.** Aucun service distant ne reçoit l'audio. Réseau limité à deux commandes :
   `arr models pull` et `arr lyrics fetch` (artiste et titre à lrclib.net) ; sinon `engines.offline()`.
-- **Intel Arc A770, 16 Go.** PyTorch XPU et Vulkan ; pas de CUDA, pas de float64 ni de bf16
-  sur le GPU.
+- **Intel Arc A770, 16 Go.** PyTorch XPU et Vulkan ; pas de CUDA, ni float64 ni bf16 sur le GPU (non vérifié).
 - **Non destructif.** Une opération crée une nouvelle prise ou une nouvelle version, jamais
-  elle n'écrase un fichier audio. Seul `arr rm` retire, vers `trash/` par défaut.
+  elle n'écrase un fichier audio (non vérifié). Seul `arr rm` retire, vers `trash/` par défaut.
 - **Usage non commercial** : YuE2 et SheetSage2 sont sous CC BY-NC 4.0.
 
 ## Avant de proposer une idée
@@ -39,23 +40,21 @@ partition, puis séparer la prise. Lire les fiches avant de toucher à la géné
    scripts/feature.sh pr --notes notes.md  # check.sh, push, PR « Closes #12 », ce qui est mesuré
    scripts/feature.sh merge                # attend la CI, squash merge, main à jour
    ```
-2. **Les issues s'écrivent pour le musicien** (`docs/style-issues.md`, skill `ecrire-issue`) :
-   type `epic`, `story`, `chore` ou `bug`, corps sans nom de module ni de fichier, critères
-   « Done when » observables. Le détail technique est dans le commentaire `## Technical framing` :
-   le lire avant de coder. Une issue `needs-refinement` se cadre **avec** l'utilisateur, ne se
-   code pas. Une limite découverte en codant devient une issue du même style.
+2. **Les issues s'écrivent pour le musicien** (`docs/style-issues.md`, skill `ecrire-issue`) : type
+   `epic`, `story`, `chore` ou `bug`, corps sans nom de module ni de fichier, critères « Done when »
+   observables ; le détail technique, à lire avant de coder, est dans le commentaire `## Technical framing`.
+   Une issue `needs-refinement` se cadre **avec** l'utilisateur. Une limite découverte devient une issue.
 3. **Langues** : interface, docstrings et docs en français ; identifiants, issues et PR en anglais.
 4. **Terminé** veut dire : tests ajoutés, `scripts/check.sh` vert (ruff, format, pytest),
    documentation à jour (ci-dessous), carte du code à jour si un fichier apparaît, fiche dans
    `docs/decisions/` si un choix structurant est fait.
-5. **Un agent ne peut pas écouter.** Mesurer avec `arr check` et `arr.measure`, dire dans la PR
-   ce qui est mesuré et ce qui reste à l'oreille (`--notes`). Ne jamais annoncer une qualité
-   sonore. Une issue livrée dont il ne reste que l'écoute se ferme ; l'essai rejoint l'issue de
-   session d'écoute.
-6. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test.** Le son se teste sur une
-   sortie PipeWire virtuelle, le MIDI sur « Midi Through » (voir « Audio en direct »).
-7. **Ne rien supprimer hors du dépôt** sans que l'utilisateur le demande ; ses projets sont
-   ailleurs (`~/Musique/...`) et se lisent sans les modifier.
+5. **Un agent ne peut pas écouter.** Mesurer (`arr check`, `arr.measure`), dire dans la PR ce qui est
+   mesuré et ce qui reste à l'oreille (`--notes`) ; jamais une qualité sonore. Livrée, une issue dont
+   il ne reste que l'écoute se ferme : l'essai rejoint l'issue de session d'écoute.
+6. **Ni enceintes, ni Spotify, ni MIDI vers la pédale pour un test** : sortie PipeWire virtuelle,
+   « Midi Through » (« Audio en direct »). Ne rien supprimer hors du dépôt sans demande ; les projets
+   (`~/Musique/...`) se lisent sans les modifier. `.claude/settings.json` refuse les lecteurs directs,
+   le push sur `main` et l'écriture dans `~/Musique` ; le reste n'est pas vérifié.
 
 ## Tenir la documentation à jour
 
@@ -111,22 +110,23 @@ src/arr/
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
-  test_docs.py, test_workflow.py   la doc suit le code ; le cycle de scripts/feature.sh (faux gh)
+  test_docs.py, test_rules.py   la doc suit le code ; les règles écrites ici sont vérifiées
+  test_workflow.py          le cycle de scripts/feature.sh, hors-ligne (faux gh)
   test_slow.py              vrais moteurs sur signal (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
   test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module (CliRunner)
 ```
 
-Règles de structure :
+Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifié ») :
 
 - Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
-  nouveau module, importé dans `cli.py`. Un fichier de plus de 400 lignes se découpe.
-- Les commandes parlent aux modèles par `engines/`, à la carte son par `studio.py`, au MIDI par `midi.py`.
+  nouveau module, importé dans `cli.py` (non vérifié). Un fichier de plus de 400 lignes se découpe.
+- Les commandes parlent à la carte son par `studio.py`, au MIDI par `midi.py`, à Spotify par
+  `spotify.py`, aux modèles par `engines/` (ce dernier point non vérifié).
 - Imports lourds (`torch`, `demucs`, `sounddevice`) **dans** les fonctions : `arr --help` reste instantané.
-- Les erreurs destinées à l'utilisateur sont des `ProjectError` ; `run()` les affiche sans trace.
-- Les tests remplacent moteurs et carte son par `monkeypatch` sur `engines.*`, `studio`,
-  `spotify`, `lyrics`. Tout ajout vient avec son test : signal synthétique ou `CliRunner`.
-- Peu de commentaires (une contrainte non évidente), pas d'abstraction sans deuxième usage.
+- Non vérifiées : les erreurs pour l'utilisateur sont des `ProjectError` (`run()` les affiche sans
+  trace) ; les tests remplacent moteurs et carte son par `monkeypatch` (`engines.*`, `studio`, `spotify`,
+  `lyrics`), tout ajout vient avec son test ; peu de commentaires, pas d'abstraction sans deuxième usage.
 
 ## Conventions audio
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from pathlib import Path
@@ -213,7 +214,6 @@ def levels(
     Lance Spotify (ou --tone), regarde quels canaux bougent et règle le gain pour que les
     crêtes arrivent entre -18 et -3 dB. Ctrl+C affiche le bilan.
     """
-    import sounddevice as sd
     from rich.live import Live
     from rich.text import Text
 
@@ -225,17 +225,9 @@ def levels(
         raise ProjectError(f"source PipeWire introuvable : {source} (arr devices)")
     used = set(cfg["capture"]["channels"]) if not source else set()
     typer.echo(f"source : {name}  ({count} canaux)")
-    if tone:
-        out = cfg["output"]
-        t = np.arange(audio.SR) / audio.SR
-        wave = (audio.db(-12) * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
-        sd.play(
-            np.stack([wave, wave], axis=1),
-            audio.SR,
-            loop=True,
-            mapping=out["channels"],
-            device=studio.find_device(out["device"], "output", out["channels"]),
-        )
+    t = np.arange(audio.SR) / audio.SR
+    wave = (audio.db(-12) * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    playing = studio.looping(np.stack([wave, wave], axis=1)) if tone else contextlib.nullcontext()
 
     def view(now, held) -> Text:
         return Text(
@@ -245,12 +237,8 @@ def levels(
             )
         )
 
-    try:
-        with Live(Text("en attente..."), refresh_per_second=10, transient=True) as live:
-            held = studio.peaks(studio.listen(name, count), seconds, lambda now, held: live.update(view(now, held)))
-    finally:
-        if tone:
-            sd.stop()
+    with playing, Live(Text("en attente..."), refresh_per_second=10, transient=True) as live:
+        held = studio.peaks(studio.listen(name, count), seconds, lambda now, held: live.update(view(now, held)))
     for i in range(count):
         mark = "▶" if i + 1 in used else " "
         typer.echo(f"{mark} canal {i + 1:2d}  crête {held[i]:6.1f} dB  {verdict(held[i])}")
