@@ -217,10 +217,10 @@ par D-Bus (MPRIS), que ces lecteurs parlent tous. Sans lecteur, la capture déma
 son et s'arrête sur le silence (`--silence`, 3 secondes par défaut) ou sur Ctrl+C.
 
 - **Quel lecteur** : sans réglage, celui qui joue au premier son. Avec `--play`, le seul
-  lecteur ouvert, sinon le seul qui joue ; s'il y en a plusieurs, `arr` les liste et propose
-  la ligne à écrire dans `audio.toml`. `player = "vlc"` dans `[capture]` fixe le choix : un
-  fragment du nom suffit, ce qui couvre les noms à numéro des navigateurs
-  (`firefox.instance_1234`).
+  lecteur ouvert, sinon le seul qui joue ; s'il y en a plusieurs, `arr` les numérote et
+  demande lequel relancer. `arr capture --player spotify` choisit pour une capture,
+  `player = "vlc"` dans `[capture]` pour toutes : un fragment du nom suffit, ce qui couvre
+  les noms à numéro des navigateurs (`firefox.instance_1234`).
 - **Ce que `--play` demande au lecteur** : savoir se placer dans le morceau et annoncer un
   morceau précis. Un onglet de navigateur ou une radio en ligne ne le font souvent pas : la
   capture le dit, et il suffit de lancer le morceau à la main, sans `--play`.

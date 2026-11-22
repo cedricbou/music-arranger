@@ -383,7 +383,7 @@ Enregistre ce que joue l'ordinateur dans un nouveau projet.
 
 Le volume est ramené à une cible commune (-16 LUFS par défaut), pour que toutes les captures soient au même niveau quel que soit le gain réglé sur la table ce jour-là.
 
-L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau (changement de titre dans le lecteur multimédia, ou silence). Ctrl+C arrête aussi. Le lecteur suivi est celui qui joue, ou celui que nomme `player` dans audio.toml.
+L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau (changement de titre dans le lecteur multimédia, ou silence). Ctrl+C arrête aussi. Le lecteur suivi est celui qui joue, ou celui que nomme --player (ou `player` dans audio.toml). Avec --play et plusieurs lecteurs ouverts, la commande demande lequel relancer.
 
 | Argument | Défaut | Rôle |
 |---|---|---|
@@ -392,6 +392,7 @@ L'enregistrement démarre tout seul au premier son et s'arrête à la fin du mor
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--play` | non | Relance le morceau courant du lecteur multimédia depuis le début, et le met en pause à la fin. |
+| `--player` |  | Lecteur multimédia à suivre, un fragment de son nom (vlc, spotify) ; sinon celui d'audio.toml. |
 | `--silence` | `3.0` | Secondes de silence qui terminent l'enregistrement. |
 | `--raw` | non | Garde le niveau tel qu'enregistré, sans le ramener au volume cible. |
 

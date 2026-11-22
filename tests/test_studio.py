@@ -79,8 +79,10 @@ def test_pick_follows_the_setting_then_the_only_player_then_the_one_playing():
     assert pick([vlc, mpv], "", {mpv}, required=False) == mpv
     assert pick([vlc, firefox], "Firefox", set(), required=True) == firefox  # un fragment du nom suffit
     assert pick([vlc, mpv], "", set(), required=False) is None
-    with pytest.raises(ProjectError, match=r'player = "vlc"'):  # plusieurs, aucun ne joue : comment choisir
-        pick([vlc, mpv], "", set(), required=True)
+    with pytest.raises(ProjectError, match=r'--player vlc, ou dans audio.toml.*player = "vlc"'):
+        pick([vlc, mpv], "", set(), required=True)  # plusieurs, aucun ne joue : comment choisir
+    asked = lambda names, playing: names[1]  # la réponse au terminal
+    assert pick([vlc, mpv], "", set(), required=True, ask=asked) == mpv
     with pytest.raises(ProjectError, match="lecteurs ouverts : vlc, mpv"):
         pick([vlc, mpv], "rhythmbox", {vlc}, required=False)
     with pytest.raises(ProjectError, match="à la main, sans --play"):
@@ -117,8 +119,23 @@ def test_capture_play_with_several_players_says_how_to_choose(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(app, ["capture", "--play"])
     assert result.exit_code != 0 and "audio.toml" in str(result.exception) and "mpv, vlc" in str(result.exception)
-    calls["player"] = "vlc"  # le réglage tranche
-    assert runner.invoke(app, ["capture", "--play"]).exit_code == 0
+    assert runner.invoke(app, ["capture", "a", "--play", "--player", "mpv"]).exit_code == 0  # l'option tranche
+    calls["player"] = "vlc"  # le réglage aussi
+    assert runner.invoke(app, ["capture", "b", "--play"]).exit_code == 0
+    mpv, vlc = calls["players"]
+    assert calls["restart"] == [(mpv, "/t/1"), (vlc, "/t/1")]
+
+
+def test_capture_play_asks_which_player_in_a_terminal(tmp_path, monkeypatch):
+    from arr.commands import studio as command
+
+    calls = fake_studio(monkeypatch, tone(220, 1.0, amp=0.3))
+    calls["players"], calls["playing"] = ["org.mpris.MediaPlayer2.mpv", "org.mpris.MediaPlayer2.vlc"], set()
+    monkeypatch.setattr(command, "interactive", lambda: True)
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["capture", "--play"], input="2\n")
+    assert result.exit_code == 0, result.output
+    assert "1. mpv" in result.output and "2. vlc" in result.output
     assert calls["restart"] == [("org.mpris.MediaPlayer2.vlc", "/t/1")]
 
 

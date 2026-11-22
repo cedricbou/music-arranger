@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 
 from arr.project import ProjectError
 
@@ -46,20 +47,21 @@ def playing(player: str) -> bool:
     return _property(player, "PlaybackStatus") == "Playing"
 
 
-def pick(names: list[str], wanted: str, playing: set[str], required: bool) -> str | None:
+Ask = Callable[[list[str], set[str]], str]
+
+
+def pick(names: list[str], wanted: str, playing: set[str], required: bool, ask: Ask | None = None) -> str | None:
     """Le lecteur à suivre parmi `names` ; fonction pure.
 
-    `wanted` (réglage `player` d'audio.toml) est un fragment du nom. Sans réglage, le seul
-    lecteur qui joue ; avec `required` (--play), aussi le seul lecteur ouvert, et une erreur
-    plutôt que rien.
+    `wanted` (--player, ou `player` d'audio.toml) est un fragment du nom. Sans lui, le seul
+    lecteur qui joue ; avec `required` (--play), aussi le seul lecteur ouvert, et s'il y en a
+    plusieurs, celui que choisit `ask` (une question posée au terminal), sinon une erreur.
     """
     found = ", ".join(short(n) for n in names) or "aucun"
     if wanted:
         matches = [n for n in names if wanted.lower() in short(n).lower()]
         if not matches:
-            raise ProjectError(
-                f"lecteur « {wanted} » introuvable (player dans audio.toml) ; lecteurs ouverts : {found}"
-            )
+            raise ProjectError(f"lecteur « {wanted} » introuvable ; lecteurs ouverts : {found}")
         return next((n for n in matches if n in playing), matches[0])
     if required and len(names) == 1:
         return names[0]
@@ -70,16 +72,19 @@ def pick(names: list[str], wanted: str, playing: set[str], required: bool) -> st
         return None
     if not names:
         raise ProjectError("aucun lecteur multimédia ouvert : lance la lecture à la main, sans --play")
+    if ask:
+        return ask(names, playing)
+    example = short(names[0]).split(".")[0]
     raise ProjectError(
-        f"plusieurs lecteurs ouverts ({found}) : choisis-en un dans audio.toml, "
-        f'section [capture] : player = "{short(names[0]).split(".")[0]}"'
+        f"plusieurs lecteurs ouverts ({found}) : choisis-en un, par exemple --player {example}, "
+        f'ou dans audio.toml, section [capture] : player = "{example}"'
     )
 
 
-def choose(wanted: str, required: bool) -> str | None:
+def choose(wanted: str, required: bool, ask: Ask | None = None) -> str | None:
     """Le lecteur à suivre parmi ceux ouverts sur la machine (voir `pick`)."""
     names = players()
-    return pick(names, wanted, {n for n in names if playing(n)}, required)
+    return pick(names, wanted, {n for n in names if playing(n)}, required, ask)
 
 
 def now_playing(player: str, playing_only: bool = False) -> dict | None:

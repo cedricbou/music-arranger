@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -35,6 +36,11 @@ def capture(
         "--play",
         help="Relance le morceau courant du lecteur multimédia depuis le début, et le met en pause à la fin.",
     ),
+    player_: Optional[str] = typer.Option(
+        None,
+        "--player",
+        help="Lecteur multimédia à suivre, un fragment de son nom (vlc, spotify) ; sinon celui d'audio.toml.",
+    ),
     silence: float = typer.Option(3.0, help="Secondes de silence qui terminent l'enregistrement."),
     raw: bool = typer.Option(
         False, "--raw", help="Garde le niveau tel qu'enregistré, sans le ramener au volume cible."
@@ -47,7 +53,8 @@ def capture(
 
     L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau
     (changement de titre dans le lecteur multimédia, ou silence). Ctrl+C arrête aussi.
-    Le lecteur suivi est celui qui joue, ou celui que nomme `player` dans audio.toml.
+    Le lecteur suivi est celui qui joue, ou celui que nomme --player (ou `player` dans
+    audio.toml). Avec --play et plusieurs lecteurs ouverts, la commande demande lequel relancer.
     """
     from arr import player, studio
 
@@ -56,8 +63,9 @@ def capture(
         raise ProjectError(f"{name} contient déjà un projet")
     source, count = studio.capture_source()
     state = {"player": None, "track": None, "checked": 0.0}
-    if play_ or cfg["player"]:
-        state["player"] = player.choose(cfg["player"], required=play_)
+    wanted = player_ or cfg["player"]
+    if play_ or wanted:
+        state["player"] = player.choose(wanted, required=play_, ask=ask_player if interactive() else None)
     if play_:
         current = player.now_playing(state["player"])
         if not current:
@@ -107,6 +115,21 @@ def capture(
     p.song["duration"] = round(len(data) / audio.SR, 3)
     p.save()
     typer.echo(f"projet créé : {p.root}  ({len(data) / audio.SR:.1f} s)  ->  cd {p.root} && arr transcribe")
+
+
+def interactive() -> bool:
+    return sys.stdin.isatty()
+
+
+def ask_player(names: list[str], playing: set[str]) -> str:
+    """Demande au terminal lequel des lecteurs ouverts relancer."""
+    from arr import player
+
+    for i, name in enumerate(names, 1):
+        typer.echo(f"  {i}. {player.short(name)}{'  (en lecture)' if name in playing else ''}")
+    while not 1 <= (choice := typer.prompt("lecteur à relancer (numéro)", type=int)) <= len(names):
+        typer.echo(f"un numéro de 1 à {len(names)}")
+    return names[choice - 1]
 
 
 @app.command()
