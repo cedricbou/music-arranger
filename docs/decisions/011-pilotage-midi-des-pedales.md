@@ -20,7 +20,7 @@ message à la main** pour vérifier le câble, le canal et les réglages de la p
 | `aplaymidi` / `aseqdump` (séquenceur ALSA) | retenu : aucune dépendance Python, les octets sortent vraiment, et le port noyau « Midi Through » sert de bouclage pour les tests |
 
 Le projet parle déjà à l'extérieur de cette façon : `parec` et `pactl` pour l'audio, D-Bus
-pour Spotify. Le MIDI suit la même règle.
+pour le lecteur multimédia. Le MIDI suit la même règle.
 
 ## Décision
 

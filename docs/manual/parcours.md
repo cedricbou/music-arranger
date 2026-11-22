@@ -39,8 +39,8 @@ arr play --without bass       # le morceau sans la basse
   compris en pause. En boucle, → sur la dernière mesure revient à la première. Sans
   `arr transcribe` ni `arr analyze`, les flèches avancent par pas de cinq secondes.
 - Une piste écoutée seule joue sans son gain de mix ; une prise brute, sans calage.
-- L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence. Avec le
-  lecteur Spotify de bureau, `arr capture --play` nomme le projet d'après le morceau et le
+- L'enregistrement démarre au premier son et s'arrête après 3 secondes de silence. Avec un
+  lecteur multimédia de bureau, `arr capture --play` nomme le projet d'après le morceau et le
   relance depuis le début ([configuration audio](audio.md), qui dit aussi ce qu'on a le droit
   de capturer).
 - Avec un fichier que vous avez déjà : `arr init mon-projet --from morceau.flac`.

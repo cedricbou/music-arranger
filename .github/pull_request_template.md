@@ -15,5 +15,5 @@ Closes #<!-- issue number (or "Refs #n" if the issue must stay open). scripts/fe
 
 ## Not verified
 
-<!-- What still needs ears or the real hardware (Soundcraft, Spotify playing, a musician).
+<!-- What still needs ears or the real hardware (Soundcraft, a media player playing, a musician).
      Each item becomes a box of the open listening session issue. -->

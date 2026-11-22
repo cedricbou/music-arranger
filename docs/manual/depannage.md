@@ -23,8 +23,12 @@ les trois commandes de diagnostic.
 | le fichier capturé est vide ou silencieux | `arr` écoute une source ou des canaux où le son n'arrive pas | `arr levels` pendant qu'un morceau joue : repérer les canaux qui bougent, corriger `[capture]` |
 | `en attente du son...` ne démarre jamais | même cause, ou le lecteur joue sur une autre sortie | `arr levels` ; vérifier la sortie utilisée par le lecteur |
 | `aucun son reçu` | arrêt par Ctrl+C avant tout signal | voir ci-dessus |
-| la capture ne s'arrête pas en fin de morceau | sans Spotify, elle attend un silence ; le morceau suivant s'enchaîne | Ctrl+C à la fin, ou mettre le lecteur sur un seul morceau |
+| la capture ne s'arrête pas en fin de morceau | sans lecteur multimédia qui annonce le morceau, elle attend un silence ; le morceau suivant s'enchaîne | Ctrl+C à la fin, ou mettre le lecteur sur un seul morceau |
 | la capture contient le début du morceau suivant | changement de titre non détecté | utiliser `--play`, ou couper la lecture automatique |
+| `lecteur « X » introuvable` | `--player` ou le réglage `capture.player` ne correspond à aucun lecteur ouvert | ouvrir le lecteur, ou reprendre un nom de la liste affichée |
+| `plusieurs lecteurs ouverts` avec `--play` | aucun ne joue, ou plusieurs jouent, et la commande ne tourne pas dans un terminal où poser la question | `--player NOM`, ou la ligne `player = ...` proposée dans `audio.toml` |
+| `aucun lecteur multimédia ouvert` | `--play` sans lecteur sur la machine | lancer la lecture à la main, sans `--play` |
+| `... ne sait pas revenir au début du morceau` ou `n'annonce aucun morceau` | le lecteur (souvent un navigateur, une radio) ne permet pas de se placer au début | lancer le morceau à la main, sans `--play` |
 | `source PipeWire introuvable` | le nom dans `capture.source` n'existe pas | copier le nom exact depuis `arr devices` |
 | le niveau varie d'une capture à l'autre | capture faite avec `--raw`, ou projet créé par `arr import` | laisser `arr capture` normaliser ; `arr check` montre le volume de chaque fichier |
 

@@ -92,7 +92,7 @@ def test_loading_the_cli_loads_no_heavy_library():
     assert loaded == "[]", f"`arr --help` charge {loaded}"
 
 
-# --- La carte son par studio.py, le MIDI par midi.py, Spotify par spotify.py
+# --- La carte son par studio.py, le MIDI par midi.py, le lecteur multimédia par player.py
 
 
 def programs(names: set[str]) -> list[tuple[str, int, str]]:
@@ -110,9 +110,9 @@ def test_midi_is_reached_only_through_midi():
     assert not only_in({"midi.py"}, found), "\n".join(only_in({"midi.py"}, found))
 
 
-def test_spotify_is_reached_only_through_spotify():
+def test_the_media_player_is_reached_only_through_player():
     found = [(rel(f), n, s) for f, t in MODULES.items() for n, s in strings(t) if s == "busctl" or "org.mpris" in s]
-    assert not only_in({"spotify.py"}, found), "\n".join(only_in({"spotify.py"}, found))
+    assert not only_in({"player.py"}, found), "\n".join(only_in({"player.py"}, found))
 
 
 def test_nothing_plays_on_the_speakers_behind_studio():

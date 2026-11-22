@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -27,10 +28,18 @@ from arr.project import Project, ProjectError
 def capture(
     name: Optional[str] = typer.Argument(
         None,
-        help="Nom du projet à créer ; par défaut, l'artiste et le titre lus dans Spotify (paper-lanterns--night-drive).",
+        help="Nom du projet à créer ; par défaut, l'artiste et le titre lus dans le lecteur multimédia "
+        "(paper-lanterns--night-drive).",
     ),
     play_: bool = typer.Option(
-        False, "--play", help="Relance le morceau Spotify courant depuis le début, et met en pause à la fin."
+        False,
+        "--play",
+        help="Relance le morceau courant du lecteur multimédia depuis le début, et le met en pause à la fin.",
+    ),
+    player_: Optional[str] = typer.Option(
+        None,
+        "--player",
+        help="Lecteur multimédia à suivre, un fragment de son nom (vlc, spotify) ; sinon celui d'audio.toml.",
     ),
     silence: float = typer.Option(3.0, help="Secondes de silence qui terminent l'enregistrement."),
     raw: bool = typer.Option(
@@ -43,23 +52,36 @@ def capture(
     captures soient au même niveau quel que soit le gain réglé sur la table ce jour-là.
 
     L'enregistrement démarre tout seul au premier son et s'arrête à la fin du morceau
-    (changement de titre dans Spotify, ou silence). Ctrl+C arrête aussi.
+    (changement de titre dans le lecteur multimédia, ou silence). Ctrl+C arrête aussi.
+    Le lecteur suivi est celui qui joue, ou celui que nomme --player (ou `player` dans
+    audio.toml). Avec --play et plusieurs lecteurs ouverts, la commande demande lequel relancer.
     """
-    from arr import spotify, studio
+    from arr import player, studio
 
     cfg = studio.config()["capture"]
     if name and (Path(name) / "song.toml").exists():
         raise ProjectError(f"{name} contient déjà un projet")
     source, count = studio.capture_source()
-    state = {"track": None, "checked": 0.0}
+    state = {"player": None, "track": None, "checked": 0.0}
+    wanted = player_ or cfg["player"]
+    if play_ or wanted:
+        state["player"] = player.choose(wanted, required=play_, ask=ask_player if interactive() else None)
     if play_:
-        current = spotify.now_playing()
+        current = player.now_playing(state["player"])
         if not current:
-            raise ProjectError("Spotify ne répond pas : lance la lecture à la main, sans --play")
-        spotify.restart(current["id"])
+            raise ProjectError(
+                f"{player.short(state['player'])} n'annonce aucun morceau : lance la lecture à la main, sans --play"
+            )
+        if not current["seek"]:
+            raise ProjectError(
+                f"{player.short(state['player'])} ne sait pas revenir au début du morceau : "
+                "lance la lecture à la main, sans --play"
+            )
+        player.restart(state["player"], current["id"])
 
     def started() -> None:
-        state["track"] = spotify.now_playing(playing_only=True)
+        state["player"] = state["player"] or player.choose("", required=False)
+        state["track"] = player.now_playing(state["player"], playing_only=True) if state["player"] else None
         label = f" : {state['track']['artist']} - {state['track']['title']}" if state["track"] else ""
         typer.echo(f"enregistrement{label}")
 
@@ -67,7 +89,7 @@ def capture(
         if not state["track"] or time.monotonic() - state["checked"] < 0.5:
             return False
         state["checked"] = time.monotonic()
-        now = spotify.now_playing()
+        now = player.now_playing(state["player"])
         return now is not None and now["id"] != state["track"]["id"]
 
     picked = f"canaux {cfg['channels']}" if cfg["channels"] else "canaux automatiques"
@@ -75,7 +97,7 @@ def capture(
     typer.echo("si rien ne démarre : arr levels montre le niveau de chaque canal")
     captured = studio.gate(studio.listen(source, count), silence=silence, should_stop=track_changed, on_start=started)
     if play_:
-        spotify.pause()
+        player.pause(state["player"])
     data = studio.stereo(captured, cfg["channels"])
     track = state["track"]
     if track and track["length"]:
@@ -93,6 +115,21 @@ def capture(
     p.song["duration"] = round(len(data) / audio.SR, 3)
     p.save()
     typer.echo(f"projet créé : {p.root}  ({len(data) / audio.SR:.1f} s)  ->  cd {p.root} && arr transcribe")
+
+
+def interactive() -> bool:
+    return sys.stdin.isatty()
+
+
+def ask_player(names: list[str], playing: set[str]) -> str:
+    """Demande au terminal lequel des lecteurs ouverts relancer."""
+    from arr import player
+
+    for i, name in enumerate(names, 1):
+        typer.echo(f"  {i}. {player.short(name)}{'  (en lecture)' if name in playing else ''}")
+    while not 1 <= (choice := typer.prompt("lecteur à relancer (numéro)", type=int)) <= len(names):
+        typer.echo(f"un numéro de 1 à {len(names)}")
+    return names[choice - 1]
 
 
 @app.command()
@@ -214,7 +251,7 @@ def levels(
 ) -> None:
     """Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
 
-    Lance Spotify (ou --tone), regarde quels canaux bougent et règle le gain pour que les
+    Lance la lecture (ou --tone), regarde quels canaux bougent et règle le gain pour que les
     crêtes arrivent entre -18 et -3 dB. Ctrl+C affiche le bilan.
     """
     from rich.live import Live

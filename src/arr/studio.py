@@ -62,7 +62,7 @@ def config() -> dict:
     defaults = {
         "output": {"device": "", "channels": [1, 2]},
         "input": {"device": INTERFACE if present else "", "channels": [1], "latency_ms": None},
-        "capture": {"source": "", "channels": [7, 8] if present else [], "loudness": -16.0},
+        "capture": {"source": "", "channels": [7, 8] if present else [], "loudness": -16.0, "player": ""},
     }
     return {k: {**v, **user.get(k, {})} for k, v in defaults.items()}
 
