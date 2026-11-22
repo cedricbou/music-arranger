@@ -18,7 +18,7 @@ if [[ ($b == main || $b == master) && -z ${ARR_ALLOW_MAIN:-} ]]; then
   echo "✗ pas de commit direct sur $b : scripts/feature.sh start <issue> pour ouvrir une branche" >&2
   exit 1
 fi
-uv run -q python scripts/check_names.py --staged || exit 1
+uv run -q --no-project python scripts/check_names.py --staged || exit 1
 exec scripts/check.sh
 HOOK
 
