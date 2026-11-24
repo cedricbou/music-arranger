@@ -17,7 +17,8 @@ choix, dans `docs/decisions/`.
 - Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi ; setlists à
   part (fiche 009).
 - **Prompteur** : `export/<dossier>.cho`, réécrit en entier par `arr chordpro` à partir des
-  sections, des accords et de `lyrics.txt` (fiche 012).
+  sections, des accords et de `lyrics.txt` (fiche 012). Les paroles horodatées de LRCLIB restent
+  telles quelles dans `lyrics.lrc`, recalées à chaque lecture : elles placent chaque ligne sur sa mesure.
 
 ## Moteurs externes
 

@@ -24,6 +24,7 @@ ORIGINAL = "source/original.flac"
 ANALYSIS = "analysis.json"
 SCORE = "score/score.abc"
 LYRICS = "lyrics.txt"
+LYRICS_TIMES = "lyrics.lrc"  # les paroles horodatées telles que LRCLIB les donne
 MAX_STRETCH = 0.03  # au-delà de 3 % d'écart de tempo, une prise n'est plus la même interprétation
 
 

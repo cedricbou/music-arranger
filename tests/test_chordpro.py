@@ -156,9 +156,29 @@ def test_lyric_lines_follow_their_time_or_are_spread_evenly():
     spans = [(0.0, 8.0), (8.0, 16.0), (16.0, 24.0)]
     timed = [("un", 1.0), ("deux", 17.0), ("trois | quatre", 18.0)]
     assert chordpro.landmarks(timed, spans) == [["un"], [], ["deux", "trois / quatre"]]
-    # une ligne sans instant : toutes sont réparties dans l'ordre
-    assert chordpro.landmarks([("un", 1.0), ("deux", None)], spans) == [["un"], ["deux"], []]
+    # une ligne sans instant suit celle d'avant ; hors du passage, au bord le plus proche
+    assert chordpro.landmarks([("un", 9.0), ("deux", None), ("trois", 30.0)], spans) == [[], ["un", "deux"], ["trois"]]
+    assert chordpro.landmarks([("un", None), ("deux", -1.0)], spans) == [["un", "deux"], [], []]
+    # aucune n'a d'instant : réparties dans l'ordre
+    assert chordpro.landmarks([("un", None), ("deux", None)], spans) == [["un"], ["deux"], []]
     assert chordpro.landmarks([], spans) == [[], [], []]
+
+
+def test_timed_lyrics_land_on_the_lines_of_bars_where_they_are_sung(tmp_path, monkeypatch):
+    p = transcribed(tmp_path, monkeypatch)
+    grid = {"beats": [0.5 * i for i in range(40)], "downbeats": [2.0 * i for i in range(10)]}
+    (p.root / "analysis.json").write_text(json.dumps(grid))
+    (p.root / "score/chord.lab").write_text("0.0\t20.0\tD:min\n")
+    (p.root / "lyrics.txt").write_text("[Verse]\nPremière\nSeconde\n")
+    # les deux lignes chantées sur la troisième ligne de mesures (mesures 9 et 10)
+    (p.root / "lyrics.lrc").write_text("[00:16.50] Première\n[00:17.00] Seconde\n")
+    p.set_sections([Section("verse", 0.0, 20.0)])
+    p.save()
+    out = runner.invoke(app, ["chordpro"]).output
+    lines = (p.root / "export/night-drive.cho").read_text().splitlines()
+    grid_lines = [line for line in lines if line.startswith("|")]
+    assert grid_lines[0].endswith("|") and grid_lines[2].endswith("| Première / Seconde")
+    assert "paroles de lyrics.txt, placées par lyrics.lrc" in out
 
 
 def test_the_original_structure_names_passages_as_a_musician_does():
