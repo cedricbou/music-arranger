@@ -27,6 +27,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 - [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
 - [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
+- [`arr chordpro`](#arr-chordpro) : Écrit le morceau en fichier ChordPro pour un prompteur de scène : export/<dossier>.cho.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -372,6 +373,20 @@ Mesure le décalage de la prise (harmonie, puis attaques) et l'inscrit comme ré
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--report` | non | Mesure et affiche le décalage par section, sans rien régler. |
+
+## `arr chordpro`
+
+```
+arr chordpro [OPTIONS]
+```
+
+Écrit le morceau en fichier ChordPro pour un prompteur de scène : export/<dossier>.cho.
+
+Une grille d'accords standard par passage, dans l'ordre joué : quatre mesures par ligne, une case par temps, les paroles chantées sur ces mesures en repère après la dernière barre. Le fichier est dans la tonalité jouée (`transpose` de sheet.toml) et se réécrit en entier à chaque appel : c'est le projet qu'on corrige, jamais le fichier.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--show` | non | Montre le morceau ici, passage par passage, sans l'écrire. |
 
 ## `arr capture`
 

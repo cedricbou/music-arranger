@@ -21,3 +21,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [009](009-antiseche-portee-par-le-morceau.md) | L'antisèche de scène vit dans le projet : proposition déduite, puis `sheet.toml` qui fait foi |
 | [010](010-sections-sur-les-mesures.md) | Les bornes des sections tombent sur les mesures de référence, lissées du pas de 20 ms |
 | [011](011-pilotage-midi-des-pedales.md) | Le MIDI des pédales passe par le séquenceur ALSA (`aplaymidi`, `aseqdump`), et seul le compteur du noyau prouve une sortie |
+| [012](012-fichier-chordpro-standard.md) | Le prompteur de scène lit un fichier ChordPro standard, une grille par passage, écrit en entier par arr |

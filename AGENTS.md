@@ -24,10 +24,9 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 ## Avant de proposer une idée
 
-Générer une piste d'instrument qui s'accorde à une bande existante a été essayé de cinq
-façons et abandonné. Ce qui marche : faire rejouer le morceau entier par YuE2 à partir de sa
-partition, puis séparer la prise. Lire les fiches avant de toucher à la génération (001,
-002), à la chaîne audio (003), au calage (004), au volume (005), à la grille (008) ou au MIDI (011).
+Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche : YuE2
+rejoue le morceau entier depuis sa partition, puis on sépare la prise. Lire les fiches avant de toucher à la
+génération (001, 002), à l'audio (003), au calage (004), au volume (005), à la grille (008), au MIDI (011).
 
 ## Comment travailler ici
 
@@ -63,9 +62,8 @@ au présent, sans numéro d'issue ni chemin mort (`docs/style-doc.md`, skill `re
 
 - **Une commande ou une option change** : écrire sa docstring et ses `help=` (la référence
   en sort), puis `uv run python scripts/gen_reference.py`. Ne jamais éditer `reference.md`.
-- **Un comportement change** : `parcours.md` pour l'usage, `README.md` pour l'aperçu.
+- **Un comportement change** : `parcours.md`, `README.md` ; **un message d'erreur** : `depannage.md`.
 - **Un réglage d'`audio.toml` ou une variable `ARR_*` apparaît** : `audio.md`, `installation.md`.
-- **Un message d'erreur pour l'utilisateur apparaît ou change** : `depannage.md`.
 
 ## Commandes de travail
 
@@ -90,6 +88,7 @@ src/arr/
   commands/play.py          play : mix, piste ou prise, sections, boucle ; clavier (pause, mesure voisine)
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
+  commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
   commands/system.py        check, devices, doctor, models pull
@@ -98,6 +97,8 @@ src/arr/
   measure.py                mesures sans écoute : période, calage, retard, niveaux, accords replacés
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
+  structure.py              structure jouée : passages nommés et leurs mesures (par défaut, l'original)
+  chordpro.py               fichier ChordPro : une grille standard par passage, paroles en repère
   pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
   midi.py                   MIDI en direct : ports et envoi (aplaymidi), écoute (aseqdump), messages
@@ -109,12 +110,11 @@ src/arr/
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
-  test_core.py, test_measure.py   project.py, audio.py et measure.py, sur signaux synthétiques
-  test_docs.py, test_rules.py   la doc suit le code ; les règles écrites ici sont vérifiées
+  test_core.py, test_measure.py, test_docs.py, test_rules.py   cœur sur signaux ; doc et règles suivies
   test_workflow.py          le cycle de scripts/feature.sh, hors-ligne (faux gh)
   test_slow.py              vrais moteurs sur signal (`-m slow`, hors CI)
-  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_align.py,
-  test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module (CliRunner)
+  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_chordpro.py,
+  test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module
 ```
 
 Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifié ») :

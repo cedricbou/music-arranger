@@ -55,6 +55,12 @@ les trois commandes de diagnostic.
 | `sheet.toml est mal écrit` | une faute de syntaxe dans le fichier (guillemet, crochet) | corriger la ligne indiquée, ou `arr sheet --reset` pour repartir de la proposition |
 | l'antisèche ne suit plus le projet (sections ou accords refaits) | `sheet.toml` existe : il fait foi et n'est jamais réécrit | `arr sheet --reset`, l'ancien fichier reste dans `trash/` |
 | les accords proposés sont faux ou la tonalité aussi | ils viennent de la transcription et de la détection de tonalité | les corriger dans `sheet.toml` (`arr sheet --edit`) |
+| `pas d'accords : lance arr transcribe` (`arr chordpro`) | le morceau n'est pas transcrit | `arr transcribe` |
+| `pas de grille de mesures : lance arr analyze` | la transcription n'a pas de temps, et `arr analyze` n'a pas tourné | `arr analyze` |
+| `aucune section ne couvre une mesure` | les sections sont absentes ou toutes plus courtes qu'une mesure | `arr sections list`, puis `arr sections set` |
+| `lyrics.txt : N balises pour M sections` | les balises de `lyrics.txt` ne suivent pas les sections une à une | une balise par section, dans l'ordre de `arr sections list` ; le fichier `.cho` est écrit sans paroles en attendant |
+| `aucun accord — relis la transcription` | la transcription n'a trouvé aucun accord sur ce passage | vérifier le passage dans `arr play` ; la grille est écrite avec `N.C.` |
+| un passage du `.cho` n'a qu'une ou deux mesures, ou porte un nom inattendu | le fichier suit les sections de l'original, découpées par la transcription | `arr sections set`, puis `arr chordpro` |
 | `setlist inconnue` | le nom ne correspond à aucun fichier de `setlists/`, ou la commande est lancée ailleurs que dans le dossier des projets | `cd` dans le dossier des projets ; le message cite les setlists connues |
 | `… n'est pas un projet de …` | le morceau donné n'est pas un dossier de projet de ce dossier | donner le nom du dossier du morceau, tel que `ls` le montre |
 | `antisèches impossibles à imprimer` | un morceau de la setlist n'est pas transcrit, ou son dossier a été renommé | `arr transcribe` dans ce morceau, ou corriger son nom avec `arr set edit` |

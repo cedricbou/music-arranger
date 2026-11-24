@@ -227,6 +227,46 @@ tab = ["G|----------------|", "D|--------5---5-7-|", "A|3---3-5---5-----|", "E|-
 - `tab` est imprimé tel quel, en police à chasse fixe : alignez vos lignes.
 - Rien n'est proposé automatiquement pour le groove : il se saisit.
 
+## Emporter le morceau sur le prompteur de scène
+
+Un prompteur de scène (celui de namfoop, ou tout lecteur ChordPro) lit le morceau dans un
+fichier `.cho` : les accords mesure par mesure, les paroles en repère.
+
+```
+arr chordpro            # écrit export/<dossier du projet>.cho et dit ce qu'il contient
+arr chordpro --show     # le montre ici, passage par passage, sans l'écrire
+```
+
+```
+Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:27
+  structure de l'original · accords de la transcription · paroles de lyrics.txt
+
+  Intro         4 mes.   1 ligne de mesures
+  Couplet 1    16 mes.   4 lignes de mesures · 8 lignes de paroles en repère
+  Refrain       8 mes.   2 lignes de mesures, dont une mesure à 2 temps · 4 lignes de paroles en repère
+  Couplet 2    16 mes.   4 lignes de mesures · 8 lignes de paroles en repère
+  Refrain       8 mes.   comme le premier
+```
+
+- Il faut un morceau transcrit et sa grille de mesures (`arr transcribe`).
+- **La structure** est celle de l'original : un passage par section de `arr sections list`,
+  dans l'ordre. Les couplets sont numérotés, tous les refrains portent le même nom : le
+  prompteur relie un son à un passage par son nom. Corrigez d'abord les sections
+  (`arr sections set`) si leur découpage est faux, le fichier le reprend tel quel.
+- **Une grille par passage**, quatre mesures par ligne, une case par temps : l'accord là où il
+  commence, `.` tant qu'il tient, `N.C.` quand rien ne joue. Une mesure d'une autre longueur
+  (deux temps dans du 4/4) a sa propre grille, entre deux changements de mesure. arr compte
+  les temps, pas l'unité : la mesure est toujours écrite sur 4 (`2/4`, `4/4`, `3/4`).
+- **Les paroles** de `lyrics.txt` sont réparties sur les lignes de mesures de leur passage, dans
+  l'ordre, après la dernière barre. Il faut une balise par section, dans le même ordre ;
+  sinon le fichier est écrit sans paroles et la commande le signale.
+- **La tonalité** est celle que joue le groupe : le `transpose` de `sheet.toml` s'il existe.
+- **Le fichier appartient à arr** : chaque appel le réécrit en entier. Corrigez le projet
+  (sections, paroles, transposition), jamais le fichier. Copiez-le ensuite vous-même sur le
+  prompteur.
+- Le fichier est du ChordPro standard, sans directive propre à un lecteur. Un lecteur qui ne
+  dessine pas les grilles en montre les lignes telles quelles.
+
 ## Préparer un concert : la setlist et ses feuilles
 
 Une setlist est un fichier à part, `setlists/NOM.toml`, dans le dossier qui contient vos
