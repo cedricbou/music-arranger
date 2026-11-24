@@ -50,6 +50,52 @@ def test_lyrics_timestamps_are_shifted_to_the_recording():
     assert lyrics.tagged(synced, sections, first_sung=3.5) == "[Intro]\n\n[Verse]\none\ntwo\n"
 
 
+def test_lyrics_keep_the_time_of_each_line(tmp_path, monkeypatch):
+    from arr import lyrics
+
+    p = song_project(tmp_path, monkeypatch)
+    synced = "[00:00.20] one\n[00:01.10] two\n[00:01.60] three\n[00:02.50] four\n[00:09.00] five\n"
+    found = {"plainLyrics": "one", "syncedLyrics": synced}
+    monkeypatch.setattr(lyrics, "fetch", lambda artist, title: found)
+    runner.invoke(app, ["transcribe"])
+    assert runner.invoke(app, ["lyrics", "fetch", "Artist", "Title"]).exit_code == 0
+    # lyrics.txt est celui d'avant, l'horodatage est gardé à côté, tel quel
+    assert (p.root / "lyrics.txt").read_text() == "[Intro]\none\n\n[Chorus]\ntwo\nthree\n\n[Chorus]\nfour\nfive\n"
+    assert (p.root / "lyrics.lrc").read_text() == synced
+
+    # une ligne corrigée garde l'instant de celle qu'elle remplace ; une ligne ajoutée n'en a pas
+    (p.root / "lyrics.txt").write_text(
+        "[Intro]\none\n\n[Chorus]\nTwo, corrected!\nthree\n\n[Chorus]\nfour\nmine\nfive\n"
+    )
+    out = runner.invoke(app, ["lyrics", "show"]).output
+    assert "mes. 1   one" in out and "mes. 2   Two, corrected!" in out and "mes. 2   three" in out
+    assert "mes. 3   four" in out and "—    mine" in out and "mes. 4   five" in out
+    assert "1 ligne(s) sur 6 sans instant" in out
+
+    # un projet aux paroles déjà corrigées : seuls les instants s'ajoutent
+    (p.root / "lyrics.lrc").unlink()
+    before = (p.root / "lyrics.txt").read_text()
+    assert "6 lignes sans instant : arr lyrics fetch --times" in runner.invoke(app, ["lyrics", "show"]).output
+    out = runner.invoke(app, ["lyrics", "fetch", "--times", "Artist", "Title"]).output
+    assert "lyrics.lrc : 5 lignes horodatées" in out
+    assert (p.root / "lyrics.txt").read_text() == before and (p.root / "lyrics.lrc").read_text() == synced
+
+    # une source sans horodatage ne donne pas d'instants
+    found["syncedLyrics"] = None
+    result = runner.invoke(app, ["lyrics", "fetch", "--times", "Artist", "Title"])
+    assert result.exit_code != 0 and "pas d'horodatage" in str(result.exception)
+
+
+def test_lyrics_show_needs_one_tag_per_section(tmp_path, monkeypatch):
+    p = song_project(tmp_path, monkeypatch)
+    runner.invoke(app, ["transcribe"])
+    result = runner.invoke(app, ["lyrics", "show"])
+    assert result.exit_code != 0 and "arr lyrics fetch" in str(result.exception)
+    (p.root / "lyrics.txt").write_text("[Verse]\nla\n")
+    result = runner.invoke(app, ["lyrics", "show"])
+    assert result.exit_code != 0 and "1 balises pour 3 sections" in str(result.exception)
+
+
 def test_lyrics_fetch_defaults_to_the_project_song(tmp_path, monkeypatch):
     from arr import lyrics
 

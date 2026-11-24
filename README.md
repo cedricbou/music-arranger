@@ -194,7 +194,8 @@ d'un instrument note à note.
 | `arr import FICHIER` | remplace le morceau original |
 | `arr import FICHIER --as PISTE` | ajoute un enregistrement comme piste |
 | `arr transcribe` | partition dans `score/`, tempo, tonalité, sections |
-| `arr lyrics fetch [ARTISTE TITRE] [--force]` | paroles dans `lyrics.txt`, rangées par section ; par défaut, le morceau du projet |
+| `arr lyrics fetch [ARTISTE TITRE] [--force] [--times]` | paroles dans `lyrics.txt`, rangées par section, et l'instant de chaque ligne dans `lyrics.lrc` ; `--times` n'écrit que `lyrics.lrc` |
+| `arr lyrics show` | les paroles section par section, chaque ligne avec la mesure où elle est chantée |
 | `arr analyze` | temps et tempo seulement, en quelques secondes (sans partition) |
 | `arr sections list`, `arr sections set "intro:1-8 ..."`, `arr sections snap` | sections, en numéros de mesure ; `snap` pose celles d'un ancien projet sur les mesures |
 
@@ -259,6 +260,7 @@ fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis
 night-drive/
   song.toml        titre, tempo, tonalité, sections, état du mix
   lyrics.txt       paroles avec balises [Verse], [Chorus]...
+  lyrics.lrc       les mêmes, horodatées ligne par ligne, telles que LRCLIB les donne
   sheet.toml       antisèche de scène, une fois modifiée (`arr sheet --edit`)
   source/          morceau original, en FLAC 48 kHz stéréo
   score/           score.abc (éditable), fichiers MIDI, accords et structure horodatés

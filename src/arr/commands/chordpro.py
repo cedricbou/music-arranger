@@ -9,7 +9,7 @@ import typer
 from arr import chordpro as cho
 from arr import lyrics, structure
 from arr import sheet as sheets
-from arr.app import LYRICS, app
+from arr.app import LYRICS, LYRICS_TIMES, app
 from arr.commands._screen import song_chart
 from arr.project import Project, ProjectError
 
@@ -27,22 +27,26 @@ def played_key(p: Project) -> tuple[str, int]:
 
 
 def song_lyrics(p: Project, passages: list[structure.Passage]) -> tuple[dict, list[str], str]:
-    """Les paroles de chaque section, ce qui en est laissé de côté, et d'où elles viennent."""
-    f = p.root / LYRICS
+    """Les paroles de chaque section avec leur instant chanté, ce qui en est laissé de côté, et d'où elles viennent."""
+    from arr.engines.transcription import first_sung
+
+    f, times = p.root / LYRICS, p.root / LYRICS_TIMES
     if not f.exists():
         return {}, [], "sans paroles"
-    parts, sections = lyrics.blocks(f.read_text()), p.sections
-    if len(parts) != len(sections):
-        why = f"{len(parts)} balises pour {len(sections)} sections, paroles laissées de côté"
+    synced = times.read_text() if times.exists() else None
+    parts = lyrics.placed(f.read_text(), synced, p.sections, first_sung(p.root / "score"))
+    if parts is None:
+        why = f"{len(lyrics.blocks(f.read_text()))} balises pour {len(p.sections)} sections, paroles laissées de côté"
         return {}, [f"{LYRICS} : {why} — relis {LYRICS}"], "sans paroles"
-    by = {s.name: [(line, None) for line in part] for s, part in zip(sections, parts, strict=True)}
+    by = {s.name: part for s, part in zip(p.sections, parts, strict=True)}
     kept = {passage.section for passage in passages}
     warnings = [
         f"{name} : plus courte qu'une mesure, ses paroles sont laissées de côté — relis {LYRICS}"
         for name, lines in by.items()
         if lines and name not in kept
     ]
-    return by, warnings, f"paroles de {LYRICS}"
+    source = f"paroles de {LYRICS}" + (f", placées par {LYRICS_TIMES}" if synced else ", réparties")
+    return by, warnings, source
 
 
 def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:

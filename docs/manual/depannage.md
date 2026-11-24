@@ -105,6 +105,9 @@ les trois commandes de diagnostic.
 | `pas de partition (arr transcribe)` | `arr render` sans transcription | `arr transcribe` |
 | `la prise sera instrumentale` | pas de `lyrics.txt` | `arr lyrics fetch`, ou écrire le fichier |
 | les paroles sont mal rangées par section | le découpage automatique est approximatif | corriger `lyrics.txt` à la main |
+| `LRCLIB n'a pas d'horodatage` (`arr lyrics fetch --times`) | la base n'a que les paroles brutes pour ce morceau | rien à faire : les lignes sont réparties sur leur passage |
+| `lyrics.txt a N balises pour M sections` (`arr lyrics show`) | les balises de `lyrics.txt` ne suivent pas les sections une à une | une balise par section, dans l'ordre de `arr sections list` |
+| une ligne de paroles tombe une ou deux mesures à côté | les instants viennent d'une autre édition du morceau ; seul le début est recalé | pas de remède pour l'instant : les paroles restent un repère ; le signaler avec le morceau |
 | `aucune parole trouvée` | titre ou artiste différents dans la base | `arr lyrics fetch "Artiste" "Titre"` avec l'orthographe exacte |
 | une piste retirée par erreur | `arr rm` sans `--purge` | la reprendre dans `trash/` et la remettre sous `tracks/` |
 

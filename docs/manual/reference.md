@@ -39,6 +39,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr sections snap`](#arr-sections-snap) : Pose les bornes des sections sur les barres de mesure, pour des boucles qui retombent juste.
 - [`arr sections list`](#arr-sections-list) : Affiche les sections.
 - [`arr lyrics fetch`](#arr-lyrics-fetch) : Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
+- [`arr lyrics show`](#arr-lyrics-show) : Montre les paroles section par section, chaque ligne avec la mesure où elle commence.
 - [`arr set new`](#arr-set-new) : Crée une setlist, à lancer depuis le dossier qui contient les projets.
 - [`arr set add`](#arr-set-add) : Ajoute des morceaux, ou un entracte, à une setlist.
 - [`arr set edit`](#arr-set-edit) : Ouvre le fichier de la setlist : réordonner, retirer, transposer un morceau pour ce concert.
@@ -527,6 +528,8 @@ arr lyrics fetch [OPTIONS] [ARTIST] [TITLE]
 
 Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
 
+Les paroles horodatées sont gardées telles quelles dans lyrics.lrc : elles disent sur quelle mesure chaque ligne est chantée (`arr lyrics show`).
+
 | Argument | Défaut | Rôle |
 |---|---|---|
 | `ARTIST` |  | Par défaut, l'artiste du projet. |
@@ -535,6 +538,15 @@ Télécharge les paroles depuis LRCLIB et les range par section dans lyrics.txt.
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--force` | non | Remplace un lyrics.txt existant. |
+| `--times` | non | N'écrit que lyrics.lrc, les instants de chaque ligne : lyrics.txt reste tel quel. |
+
+## `arr lyrics show`
+
+```
+arr lyrics show
+```
+
+Montre les paroles section par section, chaque ligne avec la mesure où elle commence.
 
 ## `arr set new`
 

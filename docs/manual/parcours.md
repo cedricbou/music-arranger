@@ -131,6 +131,11 @@ arr play t001
 - `--free` laisse l'accompagnement et parfois le tempo libres : plus surprenant, mais la
   prise ne se greffe plus sur l'original.
 - Sans `lyrics.txt`, la prise est instrumentale.
+- `arr lyrics fetch` garde aussi `lyrics.lrc`, l'instant de chaque ligne. `arr lyrics show`
+  montre les paroles section par section, chaque ligne avec la mesure où elle commence. Une
+  ligne corrigée dans `lyrics.txt` garde la mesure de celle qu'elle remplace ; une ligne
+  ajoutée n'en a pas. Pour un projet aux paroles déjà corrigées, `arr lyrics fetch --times`
+  n'écrit que `lyrics.lrc`, sans toucher à `lyrics.txt`.
 - Pour changer la forme, les accords ou la tonalité, modifiez `score/score.abc`, puis
   relancez `arr render`.
 
@@ -239,7 +244,7 @@ arr chordpro --show     # le montre ici, passage par passage, sans l'écrire
 
 ```
 Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:27
-  structure de l'original · accords de la transcription · paroles de lyrics.txt
+  structure de l'original · accords de la transcription · paroles de lyrics.txt, placées par lyrics.lrc
 
   Intro         4 mes.   1 ligne de mesures
   Couplet 1    16 mes.   4 lignes de mesures · 8 lignes de paroles en repère
@@ -257,9 +262,11 @@ Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:
   commence, `.` tant qu'il tient, `N.C.` quand rien ne joue. Une mesure d'une autre longueur
   (deux temps dans du 4/4) a sa propre grille, entre deux changements de mesure. arr compte
   les temps, pas l'unité : la mesure est toujours écrite sur 4 (`2/4`, `4/4`, `3/4`).
-- **Les paroles** de `lyrics.txt` sont réparties sur les lignes de mesures de leur passage, dans
-  l'ordre, après la dernière barre. Il faut une balise par section, dans le même ordre ;
-  sinon le fichier est écrit sans paroles et la commande le signale.
+- **Les paroles** de `lyrics.txt` suivent la dernière barre de la ligne de mesures où elles
+  sont chantées, d'après `lyrics.lrc` (`arr lyrics show` le montre). Une ligne sans instant
+  suit celle d'avant ; sans `lyrics.lrc`, les lignes sont réparties à parts égales sur leur
+  passage. Il faut une balise par section, dans le même ordre ; sinon le fichier est écrit
+  sans paroles et la commande le signale.
 - **La tonalité** est celle que joue le groupe : le `transpose` de `sheet.toml` s'il existe.
 - **Le fichier appartient à arr** : chaque appel le réécrit en entier. Corrigez le projet
   (sections, paroles, transposition), jamais le fichier. Copiez-le ensuite vous-même sur le

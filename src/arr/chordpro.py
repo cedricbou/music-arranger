@@ -70,19 +70,28 @@ def rows(bars: list[tuple]) -> list[tuple[int, list[tuple]]]:
 def landmarks(lines: list[tuple[str, float | None]], spans: list[tuple[float, float]]) -> list[list[str]]:
     """Les paroles de chaque ligne de mesures, d'après l'instant où chaque ligne est chantée.
 
-    Si une ligne n'a pas d'instant, ou tombe hors du passage, toutes sont réparties à parts
-    égales sur les lignes de mesures, dans l'ordre.
+    Une ligne chantée hors du passage va sur sa première ou sa dernière ligne de mesures ; une
+    ligne sans instant suit celle d'avant. Si aucune n'a d'instant, elles sont réparties à
+    parts égales, dans l'ordre.
     """
     out: list[list[str]] = [[] for _ in spans]
-    if not spans:
+    if not spans or not lines:
         return out
-    texts = [text.replace("|", "/").strip() for text, _ in lines]
-    where = [next((i for i, (a, b) in enumerate(spans) if t is not None and a <= t < b), None) for _, t in lines]
-    if None in where:
-        where = [j * len(spans) // len(lines) for j in range(len(lines))]
-    for text, i in zip(texts, where, strict=True):
-        out[i].append(text)
+    if all(t is None for _, t in lines):
+        where: list[int | None] = [j * len(spans) // len(lines) for j in range(len(lines))]
+    else:
+        where = [None if t is None else _row(t, spans) for _, t in lines]
+        first = next(i for i in where if i is not None)
+        for j, i in enumerate(where):
+            where[j] = (where[j - 1] if j else first) if i is None else i
+    for (text, _), i in zip(lines, where, strict=True):
+        out[i].append(text.replace("|", "/").strip())
     return out
+
+
+def _row(t: float, spans: list[tuple[float, float]]) -> int:
+    inside = next((i for i, (a, b) in enumerate(spans) if a <= t < b), None)
+    return inside if inside is not None else 0 if t < spans[0][0] else len(spans) - 1
 
 
 def layout(passages: list[Passage], lyrics: dict[str, list], key: str, shift: int) -> list[Block]:
