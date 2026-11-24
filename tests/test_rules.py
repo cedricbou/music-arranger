@@ -160,7 +160,7 @@ MUSIC = (".flac", ".wav", ".ogg", ".mp3", ".m4a", ".opus", ".aif", ".aiff", ".mi
 SHEETS = (".pdf", ".lrc", ".gp", ".gpx", ".gp5", ".mscz", ".sib")
 WEIGHTS = (".gguf", ".safetensors", ".pt", ".pth", ".ckpt", ".bin", ".onnx", ".npy", ".npz")
 # Les seuls artistes que nomment les exemples et les tests : ils sont inventés.
-INVENTED_ARTISTS = {"Paper Lanterns", "The Night Shifts", "Hélène Faure", "4 Walls", "Artiste"}
+INVENTED_ARTISTS = {"Paper Lanterns", "The Night Shifts", "Hélène Faure", "4 Walls", "Les Balises", "Artiste"}
 
 
 def tracked() -> list[str]:

@@ -25,6 +25,18 @@ def fetch(artist: str, title: str) -> dict:
     return next((r for r in results if r.get("syncedLyrics")), results[0])
 
 
+def blocks(text: str) -> list[list[str]]:
+    """Les lignes de chaque balise ([Verse], [Chorus]...) de lyrics.txt, dans l'ordre ; vide sans balise."""
+    out: list[list[str]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if re.fullmatch(r"\[[^\]]*\]", line):
+            out.append([])
+        elif line and out:
+            out[-1].append(line)
+    return out
+
+
 def tagged(synced: str, sections: list[Section], first_sung: float | None = None) -> str:
     """Range des paroles horodatées sous des balises [Verse], [Chorus]... selon les sections.
 

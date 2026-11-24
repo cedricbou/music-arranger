@@ -16,6 +16,8 @@ choix, dans `docs/decisions/`.
   écrasé (fiche 006).
 - Sections homonymes numérotées (`chorus2`). **Antisèche** : `sheet.toml` fait foi ; setlists à
   part (fiche 009).
+- **Prompteur** : `export/<dossier>.cho`, réécrit en entier par `arr chordpro` à partir des
+  sections, des accords et de `lyrics.txt` (fiche 012).
 
 ## Moteurs externes
 
