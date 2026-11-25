@@ -319,6 +319,7 @@ def test_keys_are_read_from_what_the_terminal_sends():
     assert parse_keys(b"\x1b[D\x1b[D\x1b[C") == ["back", "back", "forward"]
     assert parse_keys(b"\x1bOD \x1bOC") == ["back", "pause", "forward"]  # flèches en mode « application »
     assert parse_keys(b"q\x1b[A\n") == []  # le reste est ignoré
+    assert parse_keys(b"d\x1b[Dd") == ["doubt", "back", "doubt"]
 
 
 def test_arrows_lead_to_bar_starts():
@@ -475,3 +476,77 @@ def test_play_with_the_clock_needs_the_bars_of_the_chordpro_file(tmp_path, monke
     result = runner.invoke(app, ["play", "--clock"])
     assert result.exit_code != 0 and "pas d'horloge MIDI" in str(result.exception)
     assert "arr transcribe" in str(result.exception)
+
+
+def doubtful_song(tmp_path, monkeypatch):
+    """Huit mesures à 120 à la noire, un accord par mesure ; beat_this a entendu faiblement trois temps."""
+    from arr.commands._common import save_analysis
+
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(330, 16.0, amp=0.1), {"op": "split"})
+    p.set_sections([Section("verse", 0.0, 8.0), Section("chorus", 8.0, 16.0)])
+    p.save()
+    beats = [0.5 * i for i in range(32)]
+    heard = np.zeros((801, 2), np.float32)
+    heard[[int(t * 50) for t in beats], 0] = 1.0
+    for t, level in ((5.0, 0.7), (6.5, 0.4), (13.0, 0.85)):  # mesures 3 et 4, puis 7
+        heard[int(t * 50), 0] = level
+    save_analysis(p, beats, beats[::4], heard)
+    score = p.root / "score"
+    (score / "chord.lab").write_text("".join(f"{2.0 * i}\t{2.0 * i + 2}\t{'CDEFGABC'[i]}:maj\n" for i in range(8)))
+    (score / "beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(beats)))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "120")
+    return p
+
+
+def test_play_marks_the_bars_arr_is_unsure_of_and_d_jumps_to_them(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    from arr.commands import play as command
+    from arr.commands.play import doubt_stops, next_after
+
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    doubtful_song(tmp_path, monkeypatch)
+    out = runner.invoke(app, ["play", "-s", "verse"]).output
+    assert "d : doute suivant" in out
+    assert "│ C   /   /   /   │ D   /   /   /   │?E   /   /   /   │?F   /   /   /   │" in out
+    assert "? compte incertain · 0:04 : temps 3 entendu faiblement (0,70)" in out
+    # le refrain : une seule mesure douteuse, la septième du morceau
+    out = runner.invoke(app, ["play", "-s", "chorus"]).output
+    assert "│ G   /   /   /   │ A   /   /   /   │?B   /   /   /   │ C   /   /   /   │" in out
+    assert "0:12 : temps 3 entendu faiblement (0,85)" in out
+
+    # d mène au début de chaque passage douteux, dans l'ordre de la lecture
+    doubts = {4.0: "a", 6.0: "b", 12.0: "c"}
+    starts = [2.0 * i for i in range(8)]
+    assert doubt_stops(doubts, starts, [], 16.0) == [4.0, 12.0]
+    assert doubt_stops(doubts, starts, [(8.0, 16.0), (6.0, 8.0)], 10.0) == [4.0, 8.0]
+    assert next_after([4.0, 12.0], 0.0) == 4.0 and next_after([4.0, 12.0], 4.0) == 12.0
+    assert next_after([4.0, 12.0], 13.0) is None and next_after([4.0, 12.0], 13.0, loop=True) == 4.0
+    assert next_after([], 0.0, loop=True) is None
+
+    typed = iter([["doubt"], ["doubt"], ["doubt"]])
+
+    @contextmanager
+    def keyboard():
+        yield lambda: next(typed)
+
+    monkeypatch.setattr(command, "keyboard", keyboard)
+    calls["positions"] = [1.0, 5.0, 13.0]
+    assert runner.invoke(app, ["play"]).exit_code == 0
+    assert calls["orders"] == [(False, 4.0), (False, 12.0), (False, None)]
+
+
+def test_doubts_change_neither_the_chart_nor_the_prompter_file(tmp_path, monkeypatch):
+    from arr.commands._screen import song_chart
+
+    p = doubtful_song(tmp_path, monkeypatch)
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    written, chart = (p.root / "export/song.cho").read_text(), song_chart(p)
+    # le même morceau, analysé avant que les activations ne soient gardées : aucune marque
+    (p.root / "analysis_frames.npz").rename(p.root / "ailleurs.npz")
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    assert (p.root / "export/song.cho").read_text() == written and song_chart(p) == chart
+    out = runner.invoke(app, ["play", "-s", "verse"]).output
+    assert "?" not in out and "doute suivant" not in out

@@ -25,7 +25,7 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
 YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
-génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015 à 017), MIDI (011, 014).
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015 à 018), MIDI (011, 014).
 
 ## Comment travailler ici
 
@@ -89,7 +89,7 @@ src/arr/
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
-  commands/system.py        check, truth, devices, doctor, models pull
+  commands/system.py        check, truth, doubts, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille

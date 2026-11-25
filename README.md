@@ -116,6 +116,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
 - **Pause et retour en arrière** : pendant `arr play`, Espace met en pause, ← revient à la
   mesure d'avant et → passe à la suivante.
+- **Mesures douteuses** : là où le détecteur a entendu un temps faiblement, `arr play` marque
+  la mesure d'un « ? » sur la grille d'accords et d y saute ; `arr doubts` liste ces passages.
+  Rien n'est corrigé : la grille et le fichier du prompteur restent les mêmes.
 - **Passages de référence** : `arr play -s chorus --mark` joue le passage une fois ; Espace se
   tape sur le 1 de chaque mesure, et les barres repérées sont rangées dans `truth/` du morceau.
   `arr truth` note ensuite la grille de tous les morceaux contre ces passages, et dit lesquels
@@ -258,6 +261,7 @@ d'un instrument note à note.
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
 | `arr play -s SECTION --mark` | repère à l'oreille les barres de mesure du passage (Espace sur chaque 1) : un passage de référence, dans `truth/` |
+| `arr doubts` | liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison |
 | `arr truth [DOSSIER]` | note la grille de chaque morceau contre ses passages de référence, et dit ce qui va mieux ou moins bien |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu

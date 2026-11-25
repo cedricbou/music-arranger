@@ -154,19 +154,23 @@ def score(marks: list[float], beats_per_bar: int, beats: list[float], bars: list
       après la frappe) ; None sans barre juste ;
     - `counted`, `right` : mesures repérées (entre deux barres) et celles où la grille compte
       `beats_per_bar` temps. Un temps appartient à la mesure dont la barre repérée le précède à
-      un demi-temps près : une frappe un peu en avance ou en retard ne change pas le compte.
+      un demi-temps près : une frappe un peu en avance ou en retard ne change pas le compte ;
+    - `wrong` : pour chaque mesure repérée, si la grille s'y trompe (pas de barre juste à son
+      début, ou pas le bon nombre de temps).
     """
     import mir_eval
 
     ref = np.asarray(marks, dtype=float)
     if not len(ref):
-        return {"marks": 0, "shown": 0, "matched": 0, "f": 0.0, "offset": None, "counted": 0, "right": 0}
+        return {"marks": 0, "shown": 0, "matched": 0, "f": 0.0, "offset": None, "counted": 0, "right": 0, "wrong": []}
     est = np.array([b for b in bars if ref[0] - ON_BAR <= b <= ref[-1] + ON_BAR], dtype=float)
     pairs = mir_eval.util.match_events(ref, est, ON_BAR) if len(est) else []
-    t, right = np.asarray(beats, dtype=float), 0
-    for a, b in zip(ref, ref[1:], strict=False):
-        half = (b - a) / (2 * beats_per_bar)
-        right += int(((t >= a - half) & (t < b - half)).sum()) == beats_per_bar
+    t, on_line = np.asarray(beats, dtype=float), {i for i, _ in pairs}
+    counts = [
+        int(((t >= a - (b - a) / (2 * beats_per_bar)) & (t < b - (b - a) / (2 * beats_per_bar))).sum())
+        for a, b in zip(ref, ref[1:], strict=False)
+    ]
+    right = sum(c == beats_per_bar for c in counts)
     return {
         "marks": len(ref),
         "shown": len(est),
@@ -175,7 +179,20 @@ def score(marks: list[float], beats_per_bar: int, beats: list[float], bars: list
         "offset": float(np.median([est[j] - ref[i] for i, j in pairs])) if pairs else None,
         "counted": len(ref) - 1,
         "right": right,
+        "wrong": [c != beats_per_bar or i not in on_line for i, c in enumerate(counts)],
     }
+
+
+def doubted(marks: list[float], beats_per_bar: int, doubtful: list[float]) -> list[bool]:
+    """Pour chaque mesure repérée, si la grille y marque une mesure douteuse (`doubtful` : leurs débuts).
+
+    Une mesure de la grille va à la mesure repérée dont la barre la précède à un demi-temps près.
+    """
+    out = []
+    for a, b in zip(marks, marks[1:], strict=False):
+        half = (b - a) / (2 * beats_per_bar)
+        out.append(any(a - half <= d < b - half for d in doubtful))
+    return out
 
 
 def verdict(now: dict, before: dict | None) -> str:

@@ -11,18 +11,27 @@ import typer
 
 from arr import audio, midi, truth
 from arr.app import app
-from arr.commands._common import confirm, lead_in, load_track, mix_tracks, render_mix, song_grid
+from arr.commands._common import (
+    confirm,
+    doubtful_passages,
+    lead_in,
+    load_track,
+    mix_tracks,
+    render_mix,
+    song_doubts,
+    song_grid,
+)
 from arr.commands._screen import clock as mmss
 from arr.commands._screen import live, mix_notes, position, song_chart, timeline, view
 from arr.project import Project, ProjectError
 
-KEYS = {b" ": "pause", b"D": "back", b"C": "forward"}
+KEYS = {b" ": "pause", b"D": "back", b"C": "forward", b"d": "doubt"}
 STEP = 5.0  # secondes entre deux arrêts quand le morceau n'a pas de mesures connues
 
 
 def parse_keys(data: bytes) -> list[str]:
-    """Les touches reconnues dans ce que le terminal a envoyé : espace, flèche gauche, flèche droite."""
-    return [KEYS[k[-1:]] for k in re.findall(rb" |\x1b[\[O][CD]", data)]
+    """Les touches reconnues dans ce que le terminal a envoyé : espace, flèche gauche, flèche droite, d."""
+    return [KEYS[k[-1:]] for k in re.findall(rb" |d|\x1b[\[O][CD]", data)]
 
 
 @contextmanager
@@ -121,6 +130,22 @@ def bar_stops(starts: list[float], ranges: list[tuple[float, float]], length: fl
     return [s for i, s in enumerate(stops) if s < length and (i == 0 or s - stops[i - 1] > 0.2)]
 
 
+def doubt_stops(doubts: dict, starts: list[float], ranges: list[tuple[float, float]], length: float) -> list[float]:
+    """Où mène d : le début de chaque passage douteux, en secondes de lecture, parmi les mesures jouées."""
+    stops, t = [], 0.0
+    for start, end in ranges or [(0.0, length)]:
+        played = [b for b in starts if start - 0.05 <= b < end]
+        stops += [t + max(first - start, 0.0) for first, _, _ in doubtful_passages(doubts, played)]
+        t += end - start
+    return stops
+
+
+def next_after(stops: list[float], t: float, loop: bool = False) -> Optional[float]:
+    """Le premier arrêt après `t` ; après le dernier : None, ou le premier si la lecture est en boucle."""
+    ahead = [s for s in stops if s > t + 0.05]
+    return ahead[0] if ahead else stops[0] if loop and stops else None
+
+
 def neighbour(stops: list[float], t: float, step: int, loop: bool = False) -> Optional[float]:
     """Le début de la mesure d'avant (`step` -1) ou d'après (+1) celle où l'on est.
 
@@ -166,6 +191,10 @@ def play(
 
     Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite
     passe à la suivante. Ctrl+C arrête.
+
+    Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte
+    (`arr doubts` les liste) : d saute au prochain passage douteux. La marque ne change ni la
+    grille ni le fichier du prompteur.
 
     Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture :
     l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro,
@@ -234,7 +263,11 @@ def play(
         notes = mix_notes(p, names, tuple(without), tuple(only))
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
     measures = [] if take else song_chart(p)
+    doubts = (song_doubts(p) or {}) if measures else {}
+    # d mène au début de chaque passage douteux, parmi les mesures jouées.
+    unsure = doubt_stops(doubts, [m[0] for m in measures], ranges, len(body) / audio.SR)
     keys = "Espace : le 1 de chaque mesure" if mark else "Espace : pause · ← → : mesure"
+    keys += " · d : doute suivant" if unsure and not mark else ""
     hint = f"{'en boucle · ' if loop else ''}{'horloge MIDI → arr:transport · ' if clock else ''}{keys} · Ctrl+C arrête"
     taps = truth.Taps() if mark else None
     grid = song_grid(p) if not take else None
@@ -257,6 +290,7 @@ def play(
             solo=bool(name),
             version=version,
             paused=paused,
+            doubts=doubts,
         )
 
     def run() -> None:
@@ -272,6 +306,9 @@ def play(
                 for key in pressed():
                     if key == "pause":
                         paused = not paused
+                    elif key == "doubt":
+                        if (target := next_after(unsure, max(t, 0.0), loop)) is not None:
+                            t = jump = target
                     elif (target := neighbour(stops, max(t, 0.0), -1 if key == "back" else 1, loop)) is not None:
                         t = jump = target
                 shown.update(screen(seconds if jump is None else base + jump))

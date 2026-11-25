@@ -3,6 +3,7 @@
 `analysis.json` garde les temps et les barres de beat_this tels quels. Avant de servir, les
 temps entendus deux fois sont retirés (`clean_beats`), les temps manqués dont il reste une
 trace sont comblés (`fill_beats`), et les barres sont posées tous les N temps (`regular_bars`).
+`doubtful_bars` dit où beat_this hésitait : ces mesures sont montrées, jamais corrigées.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 HEARD = 0.07  # une trace de temps compte à moins de 70 ms de l'endroit attendu
+WEAK = 0.9  # sous cette activation, beat_this a entendu le temps faiblement
 
 
 def steady_bars(bars: list[float], reach: int = 8) -> list[float]:
@@ -156,3 +158,28 @@ def fill_beats(beats: list[float], activation, fps: float = 50.0, floor: float =
             out.append((first + int(window.argmax())) / fps)
             added = True
     return [*out, float(t[-1])] if added else beats
+
+
+def doubtful_bars(beats: list[float], bars: list[float], activation, fps: float = 50.0) -> dict[float, str]:
+    """Les mesures où beat_this hésitait : le premier temps de la mesure → pourquoi, en quelques mots.
+
+    Une mesure est douteuse quand un de ses temps a été entendu faiblement : son activation
+    (le plus fort de sa trame et des deux voisines) est sous `WEAK`. Un temps comblé par
+    `fill_beats` l'est toujours. Les temps d'avant la première barre ne font pas une mesure.
+    """
+    if activation is None or not len(activation) or not len(beats) or not len(bars):
+        return {}
+    heard = np.asarray(activation, dtype=float)
+    out: dict[float, str] = {}
+    edges, bar, start, rank = [*sorted(bars), float("inf")], -1, None, 0
+    for t in beats:
+        if t < edges[0] - 0.05:
+            continue
+        while t >= edges[bar + 1] - 0.05:
+            bar, start, rank = bar + 1, t, 0
+        rank += 1
+        k = min(max(int(round(t * fps)), 0), len(heard) - 1)
+        peak = float(heard[max(k - 1, 0) : k + 2].max())
+        if peak < WEAK and start not in out:
+            out[start] = f"temps {rank} entendu faiblement ({peak:.2f})".replace(".", ",")
+    return out

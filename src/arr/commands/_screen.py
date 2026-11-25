@@ -146,8 +146,11 @@ def chord_page(
     return name, page, current, upcoming
 
 
-def chord_block(bars: list[tuple], marks: list[tuple], t: float, loop: bool = False) -> list:
-    """La grille de la section : une case par mesure, un accord écrit sur son temps, « / » par temps tenu."""
+def chord_block(bars: list[tuple], marks: list[tuple], t: float, loop: bool = False, doubts=()) -> list:
+    """La grille de la section : une case par mesure, un accord écrit sur son temps, « / » par temps tenu.
+
+    Une mesure dont le début est dans `doubts` porte un « ? » : arr n'est pas sûr de son compte.
+    """
     import shutil
 
     from rich.table import Table
@@ -167,7 +170,8 @@ def chord_block(bars: list[tuple], marks: list[tuple], t: float, loop: bool = Fa
         for row in range(0, len(shown), per_row):
             cells = []
             for i, bar in enumerate(shown[row : row + per_row], start=row):
-                cell = Text("│ ", style=style)
+                cell = Text("│", style=style)
+                cell.append("?" if bar[0] in doubts else " ", style="bold yellow")
                 for j, (_, held, label, _, _) in enumerate(bar[3]):
                     text = chord_name(label).ljust(slot) + "/".ljust(slot) * (held - 1)
                     # Vidéo inverse : les couleurs du terminal lui-même, donc toujours lisibles.
@@ -177,6 +181,10 @@ def chord_block(bars: list[tuple], marks: list[tuple], t: float, loop: bool = Fa
         return grid
 
     lines = ["", f"[bold]Accords[/]{f' · {name}' if name else ''}", rows(page, current)]
+    if unsure := [b for b in page if b[0] in doubts]:
+        # La raison de la mesure qui joue si elle est douteuse, sinon celle de la première de la page.
+        shown = page[current[0]] if current and page[current[0]][0] in doubts else unsure[0]
+        lines.append(f"[yellow]?[/] [dim]compte incertain · {clock(shown[0])} : {doubts[shown[0]]}[/]")
     if ahead:
         # La première rangée de la section suivante reste sous les yeux : l'enchaînement se lit d'avance.
         lines += [f"[dim]── puis {upcoming[0]} ──[/]", rows(ahead[:per_row], None, "dim")]
@@ -199,6 +207,7 @@ def view(
     recording: bool = False,
     loop: bool = False,
     paused: bool = False,
+    doubts=(),
 ):
     """L'écran à l'instant `t` : ce qui joue, ce qui s'applique à la section en cours, et ses accords.
 
@@ -250,7 +259,9 @@ def view(
     )
     # La consigne va avec le titre : sur la ligne d'état, elle la ferait déborder d'un terminal de 80 colonnes.
     head = f"[bold]{title}[/]  [dim]{hint}[/]"
-    return Group(head, *([table] if names else []), *notes, *chord_block(list(bars), marks, t, loop), "", status)
+    return Group(
+        head, *([table] if names else []), *notes, *chord_block(list(bars), marks, t, loop, doubts), "", status
+    )
 
 
 def mix_notes(p: Project, names: list[str], without: tuple, only: tuple) -> list[str]:
