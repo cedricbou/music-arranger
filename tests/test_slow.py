@@ -35,6 +35,74 @@ def test_beat_tracker_finds_the_tempo(tmp_path):
     assert abs(60 / measure.period(beats) - 120) < 1.0
 
 
+REPAIR = """
+import importlib, json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+import pretty_midi
+from transformers import AutoConfig
+import _sheetsage2
+
+config = AutoConfig.from_pretrained("m-a-p/SheetSage2", trust_remote_code=True)
+notation = importlib.import_module(type(config).__module__.rsplit(".", 1)[0] + ".notation_sheetsage2")
+out = Path(sys.argv[1])
+folder = out / "notation"
+folder.mkdir(parents=True)
+ids = [i % 4 + 1 for i in range(40)]
+ids[12:] = [4] + ids[12:-1]  # une mesure de cinq temps : 1 2 3 4 4
+rows = lambda r: "".join("\\t".join(map(str, x)) + "\\n" for x in r)
+(folder / "song_beats.txt").write_text(rows([[0.5 * i, n, 4, 4] for i, n in enumerate(ids)]))
+chords = [[2.0 * i, 2.0 * i + 2, "A:maj" if i % 2 else "D:maj"] for i in range(9)] + [[18.0, 19.5, "D:maj"]]
+chords[-1][1] = 19.484
+chords.append([19.484, 19.5, "C#:sus4"])  # 16 ms en fin de morceau
+(folder / "song_chords.txt").write_text(rows(chords))
+(folder / "song_keys.txt").write_text(rows([[0.0, 19.5, "D:major"]]))
+(folder / "song_structures.txt").write_text(rows([[0.0, 8.0, "verse"], [8.0, 19.5, "chorus"]]))
+midi = pretty_midi.PrettyMIDI()
+for name in ("Vocal", "Ins"):
+    voice = pretty_midi.Instrument(0, name=name)
+    voice.notes = [pretty_midi.Note(100, 62 + i % 5, 0.5 * i + 0.02, 0.5 * i + 0.4) for i in range(38)]
+    midi.instruments.append(voice)
+midi.write(str(folder / "song_melody.mid"))
+read = lambda f: [[float(a), float(b), v] for a, b, v in (l.split("\\t") for l in (folder / f).read_text().split("\\n") if l)]
+try:
+    notation.generate_abc_from_data((folder / "song_melody.mid").read_bytes(), [l.split("\\t") for l in
+        (folder / "song_beats.txt").read_text().split("\\n") if l], read("song_chords.txt"),
+        read("song_keys.txt"), read("song_structures.txt"))
+    refused = None
+except ValueError as exc:
+    refused = str(exc)
+grid = {"beats": [0.5 * i for i in range(39)], "bars": [2.0 * i for i in range(10)]}
+print(json.dumps({"refused": refused, "measures": _sheetsage2.repair(notation, out, grid)}))
+"""
+
+
+def test_a_refused_score_is_rewritten_by_the_sheetsage2_environment(tmp_path):
+    """La reprise tourne avec le vrai module de partition de SheetSage2, sans le modèle."""
+    import json
+    import os
+    import subprocess
+
+    from arr.engines import SS2_PYTHON, transcription
+
+    engines.offline()
+    driver = tmp_path / "driver.py"
+    driver.write_text(REPAIR)
+    out = tmp_path / "score"
+    done = subprocess.run(
+        [str(SS2_PYTHON), str(driver), str(out), str(transcription.SCRIPT.parent)],
+        capture_output=True,
+        text=True,
+        env=os.environ,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    result = json.loads(done.stdout.splitlines()[-1])
+    assert "non-consecutive beat IDs" in result["refused"]  # SheetSage2 seul refuse
+    abc = (out / "score.abc").read_text()
+    assert result["measures"] == 10 and "M:4/4" in abc and "M:5/4" not in abc
+    assert '"C#sus4"' not in abc  # l'accord de 16 ms s'est fondu dans le précédent
+
+
 def test_separation_stems_add_up_to_the_song(tmp_path):
     from arr.engines.separation import separate
 

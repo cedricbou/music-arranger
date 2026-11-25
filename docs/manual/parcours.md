@@ -150,6 +150,10 @@ arr play t001
 - `--free` laisse l'accompagnement et parfois le tempo libres : plus surprenant, mais la
   prise ne se greffe plus sur l'original.
 - Sans `lyrics.txt`, la prise est instrumentale.
+- Quand SheetSage2 refuse d'écrire la partition (une mesure comptée de travers, un accord
+  de quelques millisecondes à la fin), `arr transcribe` la réécrit sur les mesures d'`arr
+  analyze` et le dit. Si cela échoue aussi, il le dit et garde le reste : accords, tempo et
+  sections ; seul `arr render` attend alors une nouvelle transcription.
 - `arr lyrics fetch` garde aussi `lyrics.lrc`, l'instant de chaque ligne. `arr lyrics show`
   montre les paroles section par section, chaque ligne avec la mesure où elle commence. Une
   ligne corrigée dans `lyrics.txt` garde la mesure de celle qu'elle remplace ; une ligne

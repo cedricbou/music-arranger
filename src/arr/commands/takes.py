@@ -32,7 +32,10 @@ def render(
     p = Project.find()
     score = p.root / SCORE
     if not score.exists():
-        raise ProjectError("pas de partition (arr transcribe)")
+        raise ProjectError(
+            "pas de partition : lance arr transcribe ; s'il dit que SheetSage2 n'a pas pu l'écrire, relance-le,"
+            " le résultat change d'un essai à l'autre"
+        )
     words = p.root / LYRICS
     if not words.exists():
         typer.secho(f"pas de {LYRICS} : la prise sera instrumentale", fg="yellow", err=True)
