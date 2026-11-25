@@ -117,6 +117,10 @@ les trois commandes de diagnostic.
 | `lyrics.txt a N balises pour M sections` (`arr lyrics show`) | les balises de `lyrics.txt` ne suivent pas les sections une à une | une balise par section, dans l'ordre de `arr sections list` |
 | une ligne de paroles tombe une ou deux mesures à côté | les instants viennent d'une autre édition du morceau ; seul le début est recalé | pas de remède pour l'instant : les paroles restent un repère ; le signaler avec le morceau |
 | `aucune parole trouvée` | titre ou artiste différents dans la base | `arr lyrics fetch "Artiste" "Titre"` avec l'orthographe exacte |
+| `--mark : les sections doivent se suivre dans le morceau` | `arr play --mark` avec des sections dans le désordre ou séparées | un passage d'un seul tenant : `-s chorus2,outro`, ou une passe par section |
+| `aucun passage de référence sous …` (`arr truth`) | aucun morceau du dossier n'a de barres repérées | `arr play -s SECTION --mark` dans un morceau, ou donner le dossier des morceaux : `arr truth ~/Musique` |
+| `passage de référence illisible : …` | un fichier de `truth/` corrigé à la main n'est plus du TOML valide | le corriger, ou refaire le passage : `arr play -s SECTION --mark` |
+| toutes mes barres repérées sont à côté de celles d'`arr`, du même écart | vous tapez en avance ou en retard, ou la sortie son annonce mal son retard | regarder la colonne « Écart » d'`arr truth` sur un morceau au clic régulier, et le signaler avec sa valeur |
 | une piste retirée par erreur | `arr rm` sans `--purge` | la reprendre dans `trash/` et la remettre sous `tracks/` |
 
 ## Quand rien ne correspond

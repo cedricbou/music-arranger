@@ -25,3 +25,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [013](013-mesures-regulieres.md) | La grille d'accords pose une barre tous les N temps ; une mesure courte ne reste que là où les barres se décalent vraiment |
 | [014](014-transport-midi.md) | `arr play --clock` envoie horloge et transport sur un port virtuel tenu ouvert, sur les mesures du `.cho`, à l'heure où le son sort |
 | [015](015-temps-entendus-deux-fois.md) | Un temps entendu deux fois par beat_this compte pour un, partout où la grille est lue ; `analysis.json` reste brut |
+| [016](016-passages-de-reference.md) | Des passages dont le musicien tape les barres dans `arr play --mark` notent la grille ; ils vivent dans `truth/` du projet |
