@@ -69,3 +69,28 @@ def test_midi_goes_out_and_comes_back_through_the_alsa_loopback():
     assert len(heard) == 3, heard  # les trois messages, dans l'ordre où ils ont été écrits
     assert "controller 0, value 0" in heard[0] and "controller 32, value 1" in heard[1]
     assert "Program change" in heard[2] and "1, program 4" in heard[2]  # canal 2, programme 5
+
+
+def test_the_transport_leaves_on_the_virtual_port_and_a_client_hears_it():
+    """Le vrai port virtuel « arr:transport », relu par un client du séquenceur comme le serait namfoop."""
+    import rtmidi
+
+    from arr import midi
+
+    plan = midi.clock_plan([(0.0, 0.5, 1), (0.5, 1.0, 1)], [(0.0, 1.0)], since=-0.5)
+    heard = []
+    with midi.Transport(plan, lambda s: s - 0.5) as transport:
+        probe = rtmidi.MidiIn(rtmidi.API_LINUX_ALSA, name="probe")
+        probe.ignore_types(timing=False)
+        probe.open_port(next(i for i, n in enumerate(probe.get_ports()) if n.startswith("arr:")))
+        begin = time.monotonic()
+        while time.monotonic() - begin < 1.6:
+            transport.heard(time.monotonic() - begin, time.monotonic(), False)
+            while message := probe.get_message():
+                heard.append(bytes(message[0]))
+            time.sleep(0.005)
+    time.sleep(0.05)
+    while message := probe.get_message():
+        heard.append(bytes(message[0]))
+    assert heard.count(b"\xf8") == 72 and heard.index(b"\xfa") == 24  # une noire de décompte, puis Start
+    assert heard[-1] == b"\xfc"

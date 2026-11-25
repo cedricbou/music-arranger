@@ -322,6 +322,8 @@ Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la se
 
 Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite passe à la suivante. Ctrl+C arrête.
 
+Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture : l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro, la position suit les sections, les flèches et la boucle, la pause envoie Stop.
+
 | Argument | Défaut | Rôle |
 |---|---|---|
 | `NAME` |  | Piste ou prise (ex. t001) ; sinon le mix. |
@@ -334,6 +336,7 @@ Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, fl
 | `--section`, `-s` |  | Sections à jouer, enchaînées dans l'ordre donné : -s verse,chorus ou -s verse -s chorus. (répétable) |
 | `--loop`, `-l` | non | Rejoue en boucle jusqu'à Ctrl+C. |
 | `--count-in` | `0` | Mesures de décompte avant de commencer (pas à chaque boucle). |
+| `--clock` | non | Envoie l'horloge et le transport MIDI sur le port « arr:transport » : un prompteur de scène suit le morceau. |
 
 ## `arr nudge`
 

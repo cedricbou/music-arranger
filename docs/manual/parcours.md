@@ -68,6 +68,25 @@ posent alors à la main : `arr sections set "intro:1-8 verse:9-24 chorus:25-40"`
 Une section qui ne boucle pas proprement vient d'une transcription plus ancienne : `arr
 sections snap` pose ses bornes sur les barres de mesure, une fois pour tout le projet.
 
+### Suivre le prompteur de scène pendant la lecture
+
+```
+arr chordpro                             # le fichier .cho que lit le prompteur (namfoop)
+arr play --clock --count-in 1            # le prompteur part sur la mesure 1, après le décompte
+arr play --clock -s chorus --loop        # il se pose sur le refrain, et y revient à chaque tour
+```
+
+Avec `--clock`, `arr` ouvre le port MIDI virtuel « arr:transport » et y envoie l'horloge
+(24 tops par noire, au tempo de l'enregistrement) et le transport : Start sur la mesure 1,
+la position au début d'une section, à chaque flèche et à chaque tour de boucle, Stop à la
+pause et à l'arrêt. Un prompteur sur le même ordinateur qui écoute tous les ports MIDI,
+comme namfoop, le suit sans réglage ; choisissez-y d'abord le morceau.
+
+- Les mesures sont celles du fichier ChordPro : la mesure 1 est la première mesure pleine,
+  la levée n'en fait pas partie. Pendant le décompte et la levée, l'horloge ne donne que le tempo.
+- `--clock` a besoin des mesures du morceau : `arr transcribe` d'abord. Une prise brute
+  (`arr play t001`) n'est pas calée sur l'original et refuse l'horloge.
+
 ## S'enregistrer sur le morceau
 
 ```

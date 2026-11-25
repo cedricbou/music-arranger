@@ -49,8 +49,8 @@ def song_lyrics(p: Project, passages: list[structure.Passage]) -> tuple[dict, li
     return by, warnings, source
 
 
-def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:
-    """Tout ce qu'il faut pour écrire le fichier : en-tête, passages en grilles, mesure, alertes, sources."""
+def song_passages(p: Project) -> list[structure.Passage]:
+    """Les passages du morceau sur ses mesures, ou l'erreur qui dit ce qu'il manque pour les avoir."""
     chart = song_chart(p)
     if not chart:
         raise ProjectError("pas d'accords : lance arr transcribe")
@@ -59,6 +59,27 @@ def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:
     passages = structure.default(p.sections, chart)
     if not passages:
         raise ProjectError("aucune section ne couvre une mesure : vois arr sections list, puis arr sections set")
+    return passages
+
+
+def written_bars(p: Project) -> list[tuple[float, float, int]]:
+    """Les mesures telles que le fichier ChordPro les écrit : (début, fin, temps), la levée retirée.
+
+    La première est la mesure 1 du prompteur ; c'est sur elles que l'horloge MIDI se règle.
+    """
+    key, shift = played_key(p)
+    passages = song_passages(p)
+    cut = passages[-1].bars[-1][2]  # la dernière mesure, coupée par la fin de l'enregistrement
+    bars = [bar[:3] for passage in cho.edges(passages, key, shift) for bar in passage.bars]
+    if bars and bars[-1][2] != cut:  # complétée sur le papier : son tempo reste celui joué
+        start, end, beats = bars[-1]
+        bars[-1] = (start, start + (end - start) * beats / cut, beats)
+    return bars
+
+
+def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:
+    """Tout ce qu'il faut pour écrire le fichier : en-tête, passages en grilles, mesure, alertes, sources."""
+    passages = song_passages(p)
     key, shift = played_key(p)
     words, warnings, source = song_lyrics(p, passages)
     passages = cho.edges(passages, key, shift)

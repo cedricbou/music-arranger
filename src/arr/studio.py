@@ -259,14 +259,17 @@ def loop_block(data: np.ndarray, position: int, frames: int, loop_from: int) -> 
     return data[index], int(index[-1]) + 1
 
 
-def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
+def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None, follow=None) -> None:
     """Joue `data` sur la sortie configurée, puis `loop` sans fin s'il est donné ; Ctrl+C arrête.
 
     `watch(secondes)` est appelé vingt fois par seconde avec la position de lecture, comptée
     depuis le début de `data` ; en boucle elle revient à la fin de `data` à chaque tour.
     Il peut renvoyer `(en pause, position où sauter ou None)` pour piloter la lecture.
+    `follow(secondes, heure, en pause)` est appelé à chaque bloc audio : la position de son
+    début, et l'heure (`time.monotonic`) où il sortira du convertisseur.
     """
     import threading
+    import time as clock
 
     import sounddevice as sd
 
@@ -285,6 +288,10 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None) -> None:
         outdata.fill(0)
         if jump is not None:
             position, jump = int(np.clip(jump, 0, len(whole) - 1)), None
+        if follow:
+            # Certains pilotes laissent ces heures à zéro : le retard de sortie compte alors pour nul.
+            delay = min(max(time.outputBufferDacTime - time.currentTime, 0.0), 0.5)
+            follow(position / audio.SR, clock.monotonic() + delay, paused)
         if paused:
             return
         if loop is None:
