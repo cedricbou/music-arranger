@@ -290,7 +290,10 @@ Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:
   même là où `arr analyze` hésite un moment entre quatre et deux temps. Une mesure courte ne
   reste que là où les barres se décalent vraiment pour la suite du morceau. Un temps qu'`arr
   analyze` a entendu deux fois (deux temps à 80–120 ms l'un de l'autre) compte pour un : sur la grille, au
-  décompte, au clic d'`arr record` et dans le tempo. Les temps avant
+  décompte, au clic d'`arr record` et dans le tempo. Un temps qu'il a manqué (souvent dans un
+  passage sans batterie) est compté de même s'il en a gardé une trace : un trou de deux temps
+  entre des temps réguliers, avec un temps entendu faiblement en son milieu. Un morceau
+  analysé avant que cette trace ne soit gardée la reçoit au prochain `arr analyze`. Les temps avant
   la première barre sont une levée, écrite en rappel (« levée de 2 temps ») au-dessus du
   premier passage ; la dernière mesure, coupée par la fin de l'enregistrement, est complétée.
 - **Les paroles** de `lyrics.txt` suivent la dernière barre de la ligne de mesures où elles

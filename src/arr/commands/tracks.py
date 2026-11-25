@@ -28,14 +28,14 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
     placement lui-même (un temps d'avance, une mesure en trop) est l'affaire de `arr align`,
     qui mesure section par section : comparer les seuls temps ne voit pas un temps entier.
     """
-    from arr import measure
+    from arr import grid, measure
     from arr.engines import analysis
 
     ref = original_beats(p)
     original = p.root / ORIGINAL
     if ref is None or not original.exists():
         return stems, {}
-    fit = measure.beat_fit(measure.clean_beats(*analysis.beats(p.take_path(take)))[0], ref)
+    fit = measure.beat_fit(grid.clean_beats(*analysis.beats(p.take_path(take)))[0], ref)
     speed, offset = fit["speed"], fit["offset"]
     if abs(speed - 1) > MAX_STRETCH:
         typer.secho(

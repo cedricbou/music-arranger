@@ -121,6 +121,7 @@ les trois commandes de diagnostic.
 | `aucun passage de référence sous …` (`arr truth`) | aucun morceau du dossier n'a de barres repérées | `arr play -s SECTION --mark` dans un morceau, ou donner le dossier des morceaux : `arr truth ~/Musique` |
 | `passage de référence illisible : …` | un fichier de `truth/` corrigé à la main n'est plus du TOML valide | le corriger, ou refaire le passage : `arr play -s SECTION --mark` |
 | toutes mes barres repérées sont à côté de celles d'`arr`, du même écart | vous tapez en avance ou en retard, ou la sortie son annonce mal son retard | regarder la colonne « Écart » d'`arr truth` sur un morceau au clic régulier, et le signaler avec sa valeur |
+| une mesure de trois temps au milieu d'un passage en 4/4 (`{time: 3/4}` dans le fichier du prompteur) | le détecteur a manqué un temps, et le morceau a été analysé avant qu'`arr` ne garde ce qu'il entendait entre les temps | `arr analyze`, puis `arr chordpro` ; si la mesure reste, le détecteur n'a rien entendu à cet endroit |
 | une piste retirée par erreur | `arr rm` sans `--purge` | la reprendre dans `trash/` et la remettre sous `tracks/` |
 
 ## Quand rien ne correspond

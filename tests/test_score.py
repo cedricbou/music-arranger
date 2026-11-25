@@ -3,6 +3,9 @@
 import json
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 from arr import audio
 from arr.cli import app
 from arr.engines import _notation, transcription
@@ -182,12 +185,37 @@ def test_analyze_writes_tempo_key_and_beat_grid(tmp_path, monkeypatch):
     audio.save(p.root / "source/original.flac", tone(440, 4.0))
     monkeypatch.chdir(p.root)
     monkeypatch.setattr(analysis, "beats", lambda path: ([0.5 * i for i in range(8)], [0.0, 2.0]))
+    monkeypatch.setattr(analysis, "activations", lambda path: np.zeros((200, 2), np.float32))
     result = runner.invoke(app, ["analyze"])
     assert result.exit_code == 0, result.output
     p = Project.find()
     assert p.song["bpm"] == 120.0 and p.song["duration"] == 4.0
     assert p.song["key"].split()[0] == "A"  # un la à 440 Hz
     assert json.loads((p.root / "analysis.json").read_text())["downbeats"] == [0.0, 2.0]
+    assert np.load(p.root / "analysis_frames.npz")["frames"].shape == (200, 2)
+
+
+def test_a_beat_the_detector_missed_is_counted_wherever_the_grid_is_read(tmp_path, monkeypatch):
+    from arr.commands._common import song_grid
+    from arr.engines import analysis
+
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", tone(440, 12.0))
+    monkeypatch.chdir(p.root)
+    # beat_this a manqué le temps de 5,5 s, mais l'a entendu à 0,4 : sous son seuil de 0,5
+    whole = [0.5 * i for i in range(24)]
+    detected = [t for t in whole if t != 5.5]
+    heard = np.zeros((600, 2), np.float32)
+    heard[int(5.5 * 50), 0] = 0.4
+    monkeypatch.setattr(analysis, "beats", lambda path: (detected, whole[::4]))
+    monkeypatch.setattr(analysis, "activations", lambda path: heard)
+    result = runner.invoke(app, ["analyze"])
+    assert result.exit_code == 0 and "6 mesures" in result.output
+    assert json.loads((p.root / "analysis.json").read_text())["beats"] == detected  # ce que beat_this a détecté
+    assert song_grid(p) == (whole, whole[::4])
+    # un projet analysé avant que les activations ne soient gardées : rien n'est comblé
+    (p.root / "analysis_frames.npz").rename(p.root / "ailleurs.npz")
+    assert song_grid(p) == (detected, whole[::4])
 
 
 def test_analyze_takes_its_tempo_without_the_beats_heard_twice_but_keeps_them_on_disk(tmp_path, monkeypatch):
@@ -199,6 +227,7 @@ def test_analyze_takes_its_tempo_without_the_beats_heard_twice_but_keeps_them_on
     # un temps sur deux entendu deux fois, 80 ms plus tôt : la médiane des écarts dirait 140 bpm
     beats = sorted([0.7 * i for i in range(40)] + [0.7 * i - 0.08 for i in range(1, 40, 2)])
     monkeypatch.setattr(analysis, "beats", lambda path: (beats, [0.0, 2.8]))
+    monkeypatch.setattr(analysis, "activations", lambda path: np.zeros((1400, 2), np.float32))
     assert runner.invoke(app, ["analyze"]).exit_code == 0
     assert Project.find().song["bpm"] == 85.7
     assert json.loads((p.root / "analysis.json").read_text())["beats"] == beats
@@ -206,7 +235,9 @@ def test_analyze_takes_its_tempo_without_the_beats_heard_twice_but_keeps_them_on
 
 def test_beats_load_the_weights_from_the_hugging_face_cache(tmp_path, monkeypatch):
     import beat_this.inference
+    import beat_this.preprocessing
     import huggingface_hub
+    import torch
 
     from arr.engines import analysis
 
@@ -220,15 +251,25 @@ def test_beats_load_the_weights_from_the_hugging_face_cache(tmp_path, monkeypatc
         def __init__(self, checkpoint_path, device, dbn):
             loaded.append(checkpoint_path)
 
-        def __call__(self, path):
+        def signal2spect(self, signal, sr):
+            return signal
+
+        def spect2frames(self, spect):
+            return torch.tensor([-9.0, 3.0, -9.0]), torch.tensor([-9.0, 0.0, -9.0])
+
+        def frames2beats(self, beat, downbeat):
             return [0.0, 0.5], [0.0]
 
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
     monkeypatch.setattr(beat_this.inference, "File2Beats", File2Beats)
+    monkeypatch.setattr(beat_this.preprocessing, "load_audio", lambda path: (np.zeros(10), 22050))
     monkeypatch.setattr(analysis, "device", lambda: "cpu")
     assert analysis.beats(tmp_path / "morceau.flac") == ([0.0, 0.5], [0.0])
     assert asked == [(analysis.BEAT_THIS_REPO, "final0.ckpt", analysis.BEAT_THIS_REVISION)]
     assert loaded == [str(tmp_path / "final0.ckpt")]  # un chemin local : beat_this ne va pas chercher ailleurs
+    # ce que le modèle entendait, trame par trame, sans le refaire tourner : temps et premier temps, de 0 à 1
+    heard = analysis.activations(tmp_path / "morceau.flac")
+    assert heard.shape == (3, 2) and heard[1] == pytest.approx([0.953, 0.5], abs=1e-3) and len(loaded) == 1
 
 
 def test_chords_are_read_from_the_transcription(tmp_path):

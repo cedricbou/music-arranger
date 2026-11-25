@@ -11,6 +11,7 @@ mon-morceau/
   lyrics.txt       paroles, avec des balises [Verse], [Chorus]...
   sheet.toml       l'antisèche de scène, une fois que vous l'avez modifiée
   analysis.json    temps et mesures détectés
+  analysis_frames.npz  ce que le détecteur entendait entre les temps : sert à compter un temps manqué
   source/          le morceau original, en FLAC 48 kHz stéréo
   score/           la partition (score.abc), des fichiers MIDI, accords et structure
   takes/           les prises : t001.flac, t002.flac...

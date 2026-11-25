@@ -85,6 +85,7 @@ def song_project(tmp_path, monkeypatch):
     monkeypatch.setattr(
         analysis, "beats", lambda path: ([0.5 * i + late(path) for i in range(8)], [i + late(path) for i in range(4)])
     )
+    monkeypatch.setattr(analysis, "activations", lambda path: np.zeros((200, 2), np.float32))
     p = Project.create(tmp_path / "song", "song")
     audio.save(p.root / "source/original.flac", tone(220, 4.0))
     monkeypatch.chdir(p.root)

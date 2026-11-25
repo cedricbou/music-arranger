@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -31,11 +32,31 @@ def checkpoint() -> Path:
         raise ProjectError("poids de beat_this absents (arr models pull)") from None
 
 
-def beats(path: Path) -> tuple[list[float], list[float]]:
+@lru_cache(maxsize=1)
+def _heard(path: Path) -> tuple:
+    """Les temps et barres de beat_this pour ce fichier, et ses activations brutes : un seul passage du modèle."""
+    import torch
     from beat_this.inference import File2Beats
+    from beat_this.preprocessing import load_audio
 
-    b, d = File2Beats(checkpoint_path=str(checkpoint()), device=device(), dbn=False)(str(path))
-    return [float(x) for x in b], [float(x) for x in d]
+    model = File2Beats(checkpoint_path=str(checkpoint()), device=device(), dbn=False)
+    with torch.no_grad():
+        logits = model.spect2frames(model.signal2spect(*load_audio(str(path))))
+        b, d = model.frames2beats(*logits)
+    frames = torch.sigmoid(torch.stack(logits, dim=1)).float().cpu().numpy()
+    return [float(x) for x in b], [float(x) for x in d], frames
+
+
+def beats(path: Path) -> tuple[list[float], list[float]]:
+    return _heard(path)[:2]
+
+
+def activations(path: Path) -> np.ndarray:
+    """Ce que beat_this entend à chaque trame (50 par seconde) : colonnes temps et premier temps, de 0 à 1.
+
+    Il ne pose un temps qu'au-dessus de 0,5 : un temps manqué laisse ici sa trace (`grid.fill_beats`).
+    """
+    return _heard(path)[2]
 
 
 def tempo(beat_times: list[float]) -> float:

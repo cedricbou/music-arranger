@@ -123,6 +123,8 @@ arr analyze
 
 Détecte temps, mesures, tempo et tonalité.
 
+Garde aussi ce que le détecteur entendait entre les temps : un temps manqué dans un passage sans batterie est alors compté partout où la grille se lit (écran, prompteur, horloge, décompte).
+
 ## `arr transcribe`
 
 ```

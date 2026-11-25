@@ -82,24 +82,24 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
 def song_chart(p: Project) -> list[tuple]:
     """La grille d'accords du morceau, sur ses mesures de référence (`arr analyze`) ; vide sans transcription.
 
-    Les barres sont posées tous les N temps (`measure.regular_bars`) : beat_this hésite parfois
+    Les barres sont posées tous les N temps (`grid.regular_bars`) : beat_this hésite parfois
     entre des mesures de quatre et de deux temps. Les accords viennent de la transcription, qui
     compte parfois les mesures autrement (une mesure à deux temps non vue) : `measure.seat_chords`
-    les replace. Les temps entendus deux fois sont retirés d'abord (`measure.clean_beats`).
+    les replace. Les temps entendus deux fois sont retirés d'abord, les temps manqués comblés (`song_grid`).
     Sans `analysis.json`, la grille suit les temps de la transcription.
     """
-    from arr import measure
+    from arr import grid, measure
     from arr.app import ORIGINAL, SCORE
     from arr.commands._common import song_grid
     from arr.engines import transcription
 
     score = (p.root / SCORE).parent
     chords, own = transcription.chords(score), transcription.beats(score)
-    original, grid = p.root / ORIGINAL, song_grid(p)
-    if not chords or not grid:
+    original, found = p.root / ORIGINAL, song_grid(p)
+    if not chords or not found:
         return chart(chords, own)
-    raw, detected = grid
-    downbeats = measure.regular_bars(detected, raw)
+    raw, detected = found
+    downbeats = grid.regular_bars(detected, raw)
     if original.exists():
         own_bars = [t for t, number in own if number == 1]
         chords = measure.seat_chords(chords, own_bars, downbeats, raw, lambda: audio.load(original))
