@@ -8,7 +8,7 @@ dernière barre. Une mesure d'une autre longueur a sa propre grille, entre deux 
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from arr.sheet import chord_name, transpose
 from arr.structure import Passage
@@ -35,6 +35,7 @@ class Block:
     bars: int
     sung: int  # lignes de paroles placées en repère
     chords: bool  # au moins un accord
+    odd: list[tuple[float, int]] = field(default_factory=list)  # mesures d'une autre longueur : (début, temps)
 
 
 def meter(passages: list[Passage]) -> int:
@@ -51,6 +52,30 @@ def bar_text(bar: tuple, key: str, shift: int) -> str:
         return NO_CHORD if label == "N" else transpose(chord_name(label), shift, key)
 
     return " ".join(name(at[i]) if i in at else "." for i in range(bar[2]))
+
+
+def edges(passages: list[Passage], key: str, shift: int) -> list[Passage]:
+    """Les passages sans la levée, et avec une dernière mesure entière.
+
+    ChordPro n'a pas de levée ; une grille d'une mesure courte serait comptée comme une
+    mesure sur le prompteur. Les temps avant la première barre deviennent un rappel du premier
+    passage, qui dit leur nombre et leurs accords s'il y en a ; un passage qui n'était que la
+    levée disparaît. La dernière mesure, coupée par la fin de l'enregistrement, est complétée :
+    le groupe tient le dernier accord.
+    """
+    usual = meter(passages)
+    out = [Passage(p.name, list(p.bars), p.section, p.cue) for p in passages if p.bars]
+    if out and out[-1].bars[-1][2] < usual:
+        start, end, _, chords = out[-1].bars[-1]
+        out[-1].bars[-1] = (start, end, usual, chords)
+    if not out or out[0].bars[0][2] >= usual or sum(len(p.bars) for p in out) < 2:
+        return out
+    played = bar_text(out[0].bars.pop(0), key, shift)
+    beats = len(played.split())
+    cue = f"levée de {beats} temps" + ("" if set(played.split()) <= {NO_CHORD, "."} else f" : {played}")
+    out = [p for p in out if p.bars]
+    out[0].cue = " · ".join(filter(None, [cue, out[0].cue]))
+    return out
 
 
 def rows(bars: list[tuple]) -> list[tuple[int, list[tuple]]]:
@@ -99,7 +124,7 @@ def layout(passages: list[Passage], lyrics: dict[str, list], key: str, shift: in
 
     `lyrics` donne, pour une section, ses lignes de paroles : (texte, instant chanté ou None).
     """
-    blocks = []
+    blocks, usual = [], meter(passages)
     for p in passages:
         lines = rows(p.bars)
         sung = landmarks(lyrics.get(p.section, []), [(r[0][0], r[-1][1]) for _, r in lines])
@@ -111,7 +136,8 @@ def layout(passages: list[Passage], lyrics: dict[str, list], key: str, shift: in
             else:
                 grids.append(Grid(beats, [written]))
         chords = any(c[2] != "N" for b in p.bars for c in b[3])
-        blocks.append(Block(p.name, p.cue, grids, len(p.bars), sum(len(w) for w in sung), chords))
+        odd = [(b[0], b[2]) for b in p.bars if b[2] != usual]
+        blocks.append(Block(p.name, p.cue, grids, len(p.bars), sum(len(w) for w in sung), chords, odd))
     return blocks
 
 

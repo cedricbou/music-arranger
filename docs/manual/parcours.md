@@ -248,7 +248,7 @@ Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:
 
   Intro         4 mes.   1 ligne de mesures
   Couplet 1    16 mes.   4 lignes de mesures · 8 lignes de paroles en repère
-  Refrain       8 mes.   2 lignes de mesures, dont une mesure à 2 temps · 4 lignes de paroles en repère
+  Refrain       8 mes.   2 lignes de mesures, dont une mesure de 2 temps à 1:02 · 4 lignes de paroles en repère
   Couplet 2    16 mes.   4 lignes de mesures · 8 lignes de paroles en repère
   Refrain       8 mes.   comme le premier
 ```
@@ -260,8 +260,14 @@ Night Drive → export/night-drive.cho   Dm · ♩121 · 4/4 · 74 mesures · 2:
   (`arr sections set`) si leur découpage est faux, le fichier le reprend tel quel.
 - **Une grille par passage**, quatre mesures par ligne, une case par temps : l'accord là où il
   commence, `.` tant qu'il tient, `N.C.` quand rien ne joue. Une mesure d'une autre longueur
-  (deux temps dans du 4/4) a sa propre grille, entre deux changements de mesure. arr compte
-  les temps, pas l'unité : la mesure est toujours écrite sur 4 (`2/4`, `4/4`, `3/4`).
+  (deux temps dans du 4/4) a sa propre grille, entre deux changements de mesure, et le compte
+  rendu dit à quel instant elle tombe : vérifiez-la à l'oreille. arr compte les temps, pas
+  l'unité : la mesure est toujours écrite sur 4 (`2/4`, `4/4`, `3/4`).
+- **Les mesures suivent la mesure du morceau** : une barre tous les quatre temps dans du 4/4,
+  même là où `arr analyze` hésite un moment entre quatre et deux temps. Une mesure courte ne
+  reste que là où les barres se décalent vraiment pour la suite du morceau. Les temps avant
+  la première barre sont une levée, écrite en rappel (« levée de 2 temps ») au-dessus du
+  premier passage ; la dernière mesure, coupée par la fin de l'enregistrement, est complétée.
 - **Les paroles** de `lyrics.txt` suivent la dernière barre de la ligne de mesures où elles
   sont chantées, d'après `lyrics.lrc` (`arr lyrics show` le montre). Une ligne sans instant
   suit celle d'avant ; sans `lyrics.lrc`, les lignes sont réparties à parts égales sur leur

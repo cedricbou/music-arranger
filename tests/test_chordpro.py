@@ -3,6 +3,8 @@
 import json
 import re
 
+import pytest
+
 from arr import chordpro, structure
 from arr.cli import app
 from arr.project import Project, Section
@@ -235,6 +237,42 @@ def test_the_command_writes_the_file_and_reports_it(tmp_path, monkeypatch):
     runner.invoke(app, ["chordpro"])
     written = (p.root / "export/night-drive.cho").read_text()
     assert "{key: Cm}" in written and "| N.C. . Cm . |" in written and "| Ebmaj7 . Bb . |" in written
+
+
+def test_a_pickup_is_a_cue_and_the_last_bar_is_whole():
+    c = Clock()
+    lead = c.bars("N", beats=2)
+    passages = [structure.Passage("Intro", lead, "intro"), structure.Passage("Couplet 1", c.bars("E:min | G:maj"), "v")]
+    blocks = chordpro.layout(chordpro.edges(passages, "Em", 0), {}, "Em", 0)
+    head = {"project": "p", "title": "T", "duration": "0:05"}
+    written = chordpro.write(head, blocks, 4)
+    assert "2/4" not in written and "N.C." not in written and [b.name for b in blocks] == ["Couplet 1"]
+    assert '{comment: levée de 2 temps}\n{start_of_grid label="Couplet 1" shape="2x4"}' in written
+
+    # une levée jouée garde ses accords, et le rappel du passage
+    c = Clock()
+    passages = [
+        structure.Passage("Intro", c.bars("D:maj", beats=2) + c.bars("E:min | E:min"), "intro", "batterie seule")
+    ]
+    blocks = chordpro.layout(chordpro.edges(passages, "Em", 0), {}, "Em", 0)
+    assert blocks[0].cue == "levée de 2 temps : D . · batterie seule" and blocks[0].bars == 2
+
+    # la dernière mesure, coupée par la fin de l'enregistrement, est complétée
+    c = Clock()
+    passages = [structure.Passage("Fin", c.bars("E:min | E:min") + c.bars("E:min", beats=1), "outro")]
+    blocks = chordpro.layout(chordpro.edges(passages, "Em", 0), {}, "Em", 0)
+    assert [g.beats for g in blocks[0].grids] == [4] and blocks[0].grids[0].lines[0][0][-1] == "Em . . ."
+
+
+def test_a_bar_of_another_length_is_reported_with_its_time(capsys, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    from arr.commands.chordpro import report
+
+    passages, _ = reference_passages()
+    blocks = chordpro.layout(passages, {}, "Em", 0)
+    assert blocks[3].odd == [(pytest.approx(35 * 4 * BEAT), 2)]
+    report({"title": "T", "key": "Em", "tempo": 124, "duration": "1:36"}, blocks, 4, [], "", "x.cho")
+    assert "dont une mesure de 2 temps à 1:07" in capsys.readouterr().out
 
 
 def test_show_displays_without_writing(tmp_path, monkeypatch):

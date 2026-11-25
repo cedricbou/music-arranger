@@ -24,9 +24,9 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 ## Avant de proposer une idée
 
-Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche : YuE2
-rejoue le morceau entier depuis sa partition, puis on sépare la prise. Lire les fiches avant de toucher à la
-génération (001, 002), à l'audio (003), au calage (004), au volume (005), à la grille (008), au MIDI (011).
+Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
+YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013), MIDI (011).
 
 ## Comment travailler ici
 
@@ -94,7 +94,7 @@ src/arr/
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
-  measure.py                mesures sans écoute : période, calage, retard, niveaux, accords replacés
+  measure.py                mesures sans écoute : période, calage, niveaux, barres régulières, accords
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
   structure.py              structure jouée : passages nommés et leurs mesures (par défaut, l'original)
