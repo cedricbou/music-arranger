@@ -55,4 +55,5 @@ lignes `{time:}` 197 → 27, dont 145 → 1 sur le morceau aux 102 doublons, qui
   sont à une période locale.
 - Sur les morceaux qui changent, les numéros de mesure et les positions de l'horloge MIDI
   changent aussi.
-- Seuls cinq morceaux ont été écoutés avant ; aucun après.
+- Après le correctif, les trois morceaux du banc d'écoute où la grille se décalait ont été
+  confirmés à l'oreille (25 novembre 2026) ; les dix autres morceaux qui changent ne l'ont pas été.
