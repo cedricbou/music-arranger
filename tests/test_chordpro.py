@@ -312,3 +312,16 @@ def test_the_midi_clock_counts_the_bars_the_file_writes(tmp_path, monkeypatch):
     bars = written_bars(p)
     assert len(bars) == sum(line.count("|") - 1 for line in written.splitlines() if line.startswith("|"))
     assert bars[0][:2] == (0.0, 2.0) and all(beats == 4 for _, _, beats in bars)
+
+
+def test_beats_heard_twice_do_not_break_the_steady_meter_of_the_file(tmp_path, monkeypatch):
+    p = transcribed(tmp_path, monkeypatch)
+    beats = [0.5 * i for i in range(96)]
+    doubled = sorted(beats + [beats[i] - 0.08 for i in (21, 45, 46, 70)])
+    (p.root / "analysis.json").write_text(json.dumps({"beats": doubled, "downbeats": beats[::4]}))
+    (p.root / "score/chord.lab").write_text("0.0\t48.0\tD:min\n")
+    p.set_sections([Section("verse", 0.0, 48.0)])
+    p.save()
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    text = (p.root / "export/night-drive.cho").read_text()
+    assert [line for line in text.splitlines() if line.startswith("{time")] == ["{time: 4/4}"]

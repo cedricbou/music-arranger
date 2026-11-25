@@ -194,6 +194,27 @@ def test_record_plays_backing_with_count_in_and_compensates_latency(tmp_path, mo
     )  # calé sur le début du morceau
 
 
+def test_the_recording_click_skips_beats_heard_twice_and_accents_the_bars(tmp_path, monkeypatch):
+    from arr import studio
+    from arr.commands import studio as commands
+
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "drums", tone(110, 4.0, amp=0.1), {"op": "split"})
+    # le temps fort de 2,0 s entendu aussi 80 ms plus tôt, et c'est celui-là que beat_this a pris pour la barre
+    beats = sorted([0.5 * i for i in range(8)] + [1.92])
+    (p.root / "analysis.json").write_text(json.dumps({"beats": beats, "downbeats": [0.0, 1.92]}))
+    monkeypatch.chdir(p.root)
+    ticks = []
+    monkeypatch.setattr(commands, "lead_in", lambda backing, t: (ticks.extend(t), (backing, 0))[1])
+    monkeypatch.setattr(studio, "play_and_record", lambda playback, channel, watch=None: (playback, 0.0))
+    result = runner.invoke(app, ["record", "bass", "--click"])
+    assert result.exit_code == 0, result.output
+    times = sorted(t for t, _ in ticks)
+    assert min(np.diff(times)) > 0.4  # jamais deux clics à 80 ms
+    assert [t for t, accent in ticks if accent and t >= 0] == [0.0, 2.0]
+
+
 def test_calibrate_measures_and_saves_the_round_trip(tmp_path, monkeypatch):
     from arr import studio
 

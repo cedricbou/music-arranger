@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from contextlib import contextmanager
@@ -11,8 +10,8 @@ from typing import Optional
 import typer
 
 from arr import audio, midi
-from arr.app import ANALYSIS, app
-from arr.commands._common import lead_in, load_track, mix_tracks, render_mix
+from arr.app import app
+from arr.commands._common import lead_in, load_track, mix_tracks, render_mix, song_grid
 from arr.commands._screen import live, mix_notes, position, song_chart, timeline, view
 from arr.project import Project, ProjectError
 
@@ -139,8 +138,8 @@ def play(
     ticks: list[tuple[float, bool]] = []
     if bars:
         start = ranges[0][0] if ranges else 0.0
-        grid = json.loads(f.read_text()) if (f := p.root / ANALYSIS).exists() else {"beats": [], "downbeats": []}
-        beats, strong = ([t - start for t in grid[k] if t >= start - 0.05] for k in ("beats", "downbeats"))
+        grid = song_grid(p) or ([], [])
+        beats, strong = ([t - start for t in times if t >= start - 0.05] for times in grid)
         if len(beats) > 1:
             ticks = audio.count_in(beats, strong, bars)
         else:
@@ -171,8 +170,8 @@ def play(
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
     measures = [] if take else song_chart(p)
     hint = f"{'en boucle · ' if loop else ''}{'horloge MIDI → arr:transport · ' if clock else ''}Espace : pause · ← → : mesure · Ctrl+C arrête"
-    grid = json.loads(f.read_text()) if (f := p.root / ANALYSIS).exists() and not take else {"downbeats": []}
-    stops = bar_stops([m[0] for m in measures] or grid["downbeats"], ranges, len(body) / audio.SR)
+    grid = song_grid(p) if not take else None
+    stops = bar_stops([m[0] for m in measures] or (grid[1] if grid else []), ranges, len(body) / audio.SR)
     paused = False
 
     def screen(seconds: float):

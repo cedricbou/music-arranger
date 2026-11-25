@@ -190,6 +190,20 @@ def test_analyze_writes_tempo_key_and_beat_grid(tmp_path, monkeypatch):
     assert json.loads((p.root / "analysis.json").read_text())["downbeats"] == [0.0, 2.0]
 
 
+def test_analyze_takes_its_tempo_without_the_beats_heard_twice_but_keeps_them_on_disk(tmp_path, monkeypatch):
+    from arr.engines import analysis
+
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", tone(440, 4.0))
+    monkeypatch.chdir(p.root)
+    # un temps sur deux entendu deux fois, 80 ms plus tôt : la médiane des écarts dirait 140 bpm
+    beats = sorted([0.7 * i for i in range(40)] + [0.7 * i - 0.08 for i in range(1, 40, 2)])
+    monkeypatch.setattr(analysis, "beats", lambda path: (beats, [0.0, 2.8]))
+    assert runner.invoke(app, ["analyze"]).exit_code == 0
+    assert Project.find().song["bpm"] == 85.7
+    assert json.loads((p.root / "analysis.json").read_text())["beats"] == beats
+
+
 def test_beats_load_the_weights_from_the_hugging_face_cache(tmp_path, monkeypatch):
     import beat_this.inference
     import huggingface_hub

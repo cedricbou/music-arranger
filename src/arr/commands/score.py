@@ -23,8 +23,11 @@ def analyze() -> None:
 
     p = Project.find()
     ref = reference(p)
+    from arr import measure
+
     beats, downbeats = analysis.beats(ref)
     (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
+    beats, downbeats = measure.clean_beats(beats, downbeats)
     p.song["bpm"] = analysis.tempo(beats)
     p.song["key"] = analysis.key(ref)
     p.song["duration"] = round(audio.duration(ref), 3)
@@ -44,7 +47,9 @@ def transcribe() -> None:
         raise ProjectError("pas de morceau original (arr import <fichier>)")
     # La grille d'arr analyze vient d'abord : si SheetSage2 refuse la partition, elle est
     # réécrite sur ces barres-là (fiche 008).
-    beats, downbeats = analysis.beats(original)
+    # analysis.json garde ce que beat_this a détecté ; le reste se fait sans les temps entendus deux fois.
+    detected = analysis.beats(original)
+    beats, downbeats = measure.clean_beats(*detected)
     typer.echo("transcription en cours (quelques minutes pour un morceau entier)...")
     out = p.root / "score"
     done = transcription.transcribe(original, out, beats, measure.regular_bars(downbeats, beats))
@@ -64,7 +69,7 @@ def transcribe() -> None:
     # car SheetSage2 peut se tromper d'une unité et les prises dériveraient.
     bpm = round(60 / measure.period(beats))
     transcription.set_tempo(out, bpm)
-    (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
+    (p.root / ANALYSIS).write_text(json.dumps({"beats": detected[0], "downbeats": detected[1]}))
     p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))
     p.set_sections([Section(*s) for s in measure.snap_sections(info["sections"], downbeats)])
     p.save()

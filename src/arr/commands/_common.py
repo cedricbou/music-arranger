@@ -12,7 +12,7 @@ from typing import Optional
 import numpy as np
 import typer
 
-from arr import audio
+from arr import audio, measure
 from arr.app import ANALYSIS, ORIGINAL
 from arr.project import Project, ProjectError
 
@@ -58,9 +58,21 @@ def convert(source: Path, dst: Path) -> None:
         typer.secho(f"attention : {source.name} est silencieux (niveau max sous -60 dB)", fg="yellow", err=True)
 
 
-def original_beats(p: Project) -> Optional[list[float]]:
+def song_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
+    """Temps et barres d'`arr analyze`, sans les temps entendus deux fois ; None sans analyse.
+
+    Toute la grille du morceau passe par ici : écran, fichier ChordPro, décompte, clic, tempo.
+    `analysis.json` garde ce que beat_this a détecté ; le nettoyage est refait à chaque lecture.
+    """
     f = p.root / ANALYSIS
-    return json.loads(f.read_text())["beats"] if f.exists() else None
+    if not f.exists():
+        return None
+    grid = json.loads(f.read_text())
+    return measure.clean_beats(grid["beats"], grid["downbeats"])
+
+
+def original_beats(p: Project) -> Optional[list[float]]:
+    return grid[0] if (grid := song_grid(p)) else None
 
 
 def lead_in(backing: np.ndarray, ticks: list[tuple[float, bool]]) -> tuple[np.ndarray, int]:
@@ -105,7 +117,6 @@ def folder_name(title: str, artist: str = "") -> str:
 
 
 def downbeats(p: Project) -> list[float]:
-    f = p.root / ANALYSIS
-    if not f.exists():
+    if not (grid := song_grid(p)):
         raise ProjectError("pas d'analyse (lance `arr analyze`)")
-    return json.loads(f.read_text())["downbeats"]
+    return grid[1]

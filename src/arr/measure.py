@@ -37,6 +37,54 @@ def steady_bars(bars: list[float], reach: int = 8) -> list[float]:
     return [float(b) for b in out]
 
 
+def clean_beats(beats: list[float], downbeats: list[float]) -> tuple[list[float], list[float]]:
+    """Les temps et barres de beat_this, sans les temps entendus deux fois.
+
+    beat_this pose parfois deux temps à 80–120 ms l'un de l'autre pour un seul temps joué ; chaque
+    temps en trop avance d'un temps toutes les barres qui suivent. Une paire : un écart de moins
+    d'une demi-période, nettement plus court que ses voisins, et une fois un des deux retiré, le
+    temps gardé à une période de ses deux voisins. On garde le second : beat_this l'entend plus
+    fort, et la batterie seule tombe dessus ; la barre du premier passe au second. Une suite de
+    temps serrés (passage compté au double) n'est pas touchée. Sans paire, rend ses arguments.
+    """
+    if len(beats) < 4:
+        return beats, downbeats
+    t = np.asarray(beats, dtype=float)
+    gaps = np.diff(t)
+
+    def local(i: int, reach: int = 12) -> float:
+        """La période autour du temps i. Une paire tirerait la médiane vers le bas : ses écarts sont
+        remplacés par l'écart minuscule ajouté au suivant, à peu près une période."""
+        near = gaps[max(0, i - reach) : i + reach + 1]
+        step = float(np.percentile(near, 75))  # la médiane serait un écart minuscule dans une suite de paires
+        for _ in range(3):
+            tiny = near < 0.5 * step
+            clean = ~(tiny | np.roll(tiny, 1) | np.roll(tiny, -1))
+            pairs = (near[:-1] + near[1:])[tiny[:-1]]
+            step = float(np.median(np.concatenate([near[clean], pairs]) if clean.any() or len(pairs) else near))
+        return step
+
+    kept: list[float] = []
+    moved: dict[float, float] = {}  # temps retiré → temps gardé à sa place
+    i = 0
+    while i < len(t):
+        beside = [gaps[j] for j in (i - 1, i + 1) if 0 <= j < len(gaps)]
+        if i + 1 < len(t) and gaps[i] < 0.5 * (step := local(i)) and all(gaps[i] < 0.6 * g for g in beside):
+            drop, keep = float(t[i]), float(t[i + 1])
+            after = float(t[i + 2]) if i + 2 < len(t) else None
+            sides = ([keep - kept[-1]] if kept else []) + ([after - keep] if after is not None else [])
+            if sides and all(abs(s - step) < 0.25 * step for s in sides):
+                kept.append(keep)
+                moved[drop] = keep
+                i += 2
+                continue
+        kept.append(float(t[i]))
+        i += 1
+    if not moved:
+        return beats, downbeats
+    return kept, sorted({moved.get(float(d), float(d)) for d in downbeats})
+
+
 def regular_bars(downbeats: list[float], beats: list[float], change: int = 3) -> list[float]:
     """Les barres de mesure posées tous les N temps, N la longueur de mesure la plus fréquente.
 

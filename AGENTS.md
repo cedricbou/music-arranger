@@ -26,7 +26,7 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
 YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
-génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013), MIDI (011, 014).
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015), MIDI (011, 014).
 
 ## Comment travailler ici
 
