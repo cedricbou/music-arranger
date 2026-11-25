@@ -24,3 +24,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [012](012-fichier-chordpro-standard.md) | Le prompteur de scène lit un fichier ChordPro standard, une grille par passage, écrit en entier par arr |
 | [013](013-mesures-regulieres.md) | La grille d'accords pose une barre tous les N temps ; une mesure courte ne reste que là où les barres se décalent vraiment |
 | [014](014-transport-midi.md) | `arr play --clock` envoie horloge et transport sur un port virtuel tenu ouvert, sur les mesures du `.cho`, à l'heure où le son sort |
+| [015](015-temps-entendus-deux-fois.md) | Un temps entendu deux fois par beat_this compte pour un, partout où la grille est lue ; `analysis.json` reste brut |

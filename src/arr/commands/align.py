@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 
 import numpy as np
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, ORIGINAL, app
-from arr.commands._common import load_track
+from arr.app import ORIGINAL, app
+from arr.commands._common import load_track, original_beats
 from arr.project import Project, ProjectError
 
 TOLERANCE = 0.03  # en dessous de 30 ms, un décalage ne s'entend plus comme tel
@@ -22,8 +21,7 @@ def beat_period(p: Project) -> Optional[float]:
     """Durée d'un temps du morceau, en secondes, ou None si le tempo n'est pas connu."""
     from arr import measure
 
-    f = p.root / ANALYSIS
-    beats = json.loads(f.read_text())["beats"] if f.exists() else []
+    beats = original_beats(p) or []
     return measure.period(beats) if len(beats) > 2 else None
 
 

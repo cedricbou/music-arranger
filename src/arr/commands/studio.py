@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import sys
 import time
 from pathlib import Path
@@ -13,12 +12,13 @@ import numpy as np
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, ORIGINAL, app
+from arr.app import ORIGINAL, app
 from arr.commands._common import (
     add_track,
     folder_name,
     lead_in,
     load_track,
+    song_grid,
 )
 from arr.commands._screen import live, song_chart, timeline, view
 from arr.project import Project, ProjectError
@@ -160,12 +160,12 @@ def record(
     else:
         raise ProjectError("rien à jouer : ni piste ni morceau original")
     ticks: list[tuple[float, bool]] = []
-    analysis = p.root / ANALYSIS
-    if analysis.exists():
-        grid = json.loads(analysis.read_text())
-        ticks = audio.count_in(grid["beats"], grid["downbeats"], bars) if bars else []
+    if grid := song_grid(p):
+        beats, strong = grid
+        ticks = audio.count_in(beats, strong, bars) if bars else []
         if click:
-            ticks += [(b, b in grid["downbeats"]) for b in grid["beats"]]
+            accents = set(strong)
+            ticks += [(b, b in accents) for b in beats]
     elif bars or click:
         typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, lead = lead_in(backing, ticks)

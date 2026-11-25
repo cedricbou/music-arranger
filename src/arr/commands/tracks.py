@@ -35,7 +35,7 @@ def align_to_original(p: Project, take: str, stems: dict) -> tuple[dict, dict]:
     original = p.root / ORIGINAL
     if ref is None or not original.exists():
         return stems, {}
-    fit = measure.beat_fit(analysis.beats(p.take_path(take))[0], ref)
+    fit = measure.beat_fit(measure.clean_beats(*analysis.beats(p.take_path(take)))[0], ref)
     speed, offset = fit["speed"], fit["offset"]
     if abs(speed - 1) > MAX_STRETCH:
         typer.secho(

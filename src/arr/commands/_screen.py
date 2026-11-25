@@ -85,27 +85,27 @@ def song_chart(p: Project) -> list[tuple]:
     Les barres sont posées tous les N temps (`measure.regular_bars`) : beat_this hésite parfois
     entre des mesures de quatre et de deux temps. Les accords viennent de la transcription, qui
     compte parfois les mesures autrement (une mesure à deux temps non vue) : `measure.seat_chords`
-    les replace. Sans `analysis.json`, la grille suit les temps de la transcription.
+    les replace. Les temps entendus deux fois sont retirés d'abord (`measure.clean_beats`).
+    Sans `analysis.json`, la grille suit les temps de la transcription.
     """
-    import json
-
     from arr import measure
-    from arr.app import ANALYSIS, ORIGINAL, SCORE
+    from arr.app import ORIGINAL, SCORE
+    from arr.commands._common import song_grid
     from arr.engines import transcription
 
     score = (p.root / SCORE).parent
     chords, own = transcription.chords(score), transcription.beats(score)
-    analysis, original = p.root / ANALYSIS, p.root / ORIGINAL
-    if not chords or not analysis.exists():
+    original, grid = p.root / ORIGINAL, song_grid(p)
+    if not chords or not grid:
         return chart(chords, own)
-    grid = json.loads(analysis.read_text())
-    downbeats = measure.regular_bars(grid["downbeats"], grid["beats"])
+    raw, detected = grid
+    downbeats = measure.regular_bars(detected, raw)
     if original.exists():
         own_bars = [t for t, number in own if number == 1]
-        chords = measure.seat_chords(chords, own_bars, downbeats, grid["beats"], lambda: audio.load(original))
+        chords = measure.seat_chords(chords, own_bars, downbeats, raw, lambda: audio.load(original))
     beats, strong = [], iter(sorted(downbeats) + [float("inf")])
     bar = next(strong)
-    for t in grid["beats"]:
+    for t in raw:
         if t >= bar - 0.05:
             beats.append((t, 1))
             bar = next(strong)
