@@ -19,6 +19,9 @@ choix, dans `docs/decisions/`.
 - **Prompteur** : `export/<dossier>.cho`, réécrit en entier par `arr chordpro` à partir des
   sections, des accords et de `lyrics.txt` (fiche 012). Les paroles horodatées de LRCLIB restent
   telles quelles dans `lyrics.lrc`, recalées à chaque lecture : elles placent chaque ligne sur sa mesure.
+- **Grille** : `analysis.json` (temps et barres de beat_this, tels quels) et `analysis_frames.npz`
+  (ses activations à 50 trames par seconde) ; doublons, trous et barres se refont à chaque lecture
+  (`song_grid`, fiches 013, 015, 017).
 - **Passages de référence** : `truth/<passage>.vNNN.toml` (start, end, beats_per_bar, bars), une
   version par passe de `arr play --mark`, la dernière fait foi ; `truth/runs.json` garde les notes
   de chaque `arr truth` (fiche 016).

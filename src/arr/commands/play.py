@@ -87,7 +87,7 @@ def marked_passage(sections: list[str], ranges: list[tuple[float, float]], lengt
 
 def keep_marks(p: Project, passage: tuple[str, float, float], times: list[float]) -> None:
     """Fin d'un repérage : dit ce que valent les frappes contre la grille, et les range si le musicien les garde."""
-    from arr import measure
+    from arr import grid
 
     name, start, end = passage
     bars = truth.bar_marks(times, start, end)
@@ -95,8 +95,8 @@ def keep_marks(p: Project, passage: tuple[str, float, float], times: list[float]
         typer.secho(f"{len(bars)} barre repérée dans {name} : rien n'est gardé (Espace sur le 1 de chaque mesure)")
         return
     typer.echo(f"{len(bars)} barres repérées dans {name}, de {mmss(bars[0])} à {mmss(bars[-1])}")
-    if grid := song_grid(p):
-        s = truth.score(bars, 4, grid[0], measure.regular_bars(grid[1], grid[0]))
+    if read := song_grid(p):
+        s = truth.score(bars, 4, read[0], grid.regular_bars(read[1], read[0]))
         typer.echo(f"  {s['matched']} tombent sur une barre d'arr (à 70 ms près), qui en pose {s['shown']} ici")
     if not confirm("Garder ce repérage ?"):
         typer.echo("repérage abandonné, rien n'est écrit")

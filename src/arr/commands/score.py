@@ -2,32 +2,31 @@
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 
 import typer
 
 from arr import audio
-from arr.app import ANALYSIS, LYRICS, LYRICS_TIMES, ORIGINAL, SCORE, app, lyrics_app, sections_app
-from arr.commands._common import (
-    downbeats,
-    reference,
-)
+from arr.app import LYRICS, LYRICS_TIMES, ORIGINAL, SCORE, app, lyrics_app, sections_app
+from arr.commands._common import downbeats, read_grid, reference, save_analysis
 from arr.project import Project, ProjectError, Section
 
 
 @app.command()
 def analyze() -> None:
-    """Détecte temps, mesures, tempo et tonalité."""
+    """Détecte temps, mesures, tempo et tonalité.
+
+    Garde aussi ce que le détecteur entendait entre les temps : un temps manqué dans un passage
+    sans batterie est alors compté partout où la grille se lit (écran, prompteur, horloge, décompte).
+    """
     from arr.engines import analysis
 
     p = Project.find()
     ref = reference(p)
-    from arr import measure
-
     beats, downbeats = analysis.beats(ref)
-    (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
-    beats, downbeats = measure.clean_beats(beats, downbeats)
+    heard = analysis.activations(ref)
+    save_analysis(p, beats, downbeats, heard)
+    beats, downbeats = read_grid(beats, downbeats, heard)
     p.song["bpm"] = analysis.tempo(beats)
     p.song["key"] = analysis.key(ref)
     p.song["duration"] = round(audio.duration(ref), 3)
@@ -38,7 +37,7 @@ def analyze() -> None:
 @app.command()
 def transcribe() -> None:
     """Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections."""
-    from arr import measure
+    from arr import grid, measure
     from arr.engines import analysis, transcription
 
     p = Project.find()
@@ -47,12 +46,12 @@ def transcribe() -> None:
         raise ProjectError("pas de morceau original (arr import <fichier>)")
     # La grille d'arr analyze vient d'abord : si SheetSage2 refuse la partition, elle est
     # réécrite sur ces barres-là (fiche 008).
-    # analysis.json garde ce que beat_this a détecté ; le reste se fait sans les temps entendus deux fois.
-    detected = analysis.beats(original)
-    beats, downbeats = measure.clean_beats(*detected)
+    # analysis.json garde ce que beat_this a détecté ; le reste se fait sur la grille remise d'aplomb.
+    detected, heard = analysis.beats(original), analysis.activations(original)
+    beats, downbeats = read_grid(*detected, heard)
     typer.echo("transcription en cours (quelques minutes pour un morceau entier)...")
     out = p.root / "score"
-    done = transcription.transcribe(original, out, beats, measure.regular_bars(downbeats, beats))
+    done = transcription.transcribe(original, out, beats, grid.regular_bars(downbeats, beats))
     if "repaired" in done:
         typer.secho(
             f"SheetSage2 a refusé la partition ({done['repaired']}) : réécrite sur les mesures d'arr analyze",
@@ -69,7 +68,7 @@ def transcribe() -> None:
     # car SheetSage2 peut se tromper d'une unité et les prises dériveraient.
     bpm = round(60 / measure.period(beats))
     transcription.set_tempo(out, bpm)
-    (p.root / ANALYSIS).write_text(json.dumps({"beats": detected[0], "downbeats": detected[1]}))
+    save_analysis(p, *detected, heard)
     p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))
     p.set_sections([Section(*s) for s in measure.snap_sections(info["sections"], downbeats)])
     p.save()
@@ -126,7 +125,7 @@ def lyrics_fetch(
 @lyrics_app.command("show")
 def lyrics_show() -> None:
     """Montre les paroles section par section, chaque ligne avec la mesure où elle commence."""
-    from arr import lyrics, measure
+    from arr import grid, lyrics
     from arr.engines.transcription import first_sung
 
     p = Project.find()
@@ -140,7 +139,7 @@ def lyrics_show() -> None:
         raise ProjectError(
             f"{LYRICS} a {found} balises pour {len(p.sections)} sections : une balise par section, dans l'ordre"
         )
-    bars = measure.steady_bars(downbeats(p))
+    bars = grid.steady_bars(downbeats(p))
     untimed = 0
     for s, part in zip(p.sections, parts, strict=True):
         typer.secho(s.name, bold=True)
@@ -162,10 +161,10 @@ def lyrics_show() -> None:
 @sections_app.command("set")
 def sections_set(spec: str = typer.Argument(..., help='Ex. "intro:1-8 couplet:9-24 refrain:25-40".')) -> None:
     """Définit les sections en numéros de mesure (inclusifs, à partir de 1)."""
-    from arr import measure
+    from arr import grid
 
     p = Project.find()
-    bars = measure.steady_bars(downbeats(p))
+    bars = grid.steady_bars(downbeats(p))
     ends = bars[1:] + [p.song["duration"]]
     out = []
     for item in spec.split():

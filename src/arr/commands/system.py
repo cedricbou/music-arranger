@@ -105,7 +105,7 @@ def truth_(
     from rich.console import Console
     from rich.table import Table
 
-    from arr import measure
+    from arr import grid
     from arr import truth as marks
     from arr.commands._common import song_grid
 
@@ -122,11 +122,11 @@ def truth_(
         found = marks.passages(p)
         if not found:
             continue
-        grid = song_grid(p)
-        if not grid:
+        read = song_grid(p)
+        if not read:
             table.add_row(p.root.name, "", "[yellow]pas d'analyse (arr analyze)[/]")
             continue
-        beats, bars = grid[0], measure.regular_bars(grid[1], grid[0])
+        beats, bars = read[0], grid.regular_bars(read[1], read[0])
         before, run = marks.last_run(p), {}
         for passage in found:
             s = marks.score(passage.bars, passage.beats_per_bar, beats, bars) | {"version": passage.version}

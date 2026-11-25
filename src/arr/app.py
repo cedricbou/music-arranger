@@ -22,6 +22,7 @@ app.add_typer(models_app, name="models")
 
 ORIGINAL = "source/original.flac"
 ANALYSIS = "analysis.json"
+FRAMES = "analysis_frames.npz"  # ce que beat_this entend trame par trame : temps et premiers temps, de 0 à 1
 SCORE = "score/score.abc"
 LYRICS = "lyrics.txt"
 LYRICS_TIMES = "lyrics.lrc"  # les paroles horodatées telles que LRCLIB les donne

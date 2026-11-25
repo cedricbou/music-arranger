@@ -1,7 +1,6 @@
 # Guide pour agents
 
-`arr` est un CLI Python local pour réarranger des morceaux avec un groupe, par **prises
-complètes** du morceau. Ce fichier est le point d'entrée ; il renvoie vers le reste :
+`arr` est un CLI Python local pour réarranger des morceaux avec un groupe, par **prises complètes**. Où lire :
 
 | Pour savoir | Lire |
 |---|---|
@@ -26,7 +25,7 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
 YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
-génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015), MIDI (011, 014).
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015 à 017), MIDI (011, 014).
 
 ## Comment travailler ici
 
@@ -94,7 +93,8 @@ src/arr/
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille
-  measure.py                mesures sans écoute : période, calage, niveaux, barres régulières, accords
+  grid.py                   la grille lue : temps doublés retirés, temps manqués comblés, barres régulières
+  measure.py                mesures sans écoute : période, calage, niveaux, accords replacés sur les mesures
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
   structure.py              structure jouée : passages nommés et leurs mesures (par défaut, l'original)
@@ -111,7 +111,7 @@ src/arr/
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
-  test_core.py, test_measure.py, test_docs.py, test_rules.py   cœur sur signaux ; doc et règles suivies
+  test_core.py, test_measure.py, test_grid.py, test_docs.py, test_rules.py   cœur sur signaux ; doc, règles
   test_workflow.py, test_slow.py   cycle de feature.sh hors-ligne ; vrais moteurs (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_chordpro.py,
   test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py, test_truth.py   un par module

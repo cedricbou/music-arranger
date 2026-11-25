@@ -26,3 +26,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [014](014-transport-midi.md) | `arr play --clock` envoie horloge et transport sur un port virtuel tenu ouvert, sur les mesures du `.cho`, à l'heure où le son sort |
 | [015](015-temps-entendus-deux-fois.md) | Un temps entendu deux fois par beat_this compte pour un, partout où la grille est lue ; `analysis.json` reste brut |
 | [016](016-passages-de-reference.md) | Des passages dont le musicien tape les barres dans `arr play --mark` notent la grille ; ils vivent dans `truth/` du projet |
+| [017](017-temps-manques.md) | Un temps manqué par beat_this est comblé là où son activation en garde la trace ; `arr analyze` garde les activations |

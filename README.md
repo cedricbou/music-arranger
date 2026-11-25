@@ -269,6 +269,7 @@ fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis
 night-drive/
   song.toml        titre, tempo, tonalité, sections, état du mix
   lyrics.txt       paroles avec balises [Verse], [Chorus]...
+  analysis.json, analysis_frames.npz   temps et mesures détectés ; ce que le détecteur entendait entre eux
   lyrics.lrc       les mêmes, horodatées ligne par ligne, telles que LRCLIB les donne
   sheet.toml       antisèche de scène, une fois modifiée (`arr sheet --edit`)
   source/          morceau original, en FLAC 48 kHz stéréo

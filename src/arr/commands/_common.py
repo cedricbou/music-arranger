@@ -12,8 +12,8 @@ from typing import Optional
 import numpy as np
 import typer
 
-from arr import audio, measure
-from arr.app import ANALYSIS, ORIGINAL
+from arr import audio, grid
+from arr.app import ANALYSIS, FRAMES, ORIGINAL
 from arr.project import Project, ProjectError
 
 
@@ -59,16 +59,35 @@ def convert(source: Path, dst: Path) -> None:
 
 
 def song_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
-    """Temps et barres d'`arr analyze`, sans les temps entendus deux fois ; None sans analyse.
+    """Temps et barres d'`arr analyze`, sans les temps entendus deux fois, les temps manqués comblés ; None sans analyse.
 
     Toute la grille du morceau passe par ici : écran, fichier ChordPro, décompte, clic, tempo.
     `analysis.json` garde ce que beat_this a détecté ; le nettoyage est refait à chaque lecture.
+    Un temps manqué n'est comblé que si le projet garde ce que beat_this entendait (`activations`).
     """
     f = p.root / ANALYSIS
     if not f.exists():
         return None
-    grid = json.loads(f.read_text())
-    return measure.clean_beats(grid["beats"], grid["downbeats"])
+    detected = json.loads(f.read_text())
+    return read_grid(detected["beats"], detected["downbeats"], activations(p))
+
+
+def read_grid(beats: list[float], downbeats: list[float], heard) -> tuple[list[float], list[float]]:
+    """Les temps et barres détectés, remis d'aplomb : doublons retirés, puis trous comblés d'après `heard`."""
+    beats, downbeats = grid.clean_beats(beats, downbeats)
+    return grid.fill_beats(beats, None if heard is None else heard[:, 0]), downbeats
+
+
+def activations(p: Project) -> Optional[np.ndarray]:
+    """Ce que beat_this entendait trame par trame (colonnes : temps, premier temps) ; None avant `arr analyze`."""
+    f = p.root / FRAMES
+    return np.load(f)["frames"] if f.exists() else None
+
+
+def save_analysis(p: Project, beats: list[float], downbeats: list[float], heard: np.ndarray) -> None:
+    """Range ce que beat_this a détecté, tel quel, et ce qu'il entendait."""
+    (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
+    np.savez_compressed(p.root / FRAMES, frames=heard.astype(np.float16), fps=np.float32(50.0))
 
 
 def original_beats(p: Project) -> Optional[list[float]]:
