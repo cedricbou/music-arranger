@@ -88,6 +88,27 @@ def test_steady_bars_removes_the_20_ms_steps_and_keeps_a_short_bar():
     assert measure.steady_bars([1.0, 3.0]) == [1.0, 3.0]
 
 
+def test_regular_bars_ignores_two_beat_flips_but_keeps_a_real_half_bar_shift():
+    beats = [0.5 * i for i in range(80)]  # 4/4 régulier, deux temps de levée
+    steady = [beats[i] for i in range(2, 80, 4)]
+    # beat_this voit des mesures de deux temps le temps d'un refrain : 2+2 au lieu de 4
+    flipped = sorted(steady + [beats[i] for i in (24, 32, 40)])
+    assert measure.regular_bars(flipped, beats) == steady
+
+    # le morceau perd vraiment deux temps à 20 s : une seule mesure courte, là
+    shifted = [beats[i] for i in range(2, 40, 4)] + [beats[i] for i in range(40, 80, 4)]
+    noisy = sorted(shifted + [beats[i] for i in (46, 54)])
+    assert measure.regular_bars(noisy, beats) == shifted
+
+    # sans barre détectée au début, les mesures remontent jusqu'à ne laisser qu'une levée
+    late = [beats[i] for i in range(18, 80, 4)]
+    assert measure.regular_bars(late, beats) == steady
+
+    # un mètre qui change trop souvent pour qu'une longueur domine : rien ne bouge
+    mixed = [beats[i] for i in (0, 3, 7, 10, 14, 17, 21, 25, 28)]
+    assert measure.regular_bars(mixed, beats) == mixed
+
+
 def test_snap_sections_puts_boundaries_on_bars_but_not_the_ends_of_the_song():
     bars = [0.5 + 2.0 * i for i in range(10)]
     sections = [

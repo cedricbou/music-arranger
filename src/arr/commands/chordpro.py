@@ -61,6 +61,7 @@ def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:
         raise ProjectError("aucune section ne couvre une mesure : vois arr sections list, puis arr sections set")
     key, shift = played_key(p)
     words, warnings, source = song_lyrics(p, passages)
+    passages = cho.edges(passages, key, shift)
     blocks = cho.layout(passages, words, key, shift)
     warnings += [f"{b.name} : aucun accord — relis la transcription" for b in blocks if not b.chords]
     head = {
@@ -77,6 +78,10 @@ def prepare(p: Project) -> tuple[dict, list[cho.Block], int, list[str], str]:
 
 def plural(n: int, word: str) -> str:
     return f"{n} {word}{'s' if n > 1 else ''}"
+
+
+def clock(seconds: float) -> str:
+    return f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
 
 
 def chords_of(block: cho.Block) -> list:
@@ -100,11 +105,10 @@ def report(head: dict, blocks: list[cho.Block], usual: int, warnings: list[str],
         else:
             seen.setdefault(b.name, chords_of(b))
             lines = sum(len(g.lines) for g in b.grids)
-            odd = [len(bars) for g in b.grids if g.beats != usual for bars, _ in g.lines]
             detail = plural(lines, "ligne") + " de mesures"
-            if odd:
-                beats = next(g.beats for g in b.grids if g.beats != usual)
-                detail += f", dont {'une mesure' if sum(odd) == 1 else f'{sum(odd)} mesures'} à {beats} temps"
+            if b.odd:
+                at = ", ".join(f"{beats} temps à {clock(start)}" for start, beats in b.odd)
+                detail += f", dont {'une mesure' if len(b.odd) == 1 else f'{len(b.odd)} mesures'} de {at}"
             if b.sung:
                 detail += f" · {plural(b.sung, 'ligne')} de paroles en repère"
         table.add_row(f"  {b.name}", f"{b.bars:>3} mes.", detail, "1 rappel" if b.cue else "")

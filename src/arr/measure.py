@@ -37,6 +37,51 @@ def steady_bars(bars: list[float], reach: int = 8) -> list[float]:
     return [float(b) for b in out]
 
 
+def regular_bars(downbeats: list[float], beats: list[float], change: int = 3) -> list[float]:
+    """Les barres de mesure posées tous les N temps, N la longueur de mesure la plus fréquente.
+
+    beat_this hésite parfois, le temps d'un refrain, entre des mesures de quatre et de deux
+    temps alors que le groupe joue en 4/4. La place des barres dans la mesure (leur phase) se
+    lit sur l'ensemble des barres détectées : elle ne change que si au moins `change` barres
+    le confirment, et une seule mesure courte marque alors le décalage. Avant la première
+    barre, il ne reste qu'une levée de moins de N temps. Si les mesures détectées sont trop
+    diverses pour qu'une longueur domine (morceau à mètre changeant), rien ne bouge.
+    """
+    if len(downbeats) < 3 or len(beats) < 2:
+        return downbeats
+    t = np.asarray(beats, dtype=float)
+    at = sorted({int(np.abs(t - d).argmin()) for d in downbeats})
+    gaps = np.diff(at)
+    sizes, counts = np.unique(gaps, return_counts=True)
+    size = int(sizes[counts.argmax()])
+    if size < 2 or counts.max() < 0.6 * len(gaps):
+        return downbeats
+    # Programmation dynamique : une phase par barre détectée, un coût par barre hors phase,
+    # `change` par changement de phase.
+    cost, back = np.zeros(size), []
+    for i in at:
+        best = int(cost.argmin())
+        moved = cost[best] + change
+        keep = cost <= moved
+        back.append(np.where(keep, np.arange(size), best))
+        cost = np.minimum(cost, moved) + (np.arange(size) != i % size)
+    phase, phases = int(cost.argmin()), []
+    for step in reversed(back):
+        phases.append(phase)
+        phase = int(step[phase])
+    phases.reverse()
+    # Chaque phase vaut à partir de la première barre détectée qui la porte.
+    starts: list[tuple[int, int]] = []
+    for i, phase in zip(at, phases, strict=True):
+        if (not starts or starts[-1][1] != phase) and i % size == phase:
+            starts.append((i, phase))
+    first = starts[0][0]
+    out = list(range(first % size, first, size))
+    for (start, _), (end, _) in zip(starts, starts[1:] + [(len(t), 0)], strict=True):
+        out += range(start, end, size)
+    return [float(t[i]) for i in out]
+
+
 def snap_sections(sections: list[tuple[str, float, float]], bars: list[float]) -> list[tuple[str, float, float]]:
     """Pose les bornes des sections (nom, début, fin) sur les barres de mesure les plus proches.
 
