@@ -27,3 +27,4 @@ Une fiche par choix structurant : le contexte, ce qui a été essayé, les mesur
 | [015](015-temps-entendus-deux-fois.md) | Un temps entendu deux fois par beat_this compte pour un, partout où la grille est lue ; `analysis.json` reste brut |
 | [016](016-passages-de-reference.md) | Des passages dont le musicien tape les barres dans `arr play --mark` notent la grille ; ils vivent dans `truth/` du projet |
 | [017](017-temps-manques.md) | Un temps manqué par beat_this est comblé là où son activation en garde la trace ; `arr analyze` garde les activations |
+| [018](018-mesures-douteuses.md) | Une mesure où beat_this a entendu un temps faiblement est marquée dans `arr play` et listée par `arr doubts`, jamais corrigée |

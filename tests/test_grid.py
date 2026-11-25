@@ -144,3 +144,25 @@ def test_fill_beats_fills_the_last_gap_and_comes_after_the_beats_heard_twice():
     apart = sorted(beats + [5.92])
     cleaned, _ = grid.clean_beats(apart, beats[::4])
     assert grid.fill_beats(cleaned, heard) == sorted(beats + [8.5])
+
+
+def test_doubtful_bars_are_those_with_a_weakly_heard_beat():
+    beats = [0.3] + [1.0 + 0.5 * i for i in range(16)]  # une levée, puis quatre mesures de quatre temps
+    bars = [1.0, 3.0, 5.0, 7.0]
+    heard = np.zeros(600)
+    heard[[int(round(t * 50)) for t in beats]] = 1.0
+    assert grid.doubtful_bars(beats, bars, heard) == {}
+    heard[int(4.0 * 50)] = 0.62  # troisième temps de la deuxième mesure
+    heard[int(4.5 * 50)] = 0.30  # le quatrième aussi : la première raison suffit
+    heard[int(8.5 * 50)], heard[int(8.5 * 50) + 1] = 0.2, 0.85  # le pic est sur la trame voisine
+    heard[int(0.3 * 50)] = 0.1  # la levée n'est pas une mesure
+    assert grid.doubtful_bars(beats, bars, heard) == {
+        3.0: "temps 3 entendu faiblement (0,62)",
+        7.0: "temps 4 entendu faiblement (0,85)",
+    }
+    # un temps comblé est toujours un temps entendu faiblement
+    holed_beats = [t for t in beats if t != 2.0]
+    heard[int(2.0 * 50)] = 0.4
+    filled = grid.fill_beats(holed_beats, heard)
+    assert filled == beats and grid.doubtful_bars(filled, bars, heard)[1.0] == "temps 3 entendu faiblement (0,40)"
+    assert grid.doubtful_bars(beats, bars, None) == {} and grid.doubtful_bars(beats, [], heard) == {}

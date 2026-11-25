@@ -214,17 +214,24 @@ def test_truth_scores_every_marked_passage_of_the_library(tmp_path, monkeypatch)
     # beat_this a manqué le temps de 5,5 s : la mesure repérée de 4 à 6 s n'en a que trois
     holed = [t for t in beats if t != 5.5]
     song("c--holed", {"beats": holed, "downbeats": bars}, {"verse": bars[1:5]})
+    # ce que beat_this entendait : net partout dans le premier morceau, faible à 4,5 s dans le dernier
+    heard = np.zeros((801, 2), np.float32)
+    heard[[int(t * 50) for t in beats], 0] = 1.0
+    np.savez_compressed(good.root / "analysis_frames.npz", frames=heard)
+    heard[int(4.5 * 50), 0], heard[int(5.5 * 50), 0] = 0.6, 0.0  # et rien à 5,5 s : le trou reste
+    np.savez_compressed(tmp_path / "c--holed/analysis_frames.npz", frames=heard)
     monkeypatch.chdir(good.root)
 
     result = runner.invoke(app, ["truth"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     rows = [" ".join(line.split()) for line in result.output.splitlines()]
     assert not any("b--unmarked" in row for row in rows)
-    assert "a--good chorus v001 · 4 temps 4/4 0 3/3 +0 ms nouveau" in rows
-    assert "a--good intro v001 · 4 temps 2/2 0 1/1 +0 ms nouveau" in rows
+    assert "a--good chorus v001 · 4 temps 4/4 0 3/3 +0 ms 0/0 fausses · 0/3 justes nouveau" in rows
+    assert "a--good intro v001 · 4 temps 2/2 0 1/1 +0 ms 0/0 fausses · 0/1 justes nouveau" in rows
     # après le temps manqué, les barres posées tous les quatre temps tombent un temps plus tard
-    assert "c--holed verse v001 · 4 temps 2/4 1 2/3 +0 ms nouveau" in rows
-    assert "Total 8/10 1 6/7" in rows
+    # la mesure à trois temps est marquée douteuse (son temps de 4,5 s) ; la suivante, décalée, ne l'est pas
+    assert "c--holed verse v001 · 4 temps 2/4 1 2/3 +0 ms 1/2 fausses · 0/1 justes nouveau" in rows
+    assert "Total 8/10 1 6/7 1/2 fausses · 0/5 justes" in rows
 
     # rien n'a changé : pareil partout ; --dry-run ne retient pas le lancement
     assert "pareil" in runner.invoke(app, ["truth", str(tmp_path), "--dry-run"], env={"COLUMNS": "200"}).output

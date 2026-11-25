@@ -34,6 +34,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr levels`](#arr-levels) : Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
 - [`arr check`](#arr-check) : Mesure chaque fichier audio du projet : durée, niveaux, volume, anomalies.
 - [`arr truth`](#arr-truth) : Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
+- [`arr doubts`](#arr-doubts) : Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
 - [`arr devices`](#arr-devices) : Montre les réglages audio effectifs et les périphériques disponibles.
 - [`arr doctor`](#arr-doctor) : Vérifie la carte Intel Arc et la présence des modèles.
 - [`arr sections set`](#arr-sections-set) : Définit les sections en numéros de mesure (inclusifs, à partir de 1).
@@ -325,6 +326,8 @@ Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la se
 
 Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite passe à la suivante. Ctrl+C arrête.
 
+Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte (`arr doubts` les liste) : d saute au prochain passage douteux. La marque ne change ni la grille ni le fichier du prompteur.
+
 Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture : l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro, la position suit les sections, les flèches et la boucle, la pause envoie Stop.
 
 Avec --mark, le passage joué devient un passage de référence : Espace se tape sur le premier temps de chaque mesure (ni pause ni flèches pendant ce temps), une passe suffit. À la fin, les barres repérées sont rangées dans `truth/` du morceau, à l'instant où elles s'entendaient ; refaire un passage garde le repérage précédent à côté. `arr truth` note la grille contre elles.
@@ -493,6 +496,8 @@ Note la grille de chaque morceau contre ses passages de référence, repérés p
 
 Pour chaque passage : les barres repérées, celles où `arr` pose une barre à moins de 70 ms, les barres qu'`arr` pose en trop, les mesures où il compte le bon nombre de temps (4, ou le `beats_per_bar` écrit dans le fichier du passage), l'écart médian entre ses barres et les frappes, et si le passage va mieux ou moins bien qu'au lancement précédent. La grille notée est celle d'`arr play`. Les notes sont gardées dans `truth/runs.json` de chaque morceau.
 
+« Doute » dit ce que valent les mesures marquées « ? » (`arr doubts`) : parmi les mesures où la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
+
 Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
 
 | Argument | Défaut | Rôle |
@@ -502,6 +507,16 @@ Sort en erreur si un passage va moins bien : un changement de la grille ne se li
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--dry-run` | non | Note sans rien retenir : le prochain lancement se compare encore au précédent. |
+
+## `arr doubts`
+
+```
+arr doubts
+```
+
+Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
+
+Une mesure est douteuse quand le détecteur a entendu faiblement un de ses temps : là, une barre ou un temps peut être de travers. À vérifier à l'oreille d'abord (`arr play` les marque d'un « ? », d y saute). Rien n'est corrigé : la grille et le fichier du prompteur ne changent pas.
 
 ## `arr devices`
 

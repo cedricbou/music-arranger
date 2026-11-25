@@ -100,6 +100,9 @@ def truth_(
     frappes, et si le passage va mieux ou moins bien qu'au lancement précédent. La grille notée
     est celle d'`arr play`. Les notes sont gardées dans `truth/runs.json` de chaque morceau.
 
+    « Doute » dit ce que valent les mesures marquées « ? » (`arr doubts`) : parmi les mesures où
+    la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
+
     Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
     """
     from rich.console import Console
@@ -107,15 +110,19 @@ def truth_(
 
     from arr import grid
     from arr import truth as marks
-    from arr.commands._common import song_grid
+    from arr.commands._common import song_doubts, song_grid
+
+    def doubt(s: dict) -> str:
+        return f"{s['caught']}/{s['bad']} fausses · {s['alarms']}/{s['good']} justes"
 
     folder = library_of(library)
     table = Table(box=None, pad_edge=False, header_style="bold")
-    for column in ("Morceau", "Passage", "Barres justes", "En trop", "Mesures au compte", "Écart", "Depuis"):
+    columns = ("Morceau", "Passage", "Barres justes", "En trop", "Mesures au compte", "Écart", "Doute", "Depuis")
+    for column in columns:
         table.add_column(
             column, no_wrap=True, justify="left" if column in ("Morceau", "Passage", "Depuis") else "right"
         )
-    total = dict.fromkeys(("marks", "matched", "shown", "counted", "right"), 0)
+    total = dict.fromkeys(("marks", "matched", "shown", "counted", "right", "caught", "alarms", "bad", "good"), 0)
     moved: dict[str, list[str]] = {"mieux": [], "moins bien": []}
     for f in sorted(folder.glob(f"*/{SONG_FILE}")):
         p = Project(f.parent)
@@ -127,9 +134,15 @@ def truth_(
             table.add_row(p.root.name, "", "[yellow]pas d'analyse (arr analyze)[/]")
             continue
         beats, bars = read[0], grid.regular_bars(read[1], read[0])
-        before, run = marks.last_run(p), {}
+        before, run, unsure = marks.last_run(p), {}, song_doubts(p)
         for passage in found:
             s = marks.score(passage.bars, passage.beats_per_bar, beats, bars) | {"version": passage.version}
+            flags = marks.doubted(passage.bars, passage.beats_per_bar, list(unsure or ()))
+            # Sans activations gardées, aucune mesure n'est marquée : le passage ne compte pas dans le doute.
+            wrong = s.pop("wrong") if unsure is not None else [s.pop("wrong")][:0]
+            s["caught"] = sum(f and w for f, w in zip(flags, wrong, strict=False))
+            s["alarms"] = sum(f and not w for f, w in zip(flags, wrong, strict=False))
+            s["bad"], s["good"] = sum(wrong), len(wrong) - sum(wrong)
             run[passage.name] = s
             since = marks.verdict(s, before.get(passage.name))
             if since in moved:
@@ -143,6 +156,7 @@ def truth_(
                 str(s["shown"] - s["matched"]),
                 f"{s['right']}/{s['counted']}",
                 "-" if s["offset"] is None else f"{1000 * s['offset']:+.0f} ms",
+                doubt(s) if unsure is not None else "[dim]arr analyze[/]",
                 {"mieux": "[green]mieux[/]", "moins bien": "[red]moins bien[/]"}.get(since, f"[dim]{since}[/]"),
             )
         if not dry:
@@ -155,6 +169,8 @@ def truth_(
         f"{total['matched']}/{total['marks']}",
         str(total["shown"] - total["matched"]),
         f"{total['right']}/{total['counted']}",
+        "",
+        doubt(total),
     )
     Console().print(table)
     for word, names in moved.items():
@@ -162,6 +178,38 @@ def truth_(
             typer.echo(f"{word} : {', '.join(names)}")
     if moved["moins bien"]:
         raise typer.Exit(1)
+
+
+@app.command()
+def doubts() -> None:
+    """Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
+
+    Une mesure est douteuse quand le détecteur a entendu faiblement un de ses temps : là, une
+    barre ou un temps peut être de travers. À vérifier à l'oreille d'abord (`arr play` les marque
+    d'un « ? », d y saute). Rien n'est corrigé : la grille et le fichier du prompteur ne changent pas.
+    """
+    from arr import grid
+    from arr.commands._common import doubtful_passages, song_doubts, song_grid
+    from arr.commands._screen import clock
+
+    p = Project.find()
+    found = song_doubts(p)
+    if found is None:
+        raise ProjectError("ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze")
+    read = song_grid(p)
+    bars = grid.regular_bars(read[1], read[0])
+    first = [min((t for t in read[0] if t >= b - 0.05), default=b) for b in bars]
+    name = lambda t: next((s.name for s in p.sections if s.start - 0.05 <= t < s.end), "")
+    for start, count, why in doubtful_passages(found, first):
+        number = first.index(start) + 1
+        where = f"mes. {number}" if count == 1 else f"mes. {number} à {number + count - 1}"
+        typer.echo(
+            f"{clock(start):>5}  {where:<16} {name(start):<10} {why[0]}{f' ; {count - 1} de plus' if count > 1 else ''}"
+        )
+    share = len(found) / max(len(bars), 1)
+    typer.echo(
+        f"{len(found)} mesure{'s' if len(found) > 1 else ''} douteuse{'s' if len(found) > 1 else ''} sur {len(bars)} ({share:.0%})"
+    )
 
 
 @app.command()

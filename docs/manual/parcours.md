@@ -346,6 +346,34 @@ arr check
 Une ligne par fichier : durée, niveaux, volume, et les anomalies (silence, saturation,
 longueur différente de l'original, prise mal calée).
 
+## Savoir où la grille est incertaine
+
+Là où le détecteur de temps hésitait, `arr` le dit au lieu de trancher en silence.
+
+```
+arr doubts              # les passages douteux du morceau, leur instant, la raison
+arr play                # « ? » devant les mesures douteuses ; d saute au passage douteux suivant
+```
+
+```
+ 0:23  mes. 12 à 14     verse      temps 2 entendu faiblement (0,62) ; 2 de plus
+ 3:40  mes. 105         outro      temps 3 entendu faiblement (0,47)
+4 mesures douteuses sur 105 (4%)
+```
+
+- **Une mesure est douteuse** quand un de ses temps a été entendu faiblement : le détecteur
+  note chaque temps de 0 à 1, et un temps sous 0,9 est faible. Un temps manqué puis compté
+  d'après sa trace l'est toujours.
+- **Dans `arr play`**, la mesure porte un « ? » sur la grille d'accords, et la ligne sous la
+  grille donne la raison. d mène au début du passage douteux suivant, parmi les sections jouées.
+- **Rien n'est corrigé** : ni la grille, ni les accords, ni le fichier du prompteur. Une mesure
+  douteuse est une mesure à vérifier à l'oreille en premier, pas une mesure fausse ; une mesure
+  sans marque peut être fausse aussi.
+- Sur un morceau au tempo net, moins d'une mesure sur vingt est marquée ; sur un morceau sans
+  batterie ou au tempo flottant, bien plus. `arr truth` dit, sur vos passages de référence,
+  combien de mesures fausses sont marquées (colonne « Doute »).
+- Un morceau analysé avant que cette information ne soit gardée n'a aucune marque : `arr analyze`.
+
 ## Noter la grille contre ce que vous comptez
 
 Sur un passage difficile (pas de batterie, entrée inhabituelle), comptez les mesures vous-même
@@ -369,15 +397,17 @@ arr truth                                       # la note, pour tous les morceau
 - **`arr truth`** lit tous les morceaux du dossier qui contient le projet (ou du dossier donné) :
 
 ```
-Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Depuis
-paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  mieux
-Total                                                              15/16        1              14/15
+Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Doute                      Depuis
+paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  1/1 fausses · 2/14 justes  mieux
+Total                                                              15/16        1              14/15          1/1 fausses · 2/14 justes
 mieux : paper-lanterns--night-drive chorus2+outro
 ```
 
   « Barres justes » : vos barres où `arr` en pose une à moins de 70 ms. « En trop » : les barres
   qu'il pose ailleurs dans le passage. « Mesures au compte » : vos mesures où il compte le bon
   nombre de temps. « Écart » : de ses barres à vos frappes ; négatif, vous tapez après lui.
+  « Doute » : parmi vos mesures où la grille se trompe, celles qu'`arr` marque douteuses, puis
+  celles qu'il marque à tort parmi les justes.
   « Depuis » compare au lancement précédent, gardé dans `truth/runs.json` ; `--dry-run` note
   sans rien retenir. Un passage qui va moins bien fait sortir la commande en erreur.
 - **Vérifier vos frappes** : repérez un passage d'un morceau au clic régulier ; l'écart doit

@@ -84,6 +84,31 @@ def activations(p: Project) -> Optional[np.ndarray]:
     return np.load(f)["frames"] if f.exists() else None
 
 
+def song_doubts(p: Project) -> Optional[dict[float, str]]:
+    """Les mesures douteuses de la grille d'`arr play` (`grid.doubtful_bars`) ; None si le projet ne garde pas ce que beat_this entendait."""
+    read, heard = song_grid(p), activations(p)
+    if not read or heard is None:
+        return None
+    return grid.doubtful_bars(read[0], grid.regular_bars(read[1], read[0]), heard[:, 0])
+
+
+def doubtful_passages(doubts: dict[float, str], starts: list[float]) -> list[tuple[float, int, list[str]]]:
+    """Les mesures douteuses qui se suivent, réunies : (début, nombre de mesures, raisons), dans l'ordre du morceau.
+
+    `starts` sont les débuts de toutes les mesures.
+    """
+    out: list[tuple[float, int, list[str]]] = []
+    previous = False
+    for start in starts:
+        if start in doubts and previous:
+            first, count, why = out[-1]
+            out[-1] = (first, count + 1, [*why, doubts[start]])
+        elif start in doubts:
+            out.append((start, 1, [doubts[start]]))
+        previous = start in doubts
+    return out
+
+
 def save_analysis(p: Project, beats: list[float], downbeats: list[float], heard: np.ndarray) -> None:
     """Range ce que beat_this a détecté, tel quel, et ce qu'il entendait."""
     (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
