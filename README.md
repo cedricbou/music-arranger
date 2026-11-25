@@ -116,6 +116,10 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   et règle le gain pour des crêtes entre -18 et -3 dB. Ctrl+C donne le bilan par canal.
 - **Pause et retour en arrière** : pendant `arr play`, Espace met en pause, ← revient à la
   mesure d'avant et → passe à la suivante.
+- **Passages de référence** : `arr play -s chorus --mark` joue le passage une fois ; Espace se
+  tape sur le 1 de chaque mesure, et les barres repérées sont rangées dans `truth/` du morceau.
+  `arr truth` note ensuite la grille de tous les morceaux contre ces passages, et dit lesquels
+  vont mieux ou moins bien que la fois d'avant.
 - **Accords à l'écran** : après `arr transcribe`, `arr play` et `arr record` affichent la
   grille d'accords de la section en cours, une case par mesure et un `/` par temps tenu, et
   surlignent l'accord du moment, pour jouer par-dessus.
@@ -253,6 +257,8 @@ d'un instrument note à note.
 | `arr models pull` | installe les modèles et leurs moteurs, et les met à jour (réseau) |
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
+| `arr play -s SECTION --mark` | repère à l'oreille les barres de mesure du passage (Espace sur chaque 1) : un passage de référence, dans `truth/` |
+| `arr truth [DOSSIER]` | note la grille de chaque morceau contre ses passages de référence, et dit ce qui va mieux ou moins bien |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).
@@ -269,6 +275,7 @@ night-drive/
   score/           score.abc (éditable), fichiers MIDI, accords et structure horodatés
   takes/           t001.flac + t001.json (style, mode, graine)
   tracks/<piste>/  vNNN.flac + vNNN.json
+  truth/           passages de référence : vos barres repérées (`arr play --mark`), les notes d'`arr truth`
   mix/  export/
   trash/           ce que `arr rm` a retiré ; `arr rm --purge trash` le vide
 ```

@@ -33,6 +33,7 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
 - [`arr levels`](#arr-levels) : Vumètres par canal, pour vérifier le câblage et régler le gain sur la table.
 - [`arr check`](#arr-check) : Mesure chaque fichier audio du projet : durée, niveaux, volume, anomalies.
+- [`arr truth`](#arr-truth) : Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
 - [`arr devices`](#arr-devices) : Montre les réglages audio effectifs et les périphériques disponibles.
 - [`arr doctor`](#arr-doctor) : Vérifie la carte Intel Arc et la présence des modèles.
 - [`arr sections set`](#arr-sections-set) : Définit les sections en numéros de mesure (inclusifs, à partir de 1).
@@ -324,6 +325,8 @@ Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, fl
 
 Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture : l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro, la position suit les sections, les flèches et la boucle, la pause envoie Stop.
 
+Avec --mark, le passage joué devient un passage de référence : Espace se tape sur le premier temps de chaque mesure (ni pause ni flèches pendant ce temps), une passe suffit. À la fin, les barres repérées sont rangées dans `truth/` du morceau, à l'instant où elles s'entendaient ; refaire un passage garde le repérage précédent à côté. `arr truth` note la grille contre elles.
+
 | Argument | Défaut | Rôle |
 |---|---|---|
 | `NAME` |  | Piste ou prise (ex. t001) ; sinon le mix. |
@@ -337,6 +340,7 @@ Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la l
 | `--loop`, `-l` | non | Rejoue en boucle jusqu'à Ctrl+C. |
 | `--count-in` | `0` | Mesures de décompte avant de commencer (pas à chaque boucle). |
 | `--clock` | non | Envoie l'horloge et le transport MIDI sur le port « arr:transport » : un prompteur de scène suit le morceau. |
+| `--mark` | non | Repère les barres de mesure à l'oreille : Espace sur le 1 de chaque mesure du passage joué. |
 
 ## `arr nudge`
 
@@ -476,6 +480,26 @@ arr check
 Mesure chaque fichier audio du projet : durée, niveaux, volume, anomalies.
 
 Sert à vérifier un résultat sans l'écouter (et à remplir une PR) : une piste silencieuse, saturée, de la mauvaise longueur ou mal calée se voit ici.
+
+## `arr truth`
+
+```
+arr truth [OPTIONS] [LIBRARY]
+```
+
+Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
+
+Pour chaque passage : les barres repérées, celles où `arr` pose une barre à moins de 70 ms, les barres qu'`arr` pose en trop, les mesures où il compte le bon nombre de temps (4, ou le `beats_per_bar` écrit dans le fichier du passage), l'écart médian entre ses barres et les frappes, et si le passage va mieux ou moins bien qu'au lancement précédent. La grille notée est celle d'`arr play`. Les notes sont gardées dans `truth/runs.json` de chaque morceau.
+
+Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
+
+| Argument | Défaut | Rôle |
+|---|---|---|
+| `LIBRARY` |  | Dossier des morceaux ; sinon celui qui contient le projet courant, ou le dossier courant. |
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--dry-run` | non | Note sans rien retenir : le prochain lancement se compare encore au précédent. |
 
 ## `arr devices`
 

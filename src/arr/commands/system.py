@@ -5,12 +5,13 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import typer
 
 from arr import audio, engines
 from arr.app import ORIGINAL, app, models_app
-from arr.project import Project, ProjectError
+from arr.project import SONG_FILE, Project, ProjectError
 
 
 @app.command()
@@ -70,6 +71,97 @@ def check() -> None:
             typer.echo(
                 f"{name} : {placed:.0%} du morceau à moins de {TOLERANCE * 1000:.0f} ms de l'original (arr nudge {name})"
             )
+
+
+def library_of(given: Optional[Path]) -> Path:
+    """Le dossier des morceaux : celui donné, sinon celui qui contient le projet courant, sinon le dossier courant."""
+    if given:
+        return given.expanduser()
+    try:
+        return Project.find().root.parent
+    except ProjectError:
+        return Path.cwd()
+
+
+@app.command("truth")
+def truth_(
+    library: Optional[Path] = typer.Argument(
+        None, help="Dossier des morceaux ; sinon celui qui contient le projet courant, ou le dossier courant."
+    ),
+    dry: bool = typer.Option(
+        False, "--dry-run", help="Note sans rien retenir : le prochain lancement se compare encore au précédent."
+    ),
+) -> None:
+    """Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
+
+    Pour chaque passage : les barres repérées, celles où `arr` pose une barre à moins de 70 ms,
+    les barres qu'`arr` pose en trop, les mesures où il compte le bon nombre de temps (4, ou le
+    `beats_per_bar` écrit dans le fichier du passage), l'écart médian entre ses barres et les
+    frappes, et si le passage va mieux ou moins bien qu'au lancement précédent. La grille notée
+    est celle d'`arr play`. Les notes sont gardées dans `truth/runs.json` de chaque morceau.
+
+    Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
+    """
+    from rich.console import Console
+    from rich.table import Table
+
+    from arr import measure
+    from arr import truth as marks
+    from arr.commands._common import song_grid
+
+    folder = library_of(library)
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    for column in ("Morceau", "Passage", "Barres justes", "En trop", "Mesures au compte", "Écart", "Depuis"):
+        table.add_column(
+            column, no_wrap=True, justify="left" if column in ("Morceau", "Passage", "Depuis") else "right"
+        )
+    total = dict.fromkeys(("marks", "matched", "shown", "counted", "right"), 0)
+    moved: dict[str, list[str]] = {"mieux": [], "moins bien": []}
+    for f in sorted(folder.glob(f"*/{SONG_FILE}")):
+        p = Project(f.parent)
+        found = marks.passages(p)
+        if not found:
+            continue
+        grid = song_grid(p)
+        if not grid:
+            table.add_row(p.root.name, "", "[yellow]pas d'analyse (arr analyze)[/]")
+            continue
+        beats, bars = grid[0], measure.regular_bars(grid[1], grid[0])
+        before, run = marks.last_run(p), {}
+        for passage in found:
+            s = marks.score(passage.bars, passage.beats_per_bar, beats, bars) | {"version": passage.version}
+            run[passage.name] = s
+            since = marks.verdict(s, before.get(passage.name))
+            if since in moved:
+                moved[since].append(f"{p.root.name} {passage.name}")
+            for key in total:
+                total[key] += s[key]
+            table.add_row(
+                p.root.name,
+                f"{passage.name} [dim]{passage.version} · {passage.beats_per_bar} temps[/]",
+                f"{s['matched']}/{s['marks']}",
+                str(s["shown"] - s["matched"]),
+                f"{s['right']}/{s['counted']}",
+                "-" if s["offset"] is None else f"{1000 * s['offset']:+.0f} ms",
+                {"mieux": "[green]mieux[/]", "moins bien": "[red]moins bien[/]"}.get(since, f"[dim]{since}[/]"),
+            )
+        if not dry:
+            marks.record_run(p, run)
+    if not total["marks"]:
+        raise ProjectError(f"aucun passage de référence sous {folder} (arr play -s <section> --mark)")
+    table.add_row(
+        "[bold]Total[/]",
+        "",
+        f"{total['matched']}/{total['marks']}",
+        str(total["shown"] - total["matched"]),
+        f"{total['right']}/{total['counted']}",
+    )
+    Console().print(table)
+    for word, names in moved.items():
+        if names:
+            typer.echo(f"{word} : {', '.join(names)}")
+    if moved["moins bien"]:
+        raise typer.Exit(1)
 
 
 @app.command()

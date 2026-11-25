@@ -163,7 +163,7 @@ PAST = re.compile(
 # Les fichiers d'un projet de morceau ou de la configuration de l'utilisateur : le manuel doit les
 # nommer, et ils ne sont jamais dans le dépôt.
 USER_FILES = ("song.toml", "sheet.toml", "audio.toml", "lyrics.txt", "analysis.json")
-USER_DIRS = ("setlists/", "takes/", "tracks/", "score/", "export/", "trash/")
+USER_DIRS = ("setlists/", "takes/", "tracks/", "score/", "export/", "trash/", "truth/")
 
 
 def code_tokens(path: Path, kinds: tuple) -> list[tuple[int, str]]:

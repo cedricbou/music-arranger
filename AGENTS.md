@@ -44,9 +44,8 @@ génération (001, 002), audio (003), calage (004), volume (005), grille (008, 0
    observables ; le détail technique, à lire avant de coder, est dans le commentaire `## Technical framing`.
    Une issue `needs-refinement` se cadre **avec** l'utilisateur. Une limite découverte devient une issue.
 3. **Langues** : interface, docstrings et docs en français ; identifiants, issues et PR en anglais.
-4. **Terminé** veut dire : tests ajoutés, `scripts/check.sh` vert (ruff, format, pytest),
-   documentation à jour (ci-dessous), carte du code à jour si un fichier apparaît, fiche dans
-   `docs/decisions/` si un choix structurant est fait.
+4. **Terminé** : tests ajoutés, `scripts/check.sh` vert (ruff, format, pytest), documentation à jour
+   (ci-dessous), carte du code si un fichier apparaît, fiche `docs/decisions/` pour un choix structurant.
 5. **Un agent ne peut pas écouter.** Mesurer (`arr check`, `arr.measure`), dire dans la PR ce qui est
    mesuré et ce qui reste à l'oreille (`--notes`) ; jamais une qualité sonore. Livrée, une issue dont
    il ne reste que l'écoute se ferme : l'essai rejoint l'issue de session d'écoute.
@@ -91,9 +90,10 @@ src/arr/
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
-  commands/system.py        check, devices, doctor, models pull
+  commands/system.py        check, truth, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
+  truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille
   measure.py                mesures sans écoute : période, calage, niveaux, barres régulières, accords
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
   sheet.py                  antisèche : proposition, sheet.toml, noms d'accords, transposition
@@ -114,7 +114,7 @@ tests/
   test_core.py, test_measure.py, test_docs.py, test_rules.py   cœur sur signaux ; doc et règles suivies
   test_workflow.py, test_slow.py   cycle de feature.sh hors-ligne ; vrais moteurs (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_chordpro.py,
-  test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module
+  test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py, test_truth.py   un par module
 ```
 
 Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifié ») :

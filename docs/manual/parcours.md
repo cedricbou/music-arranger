@@ -343,6 +343,43 @@ arr check
 Une ligne par fichier : durée, niveaux, volume, et les anomalies (silence, saturation,
 longueur différente de l'original, prise mal calée).
 
+## Noter la grille contre ce que vous comptez
+
+Sur un passage difficile (pas de batterie, entrée inhabituelle), comptez les mesures vous-même
+une fois : `arr` garde vos barres et note sa grille contre elles à chaque changement.
+
+```
+arr play -s chorus2,outro --mark --count-in 1   # Espace sur le 1 de chaque mesure
+arr truth                                       # la note, pour tous les morceaux du dossier
+```
+
+- **Repérer** : le passage joue une seule fois. Tapez Espace sur le premier temps de chaque
+  mesure ; pendant ce temps, Espace ne met pas en pause et les flèches ne font rien. Plusieurs
+  sections se repèrent ensemble si elles se suivent dans le morceau ; sans `-s`, c'est le morceau
+  entier. Trente à soixante secondes suffisent.
+- **Chaque frappe est rangée à l'instant où elle s'entendait**, retard de la sortie compris.
+  À la fin, `arr` dit combien de vos barres tombent sur les siennes et demande s'il les garde.
+- **Refaire un passage** écrit une nouvelle version (`truth/chorus2+outro.v002.toml`) : la
+  dernière fait foi, les précédentes restent à côté.
+- **Un passage à trois temps** : changez `beats_per_bar` dans le fichier du passage ; les
+  passes suivantes le gardent.
+- **`arr truth`** lit tous les morceaux du dossier qui contient le projet (ou du dossier donné) :
+
+```
+Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Depuis
+paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  mieux
+Total                                                              15/16        1              14/15
+mieux : paper-lanterns--night-drive chorus2+outro
+```
+
+  « Barres justes » : vos barres où `arr` en pose une à moins de 70 ms. « En trop » : les barres
+  qu'il pose ailleurs dans le passage. « Mesures au compte » : vos mesures où il compte le bon
+  nombre de temps. « Écart » : de ses barres à vos frappes ; négatif, vous tapez après lui.
+  « Depuis » compare au lancement précédent, gardé dans `truth/runs.json` ; `--dry-run` note
+  sans rien retenir. Un passage qui va moins bien fait sortir la commande en erreur.
+- **Vérifier vos frappes** : repérez un passage d'un morceau au clic régulier ; l'écart doit
+  rester sous 70 ms, et toutes les barres être justes.
+
 ## Faire le ménage
 
 ```
