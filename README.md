@@ -121,8 +121,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   Rien n'est corrigé : la grille et le fichier du prompteur restent les mêmes.
 - **Passages de référence** : `arr play -s chorus --mark` joue le passage une fois ; Espace se
   tape sur le 1 de chaque mesure, et les barres repérées sont rangées dans `truth/` du morceau.
-  `arr truth` note ensuite la grille de tous les morceaux contre ces passages, et dit lesquels
-  vont mieux ou moins bien que la fois d'avant.
+  Un fichier d'accords naît à côté, rempli de ceux d'`arr` : corrigez ceux que vous entendez
+  autrement. `arr truth` note ensuite la grille et les accords de tous les morceaux contre ces
+  passages, et dit lesquels vont mieux ou moins bien que la fois d'avant.
 - **Accords à l'écran** : après `arr transcribe`, `arr play` et `arr record` affichent la
   grille d'accords de la section en cours, une case par mesure et un `/` par temps tenu, et
   surlignent l'accord du moment, pour jouer par-dessus.
@@ -262,7 +263,7 @@ d'un instrument note à note.
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
 | `arr play -s SECTION --mark` | repère à l'oreille les barres de mesure du passage (Espace sur chaque 1) : un passage de référence, dans `truth/` |
 | `arr doubts` | liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison |
-| `arr truth [DOSSIER]` | note la grille de chaque morceau contre ses passages de référence, et dit ce qui va mieux ou moins bien |
+| `arr truth [DOSSIER]` | note la grille et les accords de chaque morceau contre ses passages de référence, et dit ce qui va mieux ou moins bien |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).

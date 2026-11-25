@@ -114,6 +114,8 @@ def keep_marks(p: Project, passage: tuple[str, float, float], times: list[float]
     typer.echo(
         f"gardé : truth/{name}.{kept.version}.toml ({kept.beats_per_bar} temps par mesure) · arr truth pour la note"
     )
+    if written := truth.write_chords(p, kept, truth.shown_chords(song_chart(p))):
+        typer.echo(f"accords à corriger à l'oreille, mesure par mesure : truth/{written.name}")
 
 
 def bar_stops(starts: list[float], ranges: list[tuple[float, float]], length: float) -> list[float]:
@@ -204,6 +206,7 @@ def play(
     temps de chaque mesure (ni pause ni flèches pendant ce temps), une passe suffit. À la fin,
     les barres repérées sont rangées dans `truth/` du morceau, à l'instant où elles s'entendaient ;
     refaire un passage garde le repérage précédent à côté. `arr truth` note la grille contre elles.
+    Un fichier d'accords naît avec le passage, rempli de ceux d'`arr` : corrige ceux que tu entends autrement.
     """
     from arr import studio
 

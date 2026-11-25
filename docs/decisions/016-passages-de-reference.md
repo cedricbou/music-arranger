@@ -27,6 +27,16 @@ fixe, indépendante du détecteur.
 - **Chaque lancement est gardé** (`truth/runs.json`) : un passage qui baisse sur l'une des deux
   notes est « moins bien », et la commande sort en erreur.
 
+## Complément du 26 novembre 2026 : les accords
+
+Chaque version d'un passage a son fichier d'accords (`.vNNN.chords.txt`), une ligne par mesure,
+rempli des accords d'`arr play`, que le musicien corrige : un accord, ou deux par moitiés de
+mesure. Le musicien a choisi le fichier pré-rempli en sachant que la référence penche alors vers
+`arr` : la ligne garde donc l'accord transcrit à droite de la barre, et la note dit combien de
+mesures ont été corrigées. Le fichier n'est jamais récrit. La note (`truth.chord_score`) est
+celle de `mir_eval.chord`, `root` et `majmin`, pondérée par la durée, contre les accords
+affichés (après `measure.seat_chords`), pas contre la transcription brute.
+
 ## Ce que la mesure a montré
 
 Sur la sortie virtuelle (`scripts/loopback.sh`), 8 s de lecture, blocs de 1024 échantillons :

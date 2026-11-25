@@ -226,12 +226,12 @@ def test_truth_scores_every_marked_passage_of_the_library(tmp_path, monkeypatch)
     assert result.exit_code == 0, result.output
     rows = [" ".join(line.split()) for line in result.output.splitlines()]
     assert not any("b--unmarked" in row for row in rows)
-    assert "a--good chorus v001 · 4 temps 4/4 0 3/3 +0 ms 0/0 fausses · 0/3 justes nouveau" in rows
-    assert "a--good intro v001 · 4 temps 2/2 0 1/1 +0 ms 0/0 fausses · 0/1 justes nouveau" in rows
+    assert "a--good chorus v001 · 4 temps 4/4 0 3/3 +0 ms 0/0 fausses · 0/3 justes - nouveau" in rows
+    assert "a--good intro v001 · 4 temps 2/2 0 1/1 +0 ms 0/0 fausses · 0/1 justes - nouveau" in rows
     # après le temps manqué, les barres posées tous les quatre temps tombent un temps plus tard
     # la mesure à trois temps est marquée douteuse (son temps de 4,5 s) ; la suivante, décalée, ne l'est pas
-    assert "c--holed verse v001 · 4 temps 2/4 1 2/3 +0 ms 1/2 fausses · 0/1 justes nouveau" in rows
-    assert "Total 8/10 1 6/7 1/2 fausses · 0/5 justes" in rows
+    assert "c--holed verse v001 · 4 temps 2/4 1 2/3 +0 ms 1/2 fausses · 0/1 justes - nouveau" in rows
+    assert "Total 8/10 1 6/7 1/2 fausses · 0/5 justes -" in rows
 
     # rien n'a changé : pareil partout ; --dry-run ne retient pas le lancement
     assert "pareil" in runner.invoke(app, ["truth", str(tmp_path), "--dry-run"], env={"COLUMNS": "200"}).output
@@ -254,3 +254,114 @@ def test_truth_scores_every_marked_passage_of_the_library(tmp_path, monkeypatch)
     empty.mkdir()
     result = runner.invoke(app, ["truth", str(empty)])
     assert result.exit_code != 0 and "aucun passage de référence" in str(result.exception)
+
+
+CHORDS = [(0.0, 2.0, "D:min"), (2.0, 3.0, "F:maj7"), (3.0, 4.0, "C:maj"), (4.0, 6.0, "N"), (6.0, 8.0, "E:maj7/3")]
+
+
+def test_chord_names_are_read_back_as_root_and_triad():
+    from arr.sheet import chord_label
+
+    names = ["Dm7", "F", "F#maj7", "Bbm", "E/G#", "Csus4", "Asus2", "Bdim", "Am7b5", "Gaug", "N.C.", "–", ""]
+    assert [chord_label(n) for n in names] == [
+        "D:min",
+        "F:maj",
+        "F#:maj",
+        "Bb:min",
+        "E:maj",
+        "C:sus4",
+        "A:sus2",
+        "B:dim",
+        "A:dim",
+        "G:aug",
+        "N",
+        "N",
+        "N",
+    ]
+
+
+def test_the_chord_file_is_prefilled_then_scored_against_what_i_hear(tmp_path):
+    p = Project.create(tmp_path / "song", "song")
+    passage = truth.save(p, "chorus", 0.0, 10.0, [0.0, 2.0, 4.0, 6.0, 8.0])
+    path = truth.write_chords(p, passage, CHORDS)
+    assert path.name == "chorus.v001.chords.txt"
+    lines = [line for line in path.read_text().splitlines() if not line.startswith("#")]
+    assert [" ".join(line.split()) for line in lines] == [
+        "1 0:00.00 Dm | Dm",
+        "2 0:02.00 Fmaj7 C | Fmaj7 C",  # l'accord change au milieu de la mesure
+        "3 0:04.00 N.C. | N.C.",
+        "4 0:06.00 Emaj7/3 | Emaj7/3",
+    ]
+    rows = truth.read_chords(path)
+    assert truth.chord_score(passage, rows, CHORDS) == {
+        "root": 1.0,
+        "majmin": 1.0,
+        "seconds": 8.0,
+        "filled": 4,
+        "corrected": 0,
+    }
+
+    # j'entends D majeur à la première mesure, un seul accord à la deuxième, et je ne sais pas pour la quatrième
+    text = path.read_text().replace("Dm               |", "D                |").replace("Fmaj7 C  ", "F        ")
+    path.write_text(text.replace("Emaj7/3          |", "                 |"))
+    rows = truth.read_chords(path)
+    assert [heard for _, heard, _ in rows] == [["D"], ["F"], ["N.C."], []]
+    s = truth.chord_score(passage, rows, CHORDS)
+    # fondamentale : D juste (2 s), F juste une demi-mesure (1 s sur 2), N.C. juste (2 s) ; la mesure vidée ne compte pas
+    assert s["root"] == pytest.approx(5 / 6) and s["majmin"] == pytest.approx(3 / 6)
+    assert (s["seconds"], s["filled"], s["corrected"]) == (6.0, 3, 2)
+
+    # le fichier corrigé n'est jamais récrit ; une nouvelle passe garde les corrections des mesures qui n'ont pas bougé
+    assert truth.write_chords(p, passage, CHORDS) is None and path.read_text().count("D   ") == 1
+    again = truth.save(p, "chorus", 0.0, 10.0, [0.05, 2.02, 4.9, 6.0, 8.0])
+    lines = truth.write_chords(p, again, CHORDS).read_text().splitlines()[4:]
+    assert [" ".join(line.split()) for line in lines] == [
+        "1 0:00.05 D | Dm",
+        "2 0:02.02 F | Fmaj7 N.C.",  # la mesure est plus longue, arr y lit autre chose ; ma correction reste
+        "3 0:04.90 N.C. | N.C.",  # cette barre a bougé de presque un temps : l'accord d'arr, à réécouter
+        "4 0:06.00 | Emaj7/3",
+    ]
+    # rien à écrire sans accords transcrits ; rien à noter sans mesure remplie, ni majeur ou mineur sur un sus4
+    other = truth.save(p, "intro", 0.0, 4.0, [0.0, 2.0])
+    assert truth.write_chords(p, other, []) is None and truth.chord_score(other, [], CHORDS) == {}
+    assert truth.chord_score(other, [(0, ["Dsus4"], ["Dm"])], CHORDS)["majmin"] is None
+
+
+def chord_project(tmp_path, monkeypatch):
+    """Quatre mesures à 120 à la noire, transcrites : Dm, puis F et C, rien, puis E."""
+    p = Project.create(tmp_path / "lib/night-drive", "Night Drive")
+    beats = [0.5 * i for i in range(16)]
+    (p.root / "analysis.json").write_text(json.dumps({"beats": beats, "downbeats": beats[::4]}))
+    (p.root / "score/chord.lab").write_text("".join(f"{a}\t{b}\t{label}\n" for a, b, label in CHORDS))
+    (p.root / "score/beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(beats)))
+    monkeypatch.chdir(p.root)
+    return p
+
+
+def test_truth_writes_the_chord_file_and_scores_the_chords(tmp_path, monkeypatch):
+    p = chord_project(tmp_path, monkeypatch)
+    truth.save(p, "verse", 0.0, 8.0, [0.0, 2.0, 4.0, 6.0])
+    path = p.root / "truth/verse.v001.chords.txt"
+    # --dry-run n'écrit rien ; le premier vrai lancement écrit le fichier, rempli des accords d'arr
+    assert runner.invoke(app, ["truth", "--dry-run"], env={"COLUMNS": "220"}).exit_code == 0 and not path.exists()
+    result = runner.invoke(app, ["truth"], env={"COLUMNS": "220"})
+    assert "100% fond. · 100% maj/min · 0/3 corrigées" in result.output and path.exists()
+
+    # j'entends F tout le long de la deuxième mesure : arr avait C sur sa seconde moitié
+    path.write_text(path.read_text().replace("Fmaj7 C  ", "F        "))
+    result = runner.invoke(app, ["truth"], env={"COLUMNS": "220"})
+    assert result.exit_code == 1 and "83% fond. · 83% maj/min · 1/3 corrigées" in result.output
+    assert "moins bien : night-drive verse" in result.output  # les accords comptent dans le verdict
+    assert result.output.count("83% fond.") == 2  # le passage, et le total
+
+
+def test_play_mark_leaves_a_chord_file_to_correct(tmp_path, monkeypatch):
+    p, session = marking_project(tmp_path, monkeypatch)
+    (p.root / "score/chord.lab").write_text("0.0\t4.0\tA:min\n4.0\t6.0\tC:maj\n6.0\t8.0\tG:maj\n")
+    (p.root / "score/beat.lab").write_text("".join(f"{0.5 * i:.2f}\t{i % 4 + 1}\t4\t4\n" for i in range(16)))
+    session["taps"] = [0.0, 2.0, 3.9]
+    result = runner.invoke(app, ["play", "-s", "chorus,outro", "--mark"], input="o\n")
+    assert "accords à corriger à l'oreille, mesure par mesure : truth/chorus+outro.v001.chords.txt" in result.output
+    rows = truth.read_chords(p.root / "truth/chorus+outro.v001.chords.txt")
+    # trois barres font deux mesures : la dernière frappe ferme la précédente
+    assert rows == [(0, ["C"], ["C"]), (1, ["G"], ["G"])]

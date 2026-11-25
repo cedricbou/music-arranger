@@ -394,12 +394,27 @@ arr truth                                       # la note, pour tous les morceau
   dernière fait foi, les précédentes restent à côté.
 - **Un passage à trois temps** : changez `beats_per_bar` dans le fichier du passage ; les
   passes suivantes le gardent.
+- **La dernière frappe ferme la mesure d'avant** : seize frappes font quinze mesures notées.
+- **Les accords que vous entendez** : avec le repérage naît `truth/chorus2+outro.v001.chords.txt`,
+  une ligne par mesure, déjà remplie des accords d'`arr` :
+
+  ```
+    1  0:37.42  F#m              | F#m
+    2  0:39.50  A E              | A E
+    3  0:41.60  N.C.             | N.C.
+  ```
+
+  Corrigez à gauche de la barre ce que vous entendez autrement : un accord, ou deux quand il
+  change au milieu de la mesure. Seuls la fondamentale et majeur ou mineur comptent (`F#m7` vaut
+  `F#m`). Videz une mesure dont vous n'êtes pas sûr : elle ne compte pas. La droite garde ce
+  qu'`arr` avait écrit. Le fichier n'est jamais récrit ; refaire le passage en crée un autre, qui
+  reprend vos corrections là où les barres n'ont pas bougé.
 - **`arr truth`** lit tous les morceaux du dossier qui contient le projet (ou du dossier donné) :
 
 ```
-Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Doute                      Depuis
-paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  1/1 fausses · 2/14 justes  mieux
-Total                                                              15/16        1              14/15          1/1 fausses · 2/14 justes
+Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Doute                      Accords                                     Depuis
+paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  1/1 fausses · 2/14 justes  93% fond. · 90% maj/min · 2/15 corrigées  mieux
+Total                                                              15/16        1              14/15          1/1 fausses · 2/14 justes  93% fond. · 90% maj/min · 2/15 corrigées
 mieux : paper-lanterns--night-drive chorus2+outro
 ```
 
@@ -408,6 +423,9 @@ mieux : paper-lanterns--night-drive chorus2+outro
   nombre de temps. « Écart » : de ses barres à vos frappes ; négatif, vous tapez après lui.
   « Doute » : parmi vos mesures où la grille se trompe, celles qu'`arr` marque douteuses, puis
   celles qu'il marque à tort parmi les justes.
+  « Accords » : la part du temps où l'accord d'`arr play` a la fondamentale que vous entendez,
+  puis la fondamentale et majeur ou mineur, et le nombre de mesures que vous avez corrigées. Une
+  mesure laissée telle quelle compte juste : la note penche du côté d'`arr`.
   « Depuis » compare au lancement précédent, gardé dans `truth/runs.json` ; `--dry-run` note
   sans rien retenir. Un passage qui va moins bien fait sortir la commande en erreur.
 - **Vérifier vos frappes** : repérez un passage d'un morceau au clic régulier ; l'écart doit

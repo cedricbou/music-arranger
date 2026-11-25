@@ -1,7 +1,8 @@
 """Passages de référence : les barres de mesure que le musicien a comptées à l'oreille, et la note de la grille.
 
 Chaque passage repéré vit dans `truth/` du projet, une version par passe (`chorus.v001.toml`) :
-la plus récente fait foi, les autres restent. `truth/runs.json` garde les notes de chaque
+la plus récente fait foi, les autres restent. À côté, `chorus.v001.chords.txt` porte les accords
+de ses mesures : ceux d'`arr`, que le musicien corrige. `truth/runs.json` garde les notes de chaque
 lancement d'`arr truth`, pour dire ce qui va mieux ou moins bien que la fois d'avant.
 """
 
@@ -17,6 +18,7 @@ import numpy as np
 import tomli_w
 
 from arr.project import Project, ProjectError
+from arr.sheet import chord_label, chord_name
 
 FOLDER = "truth"
 RUNS = "runs.json"
@@ -198,12 +200,107 @@ def doubted(marks: list[float], beats_per_bar: int, doubtful: list[float]) -> li
 def verdict(now: dict, before: dict | None) -> str:
     """« mieux », « moins bien » ou « pareil » depuis la dernière fois ; « nouveau » sans note comparable.
 
-    Moins bien dès qu'une des deux notes baisse (barres justes, mesures au bon compte) : une
-    hausse de l'autre ne rachète pas un recul.
+    Moins bien dès qu'une note baisse (barres justes, mesures au bon compte, accords) : une
+    hausse d'une autre ne rachète pas un recul.
     """
     if not before or before.get("version") != now.get("version"):
         return "nouveau"
-    was, lines = (before["f"], before["right"]), (now["f"], now["right"])
+    # Les accords comptent dès que les deux lancements les notent.
+    keys = ["f", "right"] + [k for k in ("root", "majmin") if now.get(k) is not None and before.get(k) is not None]
+    was, lines = [before[k] for k in keys], [now[k] for k in keys]
     if any(n < w - 1e-9 for n, w in zip(lines, was, strict=True)):
         return "moins bien"
     return "mieux" if any(n > w + 1e-9 for n, w in zip(lines, was, strict=True)) else "pareil"
+
+
+# --- les accords des passages
+
+CHORDS_HEAD = """# {name} {version} : les accords que tu entends, mesure par mesure.
+# Un accord par mesure, deux s'il change au milieu (« A E »). Corrige ceux que tu entends
+# autrement ; vide une mesure dont tu n'es pas sûr, elle ne comptera pas. Après la barre « | » :
+# ce qu'arr avait transcrit, à ne pas toucher.
+"""
+
+
+def shown_chords(chart: list[tuple]) -> list[tuple[float, float, str]]:
+    """Les accords de la grille d'`arr play` (`song_chart`), à plat : (début, fin, étiquette)."""
+    return [(start, end, label) for bar in chart for _, _, label, start, end in bar[3]]
+
+
+def _halves(a: float, b: float, chords: list[tuple[float, float, str]]) -> list[str]:
+    """L'accord de chaque moitié de la mesure, lu en son milieu ; un seul s'ils sont les mêmes."""
+    at = lambda t: next((label for start, end, label in chords if start <= t < end), "N")
+    first, second = at(a + (b - a) / 4), at(a + 3 * (b - a) / 4)
+    return [first] if first == second else [first, second]
+
+
+def chords_path(p: Project, passage: Passage) -> Path:
+    return p.root / FOLDER / f"{passage.name}.{passage.version}.chords.txt"
+
+
+def read_chords(path: Path) -> list[tuple[int, list[str], list[str]]]:
+    """Les lignes du fichier d'accords : (rang de la mesure, accords entendus, accords transcrits), en noms d'antisèche."""
+    rows = []
+    for line in path.read_text().splitlines():
+        heard, _, given = line.partition("|")
+        if line.lstrip().startswith("#") or not heard.split() or not heard.split()[0].isdigit():
+            continue
+        rows.append((int(heard.split()[0]) - 1, heard.split()[2:4], given.split()))
+    return rows
+
+
+def write_chords(p: Project, passage: Passage, chords: list[tuple[float, float, str]]) -> Path | None:
+    """Écrit le fichier d'accords du passage, rempli de ceux d'`arr` ; None s'il existe déjà : il n'est jamais récrit.
+
+    Une mesure corrigée dans le fichier d'une version précédente du passage, et qui commence
+    au même endroit à un quart de mesure près, garde sa correction.
+    """
+    path = chords_path(p, passage)
+    if path.exists() or len(passage.bars) < 2 or not chords:
+        return None
+    corrected: list[tuple[float, list[str]]] = []
+    for earlier in map(read, _files(p).get(passage.name, [])[:-1]):
+        if (old := chords_path(p, earlier)).exists():
+            corrected += [(earlier.bars[i], heard) for i, heard, given in read_chords(old) if heard != given]
+    lines = []
+    for i, (a, b) in enumerate(zip(passage.bars, passage.bars[1:], strict=False)):
+        given = [chord_name(label).replace("–", "N.C.") for label in _halves(a, b, chords)]
+        heard = next((kept for start, kept in reversed(corrected) if abs(start - a) < (b - a) / 4), given)
+        lines.append(f"{i + 1:>3}  {int(a) // 60}:{a % 60:05.2f}  {' '.join(heard):<16} | {' '.join(given)}")
+    path.write_text(CHORDS_HEAD.format(name=passage.name, version=passage.version) + "\n".join(lines) + "\n")
+    return path
+
+
+def chord_score(passage: Passage, rows: list[tuple[int, list[str], list[str]]], chords: list[tuple]) -> dict:
+    """Note les accords d'`arr` (`chords`) contre ceux du musicien, sur les mesures qu'il a remplies.
+
+    `root` et `majmin` : part du temps, de 0 à 1, où la fondamentale est juste, puis fondamentale
+    et majeur ou mineur (`mir_eval.chord`, pondéré par la durée ; un accord entendu ni majeur ni
+    mineur ne compte pas pour `majmin`). Deux accords se partagent la mesure par moitiés.
+    `seconds` : la durée notée ; `filled` et `corrected` : mesures remplies, et celles que le
+    musicien a changées. Vide si aucune mesure n'est remplie.
+    """
+    import mir_eval
+
+    ref, est, weight = [], [], []
+    filled = [(i, heard, given) for i, heard, given in rows if heard and i + 1 < len(passage.bars)]
+    for i, heard, _ in filled:
+        cuts = np.linspace(passage.bars[i], passage.bars[i + 1], len(heard) + 1)
+        for name, a, b in zip(heard, cuts, cuts[1:], strict=False):
+            covered = 0.0
+            for start, end, label in chords:
+                if (shared := min(end, b) - max(start, a)) > 0:
+                    ref.append(chord_label(name)), est.append(label), weight.append(shared)
+                    covered += shared
+            if b - a - covered > 1e-6:
+                ref.append(chord_label(name)), est.append("N"), weight.append(b - a - covered)
+    if not ref:
+        return {}
+    weights, majmin = np.array(weight), mir_eval.chord.majmin(ref, est)
+    return {
+        "root": float(mir_eval.chord.weighted_accuracy(mir_eval.chord.root(ref, est), weights)),
+        "majmin": float(mir_eval.chord.weighted_accuracy(majmin, weights)) if (majmin >= 0).any() else None,
+        "seconds": float(weights.sum()),
+        "filled": len(filled),
+        "corrected": sum(heard != given for _, heard, given in filled),
+    }
