@@ -92,6 +92,13 @@ def test_loading_the_cli_loads_no_heavy_library():
     assert loaded == "[]", f"`arr --help` charge {loaded}"
 
 
+def test_the_score_repair_runs_in_the_sheetsage2_environment_too():
+    """`engines/_notation.py` est importé par le script de SheetSage2 : la bibliothèque standard seulement."""
+    tree = MODULES[SRC / "engines/_notation.py"]
+    foreign = [m for _, m in imports(tree) if m.split(".")[0] not in sys.stdlib_module_names | {"__future__"}]
+    assert not foreign, f"_notation.py importe {foreign}"
+
+
 # --- La carte son par studio.py, le MIDI par midi.py, le lecteur multimédia par player.py
 
 

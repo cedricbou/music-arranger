@@ -42,20 +42,34 @@ def transcribe() -> None:
     original = p.root / ORIGINAL
     if not original.exists():
         raise ProjectError("pas de morceau original (arr import <fichier>)")
+    # La grille d'arr analyze vient d'abord : si SheetSage2 refuse la partition, elle est
+    # réécrite sur ces barres-là (fiche 008).
+    beats, downbeats = analysis.beats(original)
     typer.echo("transcription en cours (quelques minutes pour un morceau entier)...")
     out = p.root / "score"
-    transcription.transcribe(original, out)
+    done = transcription.transcribe(original, out, beats, measure.regular_bars(downbeats, beats))
+    if "repaired" in done:
+        typer.secho(
+            f"SheetSage2 a refusé la partition ({done['repaired']}) : réécrite sur les mesures d'arr analyze",
+            fg="yellow",
+        )
+    if "missing" in done:
+        typer.secho(
+            f"SheetSage2 n'a pas pu écrire la partition : {done['missing']}. Accords, tempo et sections sont là ;"
+            " seul arr render en a besoin (relance arr transcribe pour réessayer)",
+            fg="yellow",
+        )
     info = transcription.read(out)
     # Le tempo de la partition fixe celui des prises : on le mesure sur l'audio, au BPM près,
     # car SheetSage2 peut se tromper d'une unité et les prises dériveraient.
-    beats, downbeats = analysis.beats(original)
     bpm = round(60 / measure.period(beats))
     transcription.set_tempo(out, bpm)
     (p.root / ANALYSIS).write_text(json.dumps({"beats": beats, "downbeats": downbeats}))
     p.song.update(bpm=bpm, key=info["key"], duration=round(audio.duration(original), 3))
     p.set_sections([Section(*s) for s in measure.snap_sections(info["sections"], downbeats)])
     p.save()
-    typer.echo(f"bpm {bpm}  tonalité {info['key']}  {len(downbeats)} mesures  -> {SCORE}")
+    written = f"  -> {SCORE}" if "missing" not in done else ""
+    typer.echo(f"bpm {bpm}  tonalité {info['key']}  {len(downbeats)} mesures{written}")
     sections_list()
 
 

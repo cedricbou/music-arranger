@@ -106,13 +106,13 @@ src/arr/
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats
   engines/_sheetsage2.py    script exécuté par l'environnement SheetSage2, n'importe pas arr
+  engines/_notation.py      reprise d'une partition refusée par SheetSage2 ; bibliothèque standard seule
   engines/separation.py     Demucs ; MODELS liste les modèles acceptés par `split`
   engines/analysis.py       beat_this (temps), tempo, tonalité approximative
 tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py, test_docs.py, test_rules.py   cœur sur signaux ; doc et règles suivies
-  test_workflow.py          le cycle de scripts/feature.sh, hors-ligne (faux gh)
-  test_slow.py              vrais moteurs sur signal (`-m slow`, hors CI)
+  test_workflow.py, test_slow.py   cycle de feature.sh hors-ligne ; vrais moteurs (`-m slow`, hors CI)
   test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_chordpro.py,
   test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py   un fichier par module
 ```

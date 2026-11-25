@@ -1,11 +1,15 @@
 """Partition, paroles et analyse : transcribe, lyrics, analyze."""
 
 import json
+from pathlib import Path
 
 from arr import audio
 from arr.cli import app
+from arr.engines import _notation, transcription
 from arr.project import Project, Section
-from tests.helpers import runner, song_project, tone
+from tests.helpers import fake_transcription, runner, song_project, tone
+
+REAL_TRANSCRIBE = transcription.transcribe  # avant que song_project le remplace
 
 
 def test_transcribe_fills_song_sections_and_beats(tmp_path, monkeypatch):
@@ -23,6 +27,67 @@ def test_transcribe_fills_song_sections_and_beats(tmp_path, monkeypatch):
     assert (
         runner.invoke(app, ["sections", "set", "a:1-1 b:2-2"]).exit_code == 0
     )  # les mesures viennent de la transcription
+
+
+def fake_sheetsage2(monkeypatch, tmp_path, *, error=None, repair_error=None, code=0, labs=True):
+    """SheetSage2 en sous-processus, remplacé : il écrit ses fichiers, et repair.json s'il a refusé la partition."""
+    import subprocess
+
+    seen = {}
+
+    def run(cmd, **kwargs):
+        out = Path(cmd[3])
+        seen["grid"] = json.loads(Path(cmd[5]).read_text())
+        if labs:
+            fake_transcription(None, out, score=not error or not repair_error)
+        if error:
+            (out / "repair.json").write_text(json.dumps({"error": error, "repair_error": repair_error}))
+        return subprocess.CompletedProcess(cmd, code, "", "")
+
+    python = tmp_path / "ss2-python"
+    python.touch()
+    monkeypatch.setattr(transcription, "transcribe", REAL_TRANSCRIBE)
+    monkeypatch.setattr(transcription, "SS2_PYTHON", python)
+    monkeypatch.setattr(transcription.subprocess, "run", run)
+    return seen
+
+
+FIVE_BEATS = "Measure 31 (beat rows 122-126): non-consecutive beat IDs [1, 2, 3, 4, 4]"
+
+
+def test_a_refused_score_is_rewritten_on_the_analyzed_bars(tmp_path, monkeypatch):
+    song_project(tmp_path, monkeypatch)
+    seen = fake_sheetsage2(monkeypatch, tmp_path, error=FIVE_BEATS)
+    result = runner.invoke(app, ["transcribe"])
+    assert result.exit_code == 0, result.output
+    assert seen["grid"]["beats"] == [0.5 * i for i in range(8)]  # la grille d'arr analyze, passée à SheetSage2
+    assert seen["grid"]["bars"] == [0.0, 1.0, 2.0, 3.0]
+    assert "une mesure comptée avec un temps de trop ou de moins" in result.output
+    assert "réécrite sur les mesures d'arr analyze" in result.output
+    assert "-> score/score.abc" in result.output
+
+
+def test_without_a_score_transcribe_still_saves_tempo_and_sections(tmp_path, monkeypatch):
+    p = song_project(tmp_path, monkeypatch)
+    fake_sheetsage2(monkeypatch, tmp_path, error=FIVE_BEATS, repair_error="Vocal: overlapping notes")
+    result = runner.invoke(app, ["transcribe"])
+    assert result.exit_code == 0, result.output
+    assert "SheetSage2 n'a pas pu écrire la partition : une mesure comptée" in result.output
+    assert "Vocal: overlapping notes" in result.output and "code 0" not in result.output
+    p = Project.find()
+    assert p.song["bpm"] == 120 and len(p.sections) == 3
+    assert (p.root / "analysis.json").exists() and not (p.root / "score/score.abc").exists()
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    refused = runner.invoke(app, ["render", "-s", "funk"])
+    assert refused.exit_code != 0 and "relance-le" in str(refused.exception)
+
+
+def test_a_transcription_without_chords_is_a_failure_with_a_reason(tmp_path, monkeypatch):
+    song_project(tmp_path, monkeypatch)
+    fake_sheetsage2(monkeypatch, tmp_path, labs=False)
+    result = runner.invoke(app, ["transcribe"])
+    assert result.exit_code != 0
+    assert "pas d'accords écrits" in str(result.exception)
 
 
 def test_lyrics_are_sorted_into_sections(tmp_path, monkeypatch):
@@ -179,3 +244,45 @@ def test_sections_snap_puts_an_existing_project_on_its_bars(tmp_path, monkeypatc
         {"name": "verse", "start": 4.0, "end": 20.0},
     ]
     assert "retirées : blip" in result.output
+
+
+def test_a_five_beat_bar_is_renumbered_on_the_given_bars():
+    # SheetSage2 comptait 1 2 3 4 4 ; la grille d'arr analyze dit une barre tous les quatre temps
+    times = [0.5 * i for i in range(1, 13)]
+    rows = _notation.beat_rows(times, [1.0, 3.0, 5.0], start=0.0, end=6.4)
+    assert [r[0] for r in rows] == [0.5 * i for i in range(14)]  # prolongée d'un temps de chaque côté
+    assert [r[1] for r in rows] == [3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4]  # levée de deux temps
+    assert {(r[2], r[3]) for r in rows} == {(4, 4)}
+    # une seule barre connue : la taille donnée
+    assert [r[1] for r in _notation.beat_rows(times, [1.5], 0.5, 6.0, size=3)] == [2, 3] + [1, 2, 3] * 3 + [1]
+
+
+def test_a_short_bar_kept_by_the_grid_stays_short():
+    times = [0.5 * i for i in range(14)]
+    rows = _notation.beat_rows(times, [0.0, 2.0, 4.0, 5.0], start=0.0, end=6.5)
+    assert [r[1] for r in rows] == [1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 1, 2, 3, 4]
+    assert [r[2] for r in rows][8:10] == [2, 2]
+
+
+def test_a_sliver_chord_merges_into_the_one_before():
+    beats = [0.0, 0.5, 1.0, 1.5, 2.0]
+    chords = [[0.0, 1.984, "A:maj"], [1.984, 2.0, "C#:sus4"]]
+    assert _notation.merge_slivers(chords, beats) == [[0.0, 2.0, "A:maj"]]
+    first = [[0.0, 0.01, "N"], [0.01, 2.5, "D:min"]]
+    assert _notation.merge_slivers(first, beats) == [[0.0, 2.0, "D:min"]]  # coupé à la grille aussi
+
+
+def test_melody_notes_land_on_the_grid_without_overlap():
+    beats = [0.0, 0.5, 1.0]  # subdivisions de 0,125 s
+    notes = [(0.0, 0.03, 60), (0.02, 0.3, 62), (0.31, 0.32, 64), (0.9, 2.0, 65)]
+    assert _notation.fit_notes(notes, beats) == [
+        (0.0, 0.125, 60),
+        (0.125, 0.25, 62),
+        (0.25, 0.375, 64),
+        (0.875, 1.0, 65),
+    ]
+
+
+def test_sheetsage2_reasons_are_said_in_plain_words():
+    assert _notation.reason("Interval 1-2 (C#:sus4) is shorter than the ABC subbeat grid").startswith("un accord")
+    assert _notation.reason("something new") == "something new"

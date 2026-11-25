@@ -106,7 +106,10 @@ les trois commandes de diagnostic.
 | `indique la piste ou la prise à décaler` | `arr nudge` avec une valeur mais sans nom | `arr nudge PISTE --ms=N` |
 | je ne sais plus ce qui a été décalé | les réglages sont mémorisés | `arr nudge` les liste ; `--reset` les annule |
 | `tNNN est à un autre tempo que l'original` | prise libre (`--free`) | une prise libre ne se greffe pas |
-| `pas de partition (arr transcribe)` | `arr render` sans transcription | `arr transcribe` |
+| `pas de partition : lance arr transcribe …` | `arr render` sans transcription, ou SheetSage2 n'a pas pu écrire la partition | `arr transcribe` ; s'il dit à nouveau qu'il n'a pas pu l'écrire, le relancer : son résultat change d'un essai à l'autre |
+| `SheetSage2 a refusé la partition (…) : réécrite sur les mesures d'arr analyze` | la transcription a compté une mesure de travers, ou laissé un accord de quelques millisecondes | rien à faire : la partition suit les mesures de `arr play` ; une mesure courte de la grille y reste courte |
+| `SheetSage2 n'a pas pu écrire la partition : …` | même cause, et la réécriture a échoué aussi | accords, tempo et sections sont là : `arr play`, `arr sheet` et `arr chordpro` marchent ; pour `arr render`, relancer `arr transcribe` |
+| `SheetSage2 a échoué (code N) : …` | la transcription elle-même s'est arrêtée, sans écrire d'accords | lire la fin du message ; `arr doctor` pour le GPU et l'environnement SheetSage2 |
 | `la prise sera instrumentale` | pas de `lyrics.txt` | `arr lyrics fetch`, ou écrire le fichier |
 | les paroles sont mal rangées par section | le découpage automatique est approximatif | corriger `lyrics.txt` à la main |
 | `LRCLIB n'a pas d'horodatage` (`arr lyrics fetch --times`) | la base n'a que les paroles brutes pour ce morceau | rien à faire : les lignes sont réparties sur leur passage |
