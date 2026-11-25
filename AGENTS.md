@@ -26,7 +26,7 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
 YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
-génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013), MIDI (011).
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013), MIDI (011, 014).
 
 ## Comment travailler ici
 
@@ -101,7 +101,7 @@ src/arr/
   chordpro.py               fichier ChordPro : une grille standard par passage, paroles en repère
   pdf.py                    impression A4 des antisèches (fpdf2) : blocs en colonnes, échelle qui tient
   studio.py                 audio en direct : capture (parec), lecture et duplex (sounddevice), audio.toml
-  midi.py                   MIDI en direct : ports et envoi (aplaymidi), écoute (aseqdump), messages
+  midi.py                   MIDI en direct : envoi (aplaymidi), écoute (aseqdump), transport de play (rtmidi)
   player.py                 lecteur multimédia local par D-Bus MPRIS (choix, titre, relance, pause)
   engines/yue2.py           render() : sous-processus audio.cpp ; melody_only()
   engines/transcription.py  transcribe() : sous-processus SheetSage2 ; read() des résultats

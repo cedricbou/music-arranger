@@ -416,3 +416,62 @@ def test_chord_chart_follows_the_reference_bars(tmp_path):
     # sans analyse : la grille de la transcription, telle quelle
     (p.root / "analysis.json").unlink()
     assert [bar[2] for bar in song_chart(p)][:6] == [4, 4, 4, 4, 4, 4]
+
+
+def test_play_with_the_clock_drives_the_transport_on_the_bars_of_the_chordpro_file(tmp_path, monkeypatch):
+    from arr import midi
+    from arr.commands import chordpro
+
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(110, 6.0, amp=0.1), {"op": "split"})
+    p.set_sections([Section("verse", 0.0, 2.0), Section("chorus", 2.0, 6.0)])
+    p.save()
+    grid = {"beats": [0.5 * i for i in range(12)], "downbeats": [0.0, 2.0, 4.0]}
+    (p.root / "analysis.json").write_text(json.dumps(grid))
+    audio.save(p.new_take({"style": "x"})[1], tone(220, 1.0))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setattr(chordpro, "written_bars", lambda p: [(0.0, 2.0, 4), (2.0, 4.0, 4), (4.0, 6.0, 4)])
+    opened = []
+
+    class Transport:
+        def __init__(self, plan, where):
+            self.plan, self.where = plan, where
+            opened.append(self)
+
+        def heard(self, seconds, at, paused):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+    monkeypatch.setattr(midi, "Transport", Transport)
+
+    result = runner.invoke(app, ["play", "-s", "chorus", "--count-in", "1", "--clock"])
+    assert result.exit_code == 0, result.output
+    assert "horloge MIDI → arr:transport" in result.output
+    transport = opened[0]
+    assert calls["followed"] == transport.heard
+    # une mesure de décompte, l'horloge seule ; puis le refrain, à partir de la mesure 2
+    plan = transport.plan
+    assert plan[0] == (pytest.approx(-2.0), None) and plan[96] == (pytest.approx(0.0), 96)
+    assert transport.where(1.0) == pytest.approx(-1.0)  # le flux compte depuis le décompte
+
+    # sans --clock, rien ne s'ouvre
+    assert runner.invoke(app, ["play"]).exit_code == 0 and len(opened) == 1 and calls["followed"] is None
+    # une prise brute n'est pas calée sur l'original
+    result = runner.invoke(app, ["play", "t001", "--clock"])
+    assert result.exit_code != 0 and "ni horloge" in str(result.exception)
+
+
+def test_play_with_the_clock_needs_the_bars_of_the_chordpro_file(tmp_path, monkeypatch):
+    fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(330, 0.5, amp=0.1), {"op": "split"})
+    monkeypatch.chdir(p.root)
+    result = runner.invoke(app, ["play", "--clock"])
+    assert result.exit_code != 0 and "pas d'horloge MIDI" in str(result.exception)
+    assert "arr transcribe" in str(result.exception)

@@ -301,3 +301,14 @@ def test_a_song_without_chords_or_bars_is_refused(tmp_path, monkeypatch):
     (p.root / "score/beat.lab").unlink()
     result = runner.invoke(app, ["chordpro"])
     assert result.exit_code != 0 and "arr analyze" in str(result.exception)
+
+
+def test_the_midi_clock_counts_the_bars_the_file_writes(tmp_path, monkeypatch):
+    from arr.commands.chordpro import written_bars
+
+    p = transcribed(tmp_path, monkeypatch)
+    runner.invoke(app, ["chordpro"])
+    written = (p.root / "export/night-drive.cho").read_text()
+    bars = written_bars(p)
+    assert len(bars) == sum(line.count("|") - 1 for line in written.splitlines() if line.startswith("|"))
+    assert bars[0][:2] == (0.0, 2.0) and all(beats == 4 for _, _, beats in bars)

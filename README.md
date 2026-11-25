@@ -129,6 +129,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   quand tu appuies dessus. `arr midi ports` liste les ports et marque celui qui sert.
   Les programmes se comptent de 1 à 128 comme sur la pédale, et les octets envoyés sont
   affichés. Rien n'est jamais écrit dans la pédale.
+- **Prompteur de scène** : `arr play --clock --count-in 1` envoie l'horloge et le transport
+  MIDI sur le port virtuel « arr:transport » ; un prompteur sur le même ordinateur (namfoop)
+  part sur la mesure 1 du fichier ChordPro et suit sections, flèches, boucle et pause.
 - **`arr calibrate`** joue six clics et les réenregistre sur le canal où revient le son de
   l'ordinateur (le 7), puis note le retard mesuré : aucun câble à ajouter. Sans calibration,
   `arr record` compense 21 ms, le minimum du système.

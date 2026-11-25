@@ -10,7 +10,7 @@ from typing import Optional
 
 import typer
 
-from arr import audio
+from arr import audio, midi
 from arr.app import ANALYSIS, app
 from arr.commands._common import lead_in, load_track, mix_tracks, render_mix
 from arr.commands._screen import live, mix_notes, position, song_chart, timeline, view
@@ -97,6 +97,11 @@ def play(
     ),
     loop: bool = typer.Option(False, "--loop", "-l", help="Rejoue en boucle jusqu'à Ctrl+C."),
     bars: int = typer.Option(0, "--count-in", help="Mesures de décompte avant de commencer (pas à chaque boucle)."),
+    clock: bool = typer.Option(
+        False,
+        "--clock",
+        help="Envoie l'horloge et le transport MIDI sur le port « arr:transport » : un prompteur de scène suit le morceau.",
+    ),
 ) -> None:
     """Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
 
@@ -105,6 +110,10 @@ def play(
 
     Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite
     passe à la suivante. Ctrl+C arrête.
+
+    Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture :
+    l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro,
+    la position suit les sections, les flèches et la boucle, la pause envoie Stop.
     """
     from arr import studio
 
@@ -114,9 +123,9 @@ def play(
     if name is None:
         path = render_mix(p, tuple(without), tuple(only))
     elif name in p.takes():
-        if sections or bars:
+        if sections or bars or clock:
             raise ProjectError(
-                f"une prise brute n'est pas calée sur l'original : ni section ni décompte "
+                f"une prise brute n'est pas calée sur l'original : ni section, ni décompte, ni horloge "
                 f"(arr split {name}, puis arr play {name}.<stem>)"
             )
         path = p.take_path(name)
@@ -138,6 +147,15 @@ def play(
             typer.secho("pas de décompte : le tempo est inconnu (arr transcribe ou arr analyze)", fg="yellow", err=True)
     playback, _ = lead_in(body, ticks)
     lead = len(playback) - len(body)
+    plan = []
+    if clock:
+        from arr.commands.chordpro import written_bars
+
+        try:
+            bars = written_bars(p)
+        except ProjectError as e:
+            raise ProjectError(f"pas d'horloge MIDI sans les mesures du fichier ChordPro : {e}")
+        plan = midi.clock_plan(bars, ranges or [(0.0, len(body) / audio.SR)], ticks[0][0] if ticks else 0.0)
     marks = timeline(p, name, sections, ranges)
     take = name in p.takes()
     names, notes = [] if take else [name] if name else mix_tracks(p, tuple(without), tuple(only)), []
@@ -152,7 +170,7 @@ def play(
         notes = mix_notes(p, names, tuple(without), tuple(only))
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
     measures = [] if take else song_chart(p)
-    hint = f"{'en boucle · ' if loop else ''}Espace : pause · ← → : mesure · Ctrl+C arrête"
+    hint = f"{'en boucle · ' if loop else ''}{'horloge MIDI → arr:transport · ' if clock else ''}Espace : pause · ← → : mesure · Ctrl+C arrête"
     grid = json.loads(f.read_text()) if (f := p.root / ANALYSIS).exists() and not take else {"downbeats": []}
     stops = bar_stops([m[0] for m in measures] or grid["downbeats"], ranges, len(body) / audio.SR)
     paused = False
@@ -189,4 +207,8 @@ def play(
             shown.update(screen(seconds if jump is None else base + jump))
             return paused, None if jump is None else base + jump
 
-        studio.play(playback, loop=body if loop else None, watch=watch)
+        if not clock:
+            studio.play(playback, loop=body if loop else None, watch=watch)
+            return
+        with midi.Transport(plan, lambda seconds: position(seconds, lead, len(playback) if loop else 0)) as transport:
+            studio.play(playback, loop=body if loop else None, watch=watch, follow=transport.heard)

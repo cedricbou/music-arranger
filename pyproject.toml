@@ -18,6 +18,7 @@ dependencies = [
     "beat-this>=1.1.0",
     "sounddevice>=0.5.6",
     "fpdf2>=2.8",
+    "python-rtmidi>=1.5.8",
 ]
 
 [project.scripts]

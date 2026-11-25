@@ -85,6 +85,10 @@ les trois commandes de diagnostic.
 | la pédale ne réagit pas à `arr midi send` | câble MIDI absent ou inversé, mauvais canal, ou numéro de programme non attribué dans la pédale | d'abord vérifier que les octets sortent (ligne suivante) ; puis le câble (MIDI OUT de la carte vers MIDI IN de la pédale), le canal (`--channel`), et la table de correspondance de la pédale |
 | savoir si les octets sortent vraiment de l'ordinateur | seul le noyau le dit ; une commande qui ne se plaint pas ne prouve rien | `cat /proc/asound/card<N>/midi0` avant et après un envoi : « Tx bytes » doit augmenter (le numéro de carte vient de `aplay -l`) |
 | la pédale change de son, mais pas celui attendu | la pédale compte ses patches à partir de 0, ou sa table de correspondance en décide autrement | comparer avec l'octet affiché (`C0 04` = programme 5 chez `arr`) et régler la table de la pédale |
+| `pas d'horloge MIDI sans les mesures du fichier ChordPro : …` (`arr play --clock`) | le morceau n'est pas transcrit, ou n'a pas de grille de mesures | ce que dit la fin du message : `arr transcribe`, ou `arr analyze` |
+| `impossible d'ouvrir le port MIDI arr:transport` | le séquenceur ALSA n'est pas disponible (module `snd-seq` absent) | `sudo modprobe snd-seq`, puis relancer |
+| le prompteur ne bouge pas pendant `arr play --clock` | le prompteur ne joue aucun morceau, ou il n'écoute qu'un port nommé | y choisir le morceau ; le faire écouter tous les ports, ou nommer « arr » ; `arr midi monitor` ne voit pas ce port, mais `aseqdump -p arr` le montre |
+| le prompteur suit, mais une mesure de décalage | le fichier `.cho` du prompteur est plus ancien que la transcription | `arr chordpro`, puis recharger le morceau dans le prompteur |
 | `arr midi monitor` n'affiche rien | la pédale n'envoie pas ses changements de programme, ou son MIDI OUT n'est pas relié à l'entrée MIDI de la carte | activer l'envoi dans la pédale (chez Boss, « MIDI PC OUT »), vérifier le câble retour |
 
 ## Pistes et prises

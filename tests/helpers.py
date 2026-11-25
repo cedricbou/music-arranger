@@ -116,9 +116,10 @@ def fake_studio(monkeypatch, heard):
 
     calls["orders"] = []
 
-    def play(data, loop=None, watch=None):
+    def play(data, loop=None, watch=None, follow=None):
         calls["played"].append(data)
         calls["looped"].append(loop)
+        calls["followed"] = follow
         # la lecture « avance » : la position du flux à chaque appel, et ce que l'écran demande en retour
         calls["orders"] += [watch(seconds) for seconds in calls.get("positions", [])]
 
