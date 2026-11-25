@@ -15,6 +15,7 @@ from arr.commands import play  # noqa: F401
 from arr.commands import align  # noqa: F401
 from arr.commands import sheet  # noqa: F401
 from arr.commands import chordpro  # noqa: F401
+from arr.commands import truth  # noqa: F401
 from arr.commands import studio  # noqa: F401
 from arr.commands import midi  # noqa: F401
 from arr.commands import system  # noqa: F401

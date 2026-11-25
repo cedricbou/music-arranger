@@ -23,8 +23,9 @@ choix, dans `docs/decisions/`.
   (ses activations à 50 trames par seconde) ; doublons, trous et barres se refont à chaque lecture
   (`song_grid`, fiches 013, 015, 017).
 - **Passages de référence** : `truth/<passage>.vNNN.toml` (start, end, beats_per_bar, bars), une
-  version par passe de `arr play --mark`, la dernière fait foi ; `truth/runs.json` garde les notes
-  de chaque `arr truth` (fiche 016).
+  version par passe de `arr play --mark`, la dernière fait foi ; à côté, `.vNNN.chords.txt` : les
+  accords de ses mesures, ceux d'`arr` puis les corrections du musicien, jamais récrit ;
+  `truth/runs.json` garde les notes de chaque `arr truth` (fiche 016).
 
 ## Moteurs externes
 

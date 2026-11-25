@@ -4,8 +4,7 @@
 
 | Pour savoir | Lire |
 |---|---|
-| ce que fait l'outil, en aperçu | `README.md` |
-| le mode d'emploi complet : parcours, configuration audio, dépannage | `docs/manual/` |
+| ce que fait l'outil ; son mode d'emploi (parcours, audio, dépannage) | `README.md` ; `docs/manual/` |
 | pourquoi il est construit ainsi, et ce qui a déjà été essayé | `docs/decisions/` |
 | le modèle d'un projet sur le disque, les moteurs externes | `docs/architecture.md` |
 | ce qui reste à faire, et dans quel état sont les choses | les issues GitHub (`gh issue list`) |
@@ -87,9 +86,10 @@ src/arr/
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
+  commands/truth.py         truth, doubts : la grille notée contre les passages de référence ; ses doutes
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
-  commands/system.py        check, truth, doubts, devices, doctor, models pull
+  commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille

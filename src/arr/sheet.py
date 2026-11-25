@@ -61,6 +61,24 @@ def chord_name(label: str) -> str:
     return root + QUALITIES.get(quality, quality) + slash + bass
 
 
+def chord_label(name: str) -> str:
+    """Le chemin inverse, réduit à ce qu'une oreille corrige : « Dm7 » devient « D:min », « F/A » « F:maj ».
+
+    Garde aussi dim, aug et sus ; tout ce qui ne commence pas par une note (« N.C. », « – ») devient « N ».
+    """
+    found = re.match(rf"({NOTE})([^/]*)", name.strip())
+    if not found:
+        return "N"
+    root, rest = found.groups()
+    if rest.startswith(("dim", "°")) or "b5" in rest:
+        return f"{root}:dim"
+    if rest.startswith(("aug", "+")):
+        return f"{root}:aug"
+    if rest.startswith("sus"):
+        return f"{root}:{'sus2' if rest.startswith('sus2') else 'sus4'}"
+    return f"{root}:{'min' if rest.startswith('m') and not rest.startswith('maj') else 'maj'}"
+
+
 def key_name(key: str) -> str:
     """« F major » devient « F », « D minor » devient « Dm » ; une tonalité déjà courte est gardée."""
     root, _, mode = key.strip().partition(" ")
