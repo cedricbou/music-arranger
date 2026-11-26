@@ -204,21 +204,3 @@ def test_doctor_reports_each_engine(tmp_path, monkeypatch):
     assert "audio.cpp: présent (v0.9.1)" in result.output
     assert "YuE2: absent (arr models pull)" in result.output
     assert "beat_this: absent (arr models pull)" in result.output
-
-
-def test_doubts_lists_the_passages_arr_is_unsure_of(tmp_path, monkeypatch):
-    from tests.test_play import doubtful_song
-
-    p = doubtful_song(tmp_path, monkeypatch)
-    result = runner.invoke(app, ["doubts"])
-    assert result.exit_code == 0, result.output
-    lines = [" ".join(line.split()) for line in result.output.splitlines()]
-    assert lines == [
-        "0:04 mes. 3 à 4 verse temps 3 entendu faiblement (0,70) ; 1 de plus",
-        "0:12 mes. 7 chorus temps 3 entendu faiblement (0,85)",
-        "3 mesures douteuses sur 8 (38%)",
-    ]
-    # un morceau analysé avant que les activations ne soient gardées
-    (p.root / "analysis_frames.npz").rename(p.root / "ailleurs.npz")
-    result = runner.invoke(app, ["doubts"])
-    assert result.exit_code != 0 and "lance arr analyze" in str(result.exception)

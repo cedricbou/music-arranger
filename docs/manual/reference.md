@@ -25,11 +25,11 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr mute`](#arr-mute) : Sort une piste du mix sans la supprimer.
 - [`arr mix`](#arr-mix) : Mixe les versions actives dans mix/mix.flac.
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
+- [`arr review`](#arr-review) : Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour dire lesquels sont bons.
 - [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
 - [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
 - [`arr chordpro`](#arr-chordpro) : Écrit le morceau en fichier ChordPro pour un prompteur de scène : export/<dossier>.cho.
 - [`arr truth`](#arr-truth) : Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
-- [`arr doubts`](#arr-doubts) : Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -124,7 +124,7 @@ arr analyze
 
 Détecte temps, mesures, tempo et tonalité.
 
-Garde aussi ce que le détecteur entendait entre les temps : un temps manqué dans un passage sans batterie est alors compté partout où la grille se lit (écran, prompteur, horloge, décompte).
+Garde aussi ce que le détecteur entendait entre les temps : un temps manqué dans un passage sans batterie est alors compté partout où la grille se lit (écran, prompteur, horloge, décompte). La dernière ligne dit combien de passages restent à relire (`arr review`).
 
 ## `arr transcribe`
 
@@ -133,6 +133,8 @@ arr transcribe
 ```
 
 Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections.
+
+La dernière ligne dit combien de passages restent à relire (`arr review`).
 
 ## `arr render`
 
@@ -326,7 +328,7 @@ Pendant la lecture, l'écran montre ce qui joue (pistes, versions, gains), la se
 
 Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite passe à la suivante. Ctrl+C arrête.
 
-Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte (`arr doubts` les liste) : d saute au prochain passage douteux. La marque ne change ni la grille ni le fichier du prompteur.
+Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte : d saute au prochain passage douteux. La marque ne change ni la grille ni le fichier du prompteur ; elle part quand `arr review` a jugé le passage bon.
 
 Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture : l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro, la position suit les sections, les flèches et la boucle, la pause envoie Stop.
 
@@ -346,6 +348,23 @@ Avec --mark, le passage joué devient un passage de référence : Espace se tape
 | `--count-in` | `0` | Mesures de décompte avant de commencer (pas à chaque boucle). |
 | `--clock` | non | Envoie l'horloge et le transport MIDI sur le port « arr:transport » : un prompteur de scène suit le morceau. |
 | `--mark` | non | Repère les barres de mesure à l'oreille : Espace sur le 1 de chaque mesure du passage joué. |
+
+## `arr review`
+
+```
+arr review [OPTIONS]
+```
+
+Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour dire lesquels sont bons.
+
+Un passage, ce sont des mesures douteuses voisines (un de leurs temps a été entendu faiblement), avec une mesure avant et une après. Il joue en boucle, sur l'original, avec sa grille d'accords et la raison du doute. Entrée dit qu'il est bon et passe au suivant ; flèche gauche et flèche droite mènent à un autre passage sans répondre ; Espace met en pause ; q quitte.
+
+Un passage jugé bon perd son « ? » dans `arr play`, et le garde perdu après un nouvel `arr analyze` tant que ses mesures ne changent pas. La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est vérifié. Les réponses sont rangées dans `review/` du morceau, une version par réponse ; rien de ce qu'`arr` a détecté n'est modifié.
+
+| Option | Défaut | Rôle |
+|---|---|---|
+| `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux. |
+| `--list` | non | Liste les passages à relire et leur état, sans rien jouer. |
 
 ## `arr nudge`
 
@@ -413,7 +432,7 @@ Pour chaque passage : les barres repérées, celles où `arr` pose une barre à 
 
 « Accords » note ceux d'`arr play` contre le fichier d'accords du passage, que tu corriges à l'oreille (`truth/<passage>.vNNN.chords.txt`, écrit ici s'il manque) : part du temps où la fondamentale est juste, puis fondamentale et majeur ou mineur, et le nombre de mesures corrigées.
 
-« Doute » dit ce que valent les mesures marquées « ? » (`arr doubts`) : parmi les mesures où la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
+« Doute » dit ce que valent les mesures marquées « ? » dans `arr play` : parmi les mesures où la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
 
 Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
 
@@ -424,16 +443,6 @@ Sort en erreur si un passage va moins bien : un changement de la grille ne se li
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--dry-run` | non | Note sans rien retenir : le prochain lancement se compare encore au précédent. |
-
-## `arr doubts`
-
-```
-arr doubts
-```
-
-Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
-
-Une mesure est douteuse quand le détecteur a entendu faiblement un de ses temps : là, une barre ou un temps peut être de travers. À vérifier à l'oreille d'abord (`arr play` les marque d'un « ? », d y saute). Rien n'est corrigé : la grille et le fichier du prompteur ne changent pas.
 
 ## `arr capture`
 

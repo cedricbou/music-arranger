@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import re
-from contextlib import contextmanager
 from typing import Optional
 
 import typer
@@ -21,67 +18,10 @@ from arr.commands._common import (
     song_doubts,
     song_grid,
 )
+from arr.commands._playback import bar_stops, neighbour, next_after, playing
 from arr.commands._screen import clock as mmss
-from arr.commands._screen import live, mix_notes, position, song_chart, timeline, view
+from arr.commands._screen import mix_notes, position, song_chart, timeline, view
 from arr.project import Project, ProjectError
-
-KEYS = {b" ": "pause", b"D": "back", b"C": "forward", b"d": "doubt"}
-STEP = 5.0  # secondes entre deux arrêts quand le morceau n'a pas de mesures connues
-
-
-def parse_keys(data: bytes) -> list[str]:
-    """Les touches reconnues dans ce que le terminal a envoyé : espace, flèche gauche, flèche droite, d."""
-    return [KEYS[k[-1:]] for k in re.findall(rb" |d|\x1b[\[O][CD]", data)]
-
-
-@contextmanager
-def keyboard(tap=None):
-    """Le temps de la lecture, lit les touches sans attendre Entrée ; donne une fonction qui rend celles tapées.
-
-    Avec `tap`, le clavier ne pilote plus la lecture : un fil appelle `tap(heure)` à chaque
-    Espace, l'heure (`time.monotonic`) lue dès que la touche arrive, là où l'écran ne passe
-    que vingt fois par seconde. Hors d'un terminal (tests, sortie redirigée), aucune touche n'est lue.
-    """
-    import select
-    import sys
-
-    if not sys.stdin.isatty():
-        yield lambda: []
-        return
-    import termios
-    import threading
-    import time
-    import tty
-
-    fd = sys.stdin.fileno()
-    saved = termios.tcgetattr(fd)
-    tty.setcbreak(fd)  # Ctrl+C reste un signal : il arrête toujours la lecture
-    done = threading.Event()
-
-    def pressed() -> list[str]:
-        data = b""
-        while select.select([fd], [], [], 0)[0]:
-            data += os.read(fd, 64)
-        return parse_keys(data)
-
-    def listen() -> None:
-        while not done.is_set():
-            if select.select([fd], [], [], 0.05)[0]:
-                at = time.monotonic()
-                for key in parse_keys(os.read(fd, 64)):
-                    if key == "pause":
-                        tap(at)
-
-    thread = threading.Thread(target=listen, daemon=True) if tap else None
-    try:
-        if thread:
-            thread.start()
-        yield (lambda: []) if tap else pressed
-    finally:
-        done.set()
-        if thread:
-            thread.join()
-        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
 
 
 def marked_passage(sections: list[str], ranges: list[tuple[float, float]], length: float) -> tuple[str, float, float]:
@@ -118,20 +58,6 @@ def keep_marks(p: Project, passage: tuple[str, float, float], times: list[float]
         typer.echo(f"accords à corriger à l'oreille, mesure par mesure : truth/{written.name}")
 
 
-def bar_stops(starts: list[float], ranges: list[tuple[float, float]], length: float) -> list[float]:
-    """Où mènent ← et → : les débuts de mesure, en secondes de lecture, et le début de chaque section jouée.
-
-    `starts` sont les débuts de mesure dans le morceau ; sans eux, un arrêt toutes les `STEP` secondes.
-    """
-    starts = starts or [STEP * i for i in range(int(length / STEP) + 1)]
-    stops, t = [], 0.0
-    for start, end in ranges or [(0.0, length)]:
-        stops += [t] + [t + b - start for b in starts if start < b < end]
-        t += end - start
-    # Une barre de mesure à quelques centièmes d'un début de section n'est pas un arrêt de plus.
-    return [s for i, s in enumerate(stops) if s < length and (i == 0 or s - stops[i - 1] > 0.2)]
-
-
 def doubt_stops(doubts: dict, starts: list[float], ranges: list[tuple[float, float]], length: float) -> list[float]:
     """Où mène d : le début de chaque passage douteux, en secondes de lecture, parmi les mesures jouées."""
     stops, t = [], 0.0
@@ -140,23 +66,6 @@ def doubt_stops(doubts: dict, starts: list[float], ranges: list[tuple[float, flo
         stops += [t + max(first - start, 0.0) for first, _, _ in doubtful_passages(doubts, played)]
         t += end - start
     return stops
-
-
-def next_after(stops: list[float], t: float, loop: bool = False) -> Optional[float]:
-    """Le premier arrêt après `t` ; après le dernier : None, ou le premier si la lecture est en boucle."""
-    ahead = [s for s in stops if s > t + 0.05]
-    return ahead[0] if ahead else stops[0] if loop and stops else None
-
-
-def neighbour(stops: list[float], t: float, step: int, loop: bool = False) -> Optional[float]:
-    """Le début de la mesure d'avant (`step` -1) ou d'après (+1) celle où l'on est.
-
-    Après la dernière : None, ou la première si la lecture est en boucle.
-    """
-    here = max((i for i, s in enumerate(stops) if s <= t + 0.05), default=0)
-    if loop and here + step >= len(stops):
-        return stops[0]
-    return stops[max(here + step, 0)] if here + step < len(stops) else None
 
 
 @app.command()
@@ -194,9 +103,9 @@ def play(
     Espace met en pause et reprend ; flèche gauche revient à la mesure d'avant, flèche droite
     passe à la suivante. Ctrl+C arrête.
 
-    Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte
-    (`arr doubts` les liste) : d saute au prochain passage douteux. La marque ne change ni la
-    grille ni le fichier du prompteur.
+    Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas sûr du compte :
+    d saute au prochain passage douteux. La marque ne change ni la grille ni le fichier du
+    prompteur ; elle part quand `arr review` a jugé le passage bon.
 
     Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture :
     l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro,
@@ -208,8 +117,6 @@ def play(
     refaire un passage garde le repérage précédent à côté. `arr truth` note la grille contre elles.
     Un fichier d'accords naît avec le passage, rempli de ceux d'`arr` : corrige ceux que tu entends autrement.
     """
-    from arr import studio
-
     p = Project.find()
     sections = [name.strip() for given in sections for name in given.split(",") if name.strip()]
     ranges = [(s.start, s.end) for s in map(p.section, sections)]
@@ -266,7 +173,7 @@ def play(
         notes = mix_notes(p, names, tuple(without), tuple(only))
     # Une prise brute n'est pas calée sur l'original : ses accords ne tomberaient pas au bon moment.
     measures = [] if take else song_chart(p)
-    doubts = (song_doubts(p) or {}) if measures else {}
+    doubts = (song_doubts(p, mine=True) or {}) if measures else {}
     # d mène au début de chaque passage douteux, parmi les mesures jouées.
     unsure = doubt_stops(doubts, [m[0] for m in measures], ranges, len(body) / audio.SR)
     keys = "Espace : le 1 de chaque mesure" if mark else "Espace : pause · ← → : mesure"
@@ -296,42 +203,33 @@ def play(
             doubts=doubts,
         )
 
-    def run() -> None:
-        with live(screen) as shown, keyboard(taps.tap) if taps else keyboard() as pressed:
+    def steer(keys: list[str], seconds: float):
+        nonlocal paused
+        t = position(seconds, lead, len(playback) if loop else 0)
+        base, jump = seconds - t, None  # le flux compte depuis le décompte ; les mesures, depuis le morceau joué
+        for key in keys:
+            if key == "pause":
+                paused = not paused
+            elif key == "doubt":
+                if (target := next_after(unsure, max(t, 0.0), loop)) is not None:
+                    t = jump = target
+            elif key in ("back", "forward"):
+                if (target := neighbour(stops, max(t, 0.0), -1 if key == "back" else 1, loop)) is not None:
+                    t = jump = target
+        return paused, None if jump is None else base + jump
 
-            def watch(seconds: float):
-                nonlocal paused
-                t = position(seconds, lead, len(playback) if loop else 0)
-                base, jump = (
-                    seconds - t,
-                    None,
-                )  # le flux compte depuis le décompte ; les mesures, depuis le morceau joué
-                for key in pressed():
-                    if key == "pause":
-                        paused = not paused
-                    elif key == "doubt":
-                        if (target := next_after(unsure, max(t, 0.0), loop)) is not None:
-                            t = jump = target
-                    elif (target := neighbour(stops, max(t, 0.0), -1 if key == "back" else 1, loop)) is not None:
-                        t = jump = target
-                shown.update(screen(seconds if jump is None else base + jump))
-                return paused, None if jump is None else base + jump
+    again, tap = body if loop else None, taps.tap if taps else None
+    if not clock:
+        playing(playback, again, screen, steer, tap, taps.heard if taps else None)
+    else:
+        where = lambda seconds: position(seconds, lead, len(playback) if loop else 0)
+        with midi.Transport(plan, where) as transport:
 
-            if not clock:
-                studio.play(playback, loop=body if loop else None, watch=watch, follow=taps.heard if taps else None)
-                return
-            where = lambda seconds: position(seconds, lead, len(playback) if loop else 0)
-            with midi.Transport(plan, where) as transport:
+            def follow(seconds: float, at: float, stopped: bool) -> None:
+                transport.heard(seconds, at, stopped)
+                taps.heard(seconds, at, stopped)
 
-                def follow(seconds: float, at: float, stopped: bool) -> None:
-                    transport.heard(seconds, at, stopped)
-                    taps.heard(seconds, at, stopped)
-
-                studio.play(
-                    playback, loop=body if loop else None, watch=watch, follow=follow if taps else transport.heard
-                )
-
-    run()
+            playing(playback, again, screen, steer, tap, follow if taps else transport.heard)
     if taps:
         # Une frappe date une position du flux, décompte compris : elle devient un instant du morceau.
         keep_marks(p, passage, [passage[1] + position(t, lead) for t in taps.positions()])

@@ -1,4 +1,4 @@
-"""truth, doubts : la grille notée contre les passages comptés à l'oreille, et les mesures dont arr doute."""
+"""truth : la grille notée contre les passages comptés à l'oreille."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def truth_(
     l'oreille (`truth/<passage>.vNNN.chords.txt`, écrit ici s'il manque) : part du temps où la
     fondamentale est juste, puis fondamentale et majeur ou mineur, et le nombre de mesures corrigées.
 
-    « Doute » dit ce que valent les mesures marquées « ? » (`arr doubts`) : parmi les mesures où
+    « Doute » dit ce que valent les mesures marquées « ? » dans `arr play` : parmi les mesures où
     la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
 
     Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
@@ -153,35 +153,3 @@ def truth_(
             typer.echo(f"{word} : {', '.join(names)}")
     if moved["moins bien"]:
         raise typer.Exit(1)
-
-
-@app.command()
-def doubts() -> None:
-    """Liste les passages où `arr` n'est pas sûr du compte des mesures, avec leur instant et la raison.
-
-    Une mesure est douteuse quand le détecteur a entendu faiblement un de ses temps : là, une
-    barre ou un temps peut être de travers. À vérifier à l'oreille d'abord (`arr play` les marque
-    d'un « ? », d y saute). Rien n'est corrigé : la grille et le fichier du prompteur ne changent pas.
-    """
-    from arr import grid
-    from arr.commands._common import doubtful_passages, song_doubts, song_grid
-    from arr.commands._screen import clock
-
-    p = Project.find()
-    found = song_doubts(p)
-    if found is None:
-        raise ProjectError("ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze")
-    read = song_grid(p)
-    bars = grid.regular_bars(read[1], read[0])
-    first = [min((t for t in read[0] if t >= b - 0.05), default=b) for b in bars]
-    name = lambda t: next((s.name for s in p.sections if s.start - 0.05 <= t < s.end), "")
-    for start, count, why in doubtful_passages(found, first):
-        number = first.index(start) + 1
-        where = f"mes. {number}" if count == 1 else f"mes. {number} à {number + count - 1}"
-        typer.echo(
-            f"{clock(start):>5}  {where:<16} {name(start):<10} {why[0]}{f' ; {count - 1} de plus' if count > 1 else ''}"
-        )
-    share = len(found) / max(len(bars), 1)
-    typer.echo(
-        f"{len(found)} mesure{'s' if len(found) > 1 else ''} douteuse{'s' if len(found) > 1 else ''} sur {len(bars)} ({share:.0%})"
-    )

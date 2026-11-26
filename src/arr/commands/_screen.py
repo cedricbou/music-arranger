@@ -272,9 +272,13 @@ def mix_notes(p: Project, names: list[str], without: tuple, only: tuple) -> list
     return [f"[dim]○ hors du mix : {f'{len(p.tracks) - len(names)} autres pistes' if only else ', '.join(out)}[/]"]
 
 
-def live(screen):
-    """L'affichage en direct de `screen(secondes)` ; à mettre à jour depuis la boucle de lecture."""
+def live(screen, transient: bool = False):
+    """L'affichage en direct de `screen(secondes)` ; à mettre à jour depuis la boucle de lecture.
+
+    `transient` : sur un terminal, l'écran s'efface à la fin (ailleurs, sa dernière image reste écrite).
+    """
     from rich.console import Console
     from rich.live import Live
 
-    return Live(screen(0.0), console=Console(), refresh_per_second=20)
+    console = Console()
+    return Live(screen(0.0), console=console, refresh_per_second=20, transient=transient and console.is_terminal)

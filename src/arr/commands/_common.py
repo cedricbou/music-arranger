@@ -12,7 +12,7 @@ from typing import Optional
 import numpy as np
 import typer
 
-from arr import audio, grid
+from arr import audio, grid, review
 from arr.app import ANALYSIS, FRAMES, ORIGINAL
 from arr.project import Project, ProjectError
 
@@ -84,12 +84,39 @@ def activations(p: Project) -> Optional[np.ndarray]:
     return np.load(f)["frames"] if f.exists() else None
 
 
-def song_doubts(p: Project) -> Optional[dict[float, str]]:
-    """Les mesures douteuses de la grille d'`arr play` (`grid.doubtful_bars`) ; None si le projet ne garde pas ce que beat_this entendait."""
-    read, heard = song_grid(p), activations(p)
+def song_bars(p: Project) -> Optional[tuple[list[float], list[float]]]:
+    """Les temps et les barres de la grille d'`arr play`, posées tous les N temps ; None sans analyse."""
+    read = song_grid(p)
+    return (read[0], grid.regular_bars(read[1], read[0])) if read else None
+
+
+def song_doubts(p: Project, mine: bool = False) -> Optional[dict[float, str]]:
+    """Les mesures douteuses de la grille d'`arr play` (`grid.doubtful_bars`) ; None si le projet ne garde pas ce que beat_this entendait.
+
+    Avec `mine`, sans celles que le musicien a jugées bonnes dans `arr review` : ce qui garde un « ? ».
+    """
+    read, heard = song_bars(p), activations(p)
     if not read or heard is None:
         return None
-    return grid.doubtful_bars(read[0], grid.regular_bars(read[1], read[0]), heard[:, 0])
+    found = grid.doubtful_bars(*read, heard[:, 0])
+    return review.unjudged(found, review.measures(*read), review.right_bars(p)) if mine and found else found
+
+
+def song_passages(p: Project) -> Optional[list[review.Passage]]:
+    """Les passages à relire du morceau, jugés ou non (`review.passages`) ; None sans analyse ou sans activations."""
+    read, found = song_bars(p), song_doubts(p)
+    if not read or found is None:
+        return None
+    end = max(float(p.song.get("duration") or 0.0), read[0][-1] if read[0] else 0.0)
+    return review.passages(review.measures(*read), found, review.right_bars(p), end)
+
+
+def review_line(p: Project) -> str:
+    """Ce qu'il reste à relire, en une ligne : la dernière d'`arr analyze` et d'`arr transcribe`."""
+    left = [x for x in song_passages(p) or [] if not x.right]
+    if not left:
+        return "aucun passage à relire"
+    return f"{len(left)} passage{'s' if len(left) > 1 else ''} à relire : arr review"
 
 
 def doubtful_passages(doubts: dict[float, str], starts: list[float]) -> list[tuple[float, int, list[str]]]:

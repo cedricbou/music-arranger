@@ -26,6 +26,10 @@ choix, dans `docs/decisions/`.
   version par passe de `arr play --mark`, la dernière fait foi ; à côté, `.vNNN.chords.txt` : les
   accords de ses mesures, ceux d'`arr` puis les corrections du musicien, jamais récrit ;
   `truth/runs.json` garde les notes de chaque `arr truth` (fiche 016).
+- **Relecture** : `review/vNNN.toml`, une version par décision du musicien dans `arr review`, chacune
+  portant tout l'état ; la dernière fait foi. `right` : les passages jugés bons, chaque mesure par
+  ses temps. Appliquée à la lecture (`song_doubts(p, mine=True)`), jamais recopiée dans
+  `analysis.json` (fiche 019).
 
 ## Moteurs externes
 

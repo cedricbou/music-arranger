@@ -8,7 +8,7 @@ import typer
 
 from arr import audio
 from arr.app import LYRICS, LYRICS_TIMES, ORIGINAL, SCORE, app, lyrics_app, sections_app
-from arr.commands._common import downbeats, read_grid, reference, save_analysis
+from arr.commands._common import downbeats, read_grid, reference, review_line, save_analysis
 from arr.project import Project, ProjectError, Section
 
 
@@ -18,6 +18,7 @@ def analyze() -> None:
 
     Garde aussi ce que le détecteur entendait entre les temps : un temps manqué dans un passage
     sans batterie est alors compté partout où la grille se lit (écran, prompteur, horloge, décompte).
+    La dernière ligne dit combien de passages restent à relire (`arr review`).
     """
     from arr.engines import analysis
 
@@ -32,11 +33,15 @@ def analyze() -> None:
     p.song["duration"] = round(audio.duration(ref), 3)
     p.save()
     typer.echo(f"bpm {p.song['bpm']}  tonalité {p.song['key']}  {len(downbeats)} mesures")
+    typer.echo(review_line(p))
 
 
 @app.command()
 def transcribe() -> None:
-    """Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections."""
+    """Transcrit l'original en partition : mélodie, accords, tempo, tonalité, sections.
+
+    La dernière ligne dit combien de passages restent à relire (`arr review`).
+    """
     from arr import grid, measure
     from arr.engines import analysis, transcription
 
@@ -75,6 +80,7 @@ def transcribe() -> None:
     written = f"  -> {SCORE}" if "missing" not in done else ""
     typer.echo(f"bpm {bpm}  tonalité {info['key']}  {len(downbeats)} mesures{written}")
     sections_list()
+    typer.echo(review_line(p))
 
 
 @lyrics_app.command("fetch")
