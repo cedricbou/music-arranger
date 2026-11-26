@@ -126,7 +126,10 @@ def fake_studio(monkeypatch, heard):
         calls["looped"].append(loop)
         calls["followed"] = follow
         # la lecture « avance » : la position du flux à chaque appel, et ce que l'écran demande en retour
-        calls["orders"] += [watch(seconds) for seconds in calls.get("positions", [])]
+        for seconds in calls.get("positions", []):
+            calls["orders"].append(watch(seconds))
+            if calls["orders"][-1][2:] == (True,):  # l'écran demande l'arrêt
+                break
 
     monkeypatch.setattr(studio, "play", play)
     monkeypatch.setattr(player, "players", lambda: calls["players"])
@@ -181,3 +184,35 @@ def short_bar_song() -> tuple[np.ndarray, list[float], list[float], list[tuple]]
         for i, (start, end) in enumerate(zip(starts, ends, strict=True))
     ]
     return song, [0.5 * i for i in range(int(ends[-1] * 2))], starts, chords
+
+
+WEAK = ((5.0, 0.7), (6.5, 0.4), (13.0, 0.85))  # mesures 3 et 4, puis 7
+
+
+def doubtful_song(tmp_path, monkeypatch, weak=WEAK, bars: int = 8):
+    """Des mesures à 120 à la noire, un accord par mesure ; beat_this a entendu faiblement les temps `weak`.
+
+    `weak` : (instant, activation) de chaque temps faible. Deux sections se partagent le morceau.
+    """
+    from arr.commands._common import save_analysis
+    from arr.project import Section
+
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", tone(330, 2.0 * bars, amp=0.1), {"op": "split"})
+    p.set_sections([Section("verse", 0.0, 1.0 * bars), Section("chorus", 1.0 * bars, 2.0 * bars)])
+    p.song["duration"] = 2.0 * bars
+    p.save()
+    beats = [0.5 * i for i in range(4 * bars)]
+    heard = np.zeros((100 * bars + 1, 2), np.float32)
+    heard[[int(t * 50) for t in beats], 0] = 1.0
+    for t, level in weak:
+        heard[int(t * 50), 0] = level
+    save_analysis(p, beats, beats[::4], heard)
+    score = p.root / "score"
+    (score / "chord.lab").write_text(
+        "".join(f"{2.0 * i}\t{2.0 * i + 2}\t{'CDEFGAB'[i % 7]}:maj\n" for i in range(bars))
+    )
+    (score / "beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(beats)))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "120")
+    return p

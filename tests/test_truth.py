@@ -102,7 +102,7 @@ def test_a_new_pass_keeps_the_earlier_marks(tmp_path):
 def marking_project(tmp_path, monkeypatch):
     """Un projet à 120 à la noire, et un faux studio où chaque bloc sort 30 ms après l'heure du flux."""
     from arr import studio
-    from arr.commands import play as command
+    from arr.commands import _playback as command
 
     p = Project.create(tmp_path / "song", "song")
     add_track(p, "guitar", tone(330, 8.0, amp=0.1), {"op": "split"})
@@ -183,7 +183,7 @@ def test_taps_are_dated_when_the_key_arrives(monkeypatch):
     import sys
     import types
 
-    from arr.commands.play import keyboard
+    from arr.commands._playback import keyboard
 
     master, slave = pty.openpty()
     monkeypatch.setattr(sys, "stdin", types.SimpleNamespace(isatty=lambda: True, fileno=lambda: slave))

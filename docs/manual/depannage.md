@@ -122,8 +122,9 @@ les trois commandes de diagnostic.
 | `passage de référence illisible : …` | un fichier de `truth/` corrigé à la main n'est plus du TOML valide | le corriger, ou refaire le passage : `arr play -s SECTION --mark` |
 | toutes mes barres repérées sont à côté de celles d'`arr`, du même écart | vous tapez en avance ou en retard, ou la sortie son annonce mal son retard | regarder la colonne « Écart » d'`arr truth` sur un morceau au clic régulier, et le signaler avec sa valeur |
 | une mesure de trois temps au milieu d'un passage en 4/4 (`{time: 3/4}` dans le fichier du prompteur) | le détecteur a manqué un temps, et le morceau a été analysé avant qu'`arr` ne garde ce qu'il entendait entre les temps | `arr analyze`, puis `arr chordpro` ; si la mesure reste, le détecteur n'a rien entendu à cet endroit |
-| `ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze` (`arr doubts`) | le morceau a été analysé avant qu'`arr` ne garde cette information | `arr analyze` |
-| aucun « ? » dans `arr play` sur un passage que je sais faux | le détecteur y était sûr de lui, ou le morceau n'a pas été réanalysé | `arr doubts` dit lequel des deux ; le repérer comme passage de référence : `arr play -s SECTION --mark` |
+| `ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze` (`arr review`) | le morceau a été analysé avant qu'`arr` ne garde cette information | `arr analyze` ; sur un morceau déjà transcrit, il remplace la tonalité par son estimation : la noter avant, et la remettre dans `song.toml` |
+| `relecture illisible : …` | un fichier de `review/` modifié à la main n'est plus du TOML valide | le corriger, ou l'écarter : la version d'avant fait alors foi |
+| aucun « ? » dans `arr play` sur un passage que je sais faux | le détecteur y était sûr de lui, ou le morceau n'a pas été réanalysé | `arr review --list` dit lequel des deux ; le repérer comme passage de référence : `arr play -s SECTION --mark` |
 | la colonne « Accords » d'`arr truth` reste à `-` | le morceau n'est pas transcrit, ou toutes les mesures du fichier d'accords sont vides | `arr transcribe`, puis `arr truth` écrit le fichier ; le remplir à gauche de la barre |
 | une piste retirée par erreur | `arr rm` sans `--purge` | la reprendre dans `trash/` et la remettre sous `tracks/` |
 

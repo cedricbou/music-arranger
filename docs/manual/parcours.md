@@ -346,33 +346,53 @@ arr check
 Une ligne par fichier : durée, niveaux, volume, et les anomalies (silence, saturation,
 longueur différente de l'original, prise mal calée).
 
-## Savoir où la grille est incertaine
+## Relire les passages dont `arr` n'est pas sûr
 
-Là où le détecteur de temps hésitait, `arr` le dit au lieu de trancher en silence.
+Là où le détecteur de temps hésitait, `arr` le dit au lieu de trancher en silence, et vous
+fait écouter ces passages un par un : vous dites lesquels sont bons.
 
 ```
-arr doubts              # les passages douteux du morceau, leur instant, la raison
+arr review              # joue le premier passage à relire, en boucle
+arr review --list       # les passages, leur instant, la raison, leur état ; rien ne joue
+arr review -s chorus    # relit une section de votre choix, douteuse ou non
 arr play                # « ? » devant les mesures douteuses ; d saute au passage douteux suivant
 ```
 
 ```
- 0:23  mes. 12 à 14     verse      temps 2 entendu faiblement (0,62) ; 2 de plus
- 3:40  mes. 105         outro      temps 3 entendu faiblement (0,47)
-4 mesures douteuses sur 105 (4%)
+Night Drive · relecture 1/2
+
+▶ verse · mes. 11 à 15 · en boucle · 0:03 / 0:10
+
+Accords · verse · mes. 11 à 15
+│ Am  /   /   /   │?F   /   /   /   │?F   /   /   /   │?C   /   /   /   │
+│ G   /   /   /   │
+? compte incertain · 0:23 : temps 2 entendu faiblement (0,62)
+
+Entrée : c'est bon · ← → : autre passage · Espace : pause · q : quitter (reprise plus tard)
+vérifié : 0/2 passages
 ```
 
 - **Une mesure est douteuse** quand un de ses temps a été entendu faiblement : le détecteur
   note chaque temps de 0 à 1, et un temps sous 0,9 est faible. Un temps manqué puis compté
   d'après sa trace l'est toujours.
-- **Dans `arr play`**, la mesure porte un « ? » sur la grille d'accords, et la ligne sous la
-  grille donne la raison. d mène au début du passage douteux suivant, parmi les sections jouées.
-- **Rien n'est corrigé** : ni la grille, ni les accords, ni le fichier du prompteur. Une mesure
-  douteuse est une mesure à vérifier à l'oreille en premier, pas une mesure fausse ; une mesure
-  sans marque peut être fausse aussi.
+- **Un passage à relire** réunit les mesures douteuses voisines, avec une mesure avant et une
+  après pour entrer dans le compte. Il joue en boucle, de barre à barre, sur l'original.
+- **Entrée** dit que le passage est bon et passe au suivant. ← et → mènent à un autre passage
+  sans répondre, Espace met en pause, q quitte. Les deux touches de correction ne sont pas
+  encore là : un passage faux se laisse sans réponse.
+- **Un passage jugé bon perd son « ? »** dans `arr play`. Il le garde perdu après un nouvel
+  `arr analyze` tant que ses mesures sont les mêmes : même début, mêmes temps. Si le détecteur
+  les lit autrement, le passage revient à relire.
+- **La relecture se reprend** : `arr review` repart du premier passage qui reste. Quand il n'en
+  reste aucun, il dit « morceau vérifié ». `arr analyze` et `arr transcribe` finissent par le
+  nombre de passages à relire.
+- **Vos réponses** vivent dans `review/` du morceau, un fichier par réponse (`review/v001.toml`,
+  `review/v002.toml`…) : le dernier fait foi, les précédents restent. Ni la grille, ni les accords, ni
+  le fichier du prompteur ne changent ; une mesure sans marque peut être fausse aussi.
 - Sur un morceau au tempo net, moins d'une mesure sur vingt est marquée ; sur un morceau sans
   batterie ou au tempo flottant, bien plus. `arr truth` dit, sur vos passages de référence,
   combien de mesures fausses sont marquées (colonne « Doute »).
-- Un morceau analysé avant que cette information ne soit gardée n'a aucune marque : `arr analyze`.
+- Un morceau analysé avant que cette information ne soit gardée n'a aucun passage : `arr analyze`.
 
 ## Noter la grille contre ce que vous comptez
 

@@ -24,7 +24,7 @@ Vérifiées par `tests/test_rules.py`, sauf ce qui est dit « non vérifié ».
 
 Générer une piste qui s'accorde à une bande existante : essayé de cinq façons, abandonné. Ce qui marche :
 YuE2 rejoue le morceau entier depuis sa partition, puis on sépare la prise. Fiches à lire avant de toucher à :
-génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015 à 018), MIDI (011, 014).
+génération (001, 002), audio (003), calage (004), volume (005), grille (008, 013, 015 à 019), MIDI (011, 014).
 
 ## Comment travailler ici
 
@@ -56,7 +56,6 @@ génération (001, 002), audio (003), calage (004), volume (005), grille (008, 0
 
 Le manuel (`docs/manual/`) fait partie du produit ; `tests/test_docs.py` échoue s'il dérive. On écrit
 au présent, sans numéro d'issue ni chemin mort (`docs/style-doc.md`, skill `relire-docs` pour une zone).
-
 - **Une commande ou une option change** : écrire sa docstring et ses `help=` (la référence
   en sort), puis `uv run python scripts/gen_reference.py`. Ne jamais éditer `reference.md`.
 - **Un comportement change** : `parcours.md`, `README.md` ; **un message d'erreur** : `depannage.md`.
@@ -82,17 +81,20 @@ src/arr/
   commands/takes.py         render, takes, graft, share
   commands/tracks.py        split, merge, tracks, rm, pick, gain, mute, mix
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
-  commands/play.py          play : mix, piste ou prise, sections, boucle ; clavier (pause, mesure voisine)
+  commands/_playback.py     la lecture pilotée au clavier, commune à play et review : touches, arrêts, écran
+  commands/play.py          play : mix, piste ou prise, sections, boucle ; pause, mesure voisine, doute
+  commands/review.py        review : les passages douteux joués en boucle un par un, jugés bons ou laissés
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
-  commands/truth.py         truth, doubts : la grille notée contre les passages de référence ; ses doutes
+  commands/truth.py         truth : la grille et les accords notés contre les passages de référence
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille
+  review.py                 relecture : passages à relire, décisions du musicien versionnées (review/)
   grid.py                   la grille lue : temps doublés retirés, temps manqués comblés, barres régulières
   measure.py                mesures sans écoute : période, calage, niveaux, accords replacés sur les mesures
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
@@ -113,12 +115,11 @@ tests/
   helpers.py                faux moteurs et projets d'essai partagés (fake_studio, song_project, tone...)
   test_core.py, test_measure.py, test_grid.py, test_docs.py, test_rules.py   cœur sur signaux ; doc, règles
   test_workflow.py, test_slow.py   cycle de feature.sh hors-ligne ; vrais moteurs (`-m slow`, hors CI)
-  test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_chordpro.py,
-  test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py, test_truth.py   un par module
+  un par module : test_project.py, test_score.py, test_takes.py, test_tracks.py, test_play.py, test_review.py,
+  test_chordpro.py, test_align.py, test_sheet.py, test_studio.py, test_system.py, test_midi.py, test_truth.py
 ```
 
 Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifié ») :
-
 - Une commande est une fonction dans le module de son domaine ; un nouveau domaine est un
   nouveau module, importé dans `cli.py` (non vérifié). Un fichier de plus de 400 lignes se découpe.
 - Les commandes parlent à la carte son par `studio.py`, au MIDI par `midi.py`, au lecteur par
@@ -137,9 +138,8 @@ Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifi
 
 ## Audio en direct
 
-L'ordinateur de Cédric joue sur une PreSonus iTwo, reliée en analogique aux voies 7/8 d'une
-Soundcraft Signature 12 MTK : **capture sur les entrées 7/8 de la table**, **lecture sur la
-sortie par défaut** (fiche 003). Les autres installations sont décrites dans `docs/manual/audio.md`.
+La PreSonus iTwo de Cédric arrive en analogique sur les voies 7/8 d'une Soundcraft Signature 12 MTK :
+**capture sur ces entrées**, **lecture sur la sortie par défaut** (fiche 003 ; sinon `docs/manual/audio.md`).
 
 - Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
 - Lecture et enregistrement : un flux duplex `sounddevice` sur l'API JACK de PipeWire, entrée

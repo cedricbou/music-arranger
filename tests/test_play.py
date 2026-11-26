@@ -8,7 +8,7 @@ import pytest
 from arr import audio
 from arr.cli import add_track, app
 from arr.project import Project, Section
-from tests.helpers import fake_studio, runner, tone
+from tests.helpers import doubtful_song, fake_studio, runner, tone
 
 
 def test_play_partial_mix(tmp_path, monkeypatch):
@@ -313,17 +313,18 @@ def test_play_shows_the_chords_of_the_section(tmp_path, monkeypatch):
 
 
 def test_keys_are_read_from_what_the_terminal_sends():
-    from arr.commands.play import parse_keys
+    from arr.commands._playback import parse_keys
 
     assert parse_keys(b" ") == ["pause"]
     assert parse_keys(b"\x1b[D\x1b[D\x1b[C") == ["back", "back", "forward"]
     assert parse_keys(b"\x1bOD \x1bOC") == ["back", "pause", "forward"]  # flèches en mode « application »
-    assert parse_keys(b"q\x1b[A\n") == []  # le reste est ignoré
+    assert parse_keys(b"x\x1b[A\t") == []  # le reste est ignoré
+    assert parse_keys(b"q\r\n") == ["quit", "enter", "enter"]  # les touches d'arr review
     assert parse_keys(b"d\x1b[Dd") == ["doubt", "back", "doubt"]
 
 
 def test_arrows_lead_to_bar_starts():
-    from arr.commands.play import bar_stops, neighbour
+    from arr.commands._playback import bar_stops, neighbour
 
     bars = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
     assert bar_stops(bars, [], 12.0) == bars
@@ -346,7 +347,7 @@ def test_arrows_lead_to_bar_starts():
 def test_play_pauses_and_moves_bar_by_bar(tmp_path, monkeypatch):
     from contextlib import contextmanager
 
-    from arr.commands import play as command
+    from arr.commands import _playback as playback
 
     calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
     p = Project.create(tmp_path / "song", "song")
@@ -364,7 +365,7 @@ def test_play_pauses_and_moves_bar_by_bar(tmp_path, monkeypatch):
     def keyboard():
         yield lambda: next(typed)
 
-    monkeypatch.setattr(command, "keyboard", keyboard)
+    monkeypatch.setattr(playback, "keyboard", keyboard)
     # refrain en boucle après 2 s de décompte ; le flux est à 3 s, donc à 1 s du refrain, puis au deuxième tour
     calls["positions"] = [3.0, 3.0, 3.0, 3.0, 5.5, 5.5, 7.0, 7.0]
     result = runner.invoke(app, ["play", "-s", "chorus", "--loop", "--count-in", "1"])
@@ -478,33 +479,12 @@ def test_play_with_the_clock_needs_the_bars_of_the_chordpro_file(tmp_path, monke
     assert "arr transcribe" in str(result.exception)
 
 
-def doubtful_song(tmp_path, monkeypatch):
-    """Huit mesures à 120 à la noire, un accord par mesure ; beat_this a entendu faiblement trois temps."""
-    from arr.commands._common import save_analysis
-
-    p = Project.create(tmp_path / "song", "song")
-    add_track(p, "guitar", tone(330, 16.0, amp=0.1), {"op": "split"})
-    p.set_sections([Section("verse", 0.0, 8.0), Section("chorus", 8.0, 16.0)])
-    p.save()
-    beats = [0.5 * i for i in range(32)]
-    heard = np.zeros((801, 2), np.float32)
-    heard[[int(t * 50) for t in beats], 0] = 1.0
-    for t, level in ((5.0, 0.7), (6.5, 0.4), (13.0, 0.85)):  # mesures 3 et 4, puis 7
-        heard[int(t * 50), 0] = level
-    save_analysis(p, beats, beats[::4], heard)
-    score = p.root / "score"
-    (score / "chord.lab").write_text("".join(f"{2.0 * i}\t{2.0 * i + 2}\t{'CDEFGABC'[i]}:maj\n" for i in range(8)))
-    (score / "beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(beats)))
-    monkeypatch.chdir(p.root)
-    monkeypatch.setenv("COLUMNS", "120")
-    return p
-
-
 def test_play_marks_the_bars_arr_is_unsure_of_and_d_jumps_to_them(tmp_path, monkeypatch):
     from contextlib import contextmanager
 
-    from arr.commands import play as command
-    from arr.commands.play import doubt_stops, next_after
+    from arr.commands import _playback as playback
+    from arr.commands._playback import next_after
+    from arr.commands.play import doubt_stops
 
     calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
     doubtful_song(tmp_path, monkeypatch)
@@ -532,7 +512,7 @@ def test_play_marks_the_bars_arr_is_unsure_of_and_d_jumps_to_them(tmp_path, monk
     def keyboard():
         yield lambda: next(typed)
 
-    monkeypatch.setattr(command, "keyboard", keyboard)
+    monkeypatch.setattr(playback, "keyboard", keyboard)
     calls["positions"] = [1.0, 5.0, 13.0]
     assert runner.invoke(app, ["play"]).exit_code == 0
     assert calls["orders"] == [(False, 4.0), (False, 12.0), (False, None)]

@@ -16,7 +16,7 @@ de beat_this contre le DBN de madmom).
   fort de sa trame et des deux voisines), et dit lequel. Les activations sont celles que garde
   `arr analyze` (fiche 017) ; sans elles, aucune marque.
 - **Le doute se montre dans `arr play`** (« ? » devant la mesure, la raison sous la grille, d pour
-  sauter au passage douteux suivant) et se liste par `arr doubts`. Il ne change ni la grille, ni
+  sauter au passage douteux suivant) et se relit par `arr review` (fiche 019). Il ne change ni la grille, ni
   les accords, ni le fichier du prompteur : `chart()` ne le reçoit pas.
 - **`arr truth` mesure le doute contre les passages de référence** (fiche 016) : mesures fausses
   marquées, mesures justes marquées à tort.

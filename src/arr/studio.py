@@ -264,7 +264,7 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None, follow=No
 
     `watch(secondes)` est appelé vingt fois par seconde avec la position de lecture, comptée
     depuis le début de `data` ; en boucle elle revient à la fin de `data` à chaque tour.
-    Il peut renvoyer `(en pause, position où sauter ou None)` pour piloter la lecture.
+    Il peut renvoyer `(en pause, position où sauter ou None)` pour piloter la lecture, puis True pour l'arrêter.
     `follow(secondes, heure, en pause)` est appelé à chaque bloc audio : la position de son
     début, et l'heure (`time.monotonic`) où il sortira du convertisseur.
     """
@@ -319,6 +319,8 @@ def play(data: np.ndarray, loop: np.ndarray | None = None, watch=None, follow=No
                     paused = order[0]
                     if order[1] is not None:
                         jump = int(order[1] * audio.SR)
+                    if order[2:] and order[2]:
+                        break
     except KeyboardInterrupt:
         pass
 
