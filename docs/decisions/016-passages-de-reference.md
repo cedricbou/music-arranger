@@ -1,6 +1,7 @@
 # 016 — Des passages comptés à l'oreille notent la grille
 
-Date : 26 novembre 2026. État : en vigueur. Complète les fiches 008, 013 et 015.
+Date : 26 novembre 2026. État : remplacée par la fiche 019 pour la commande (`arr play --mark` et `arr truth`
+sont retirées) ; en vigueur pour la datation d'une frappe et pour la note. Complète les fiches 008, 013 et 015.
 
 ## Contexte
 

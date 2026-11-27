@@ -118,13 +118,12 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   mesure d'avant et → passe à la suivante.
 - **Relecture** : là où le détecteur a entendu un temps faiblement, `arr play` marque la mesure
   d'un « ? » sur la grille d'accords et d y saute. `arr review` joue ces passages un par un, en
-  boucle : Entrée dit qu'un passage est bon, et son « ? » part. Vos réponses sont rangées dans
-  `review/` du morceau ; la grille et le fichier du prompteur restent les mêmes.
-- **Passages de référence** : `arr play -s chorus --mark` joue le passage une fois ; Espace se
-  tape sur le 1 de chaque mesure, et les barres repérées sont rangées dans `truth/` du morceau.
-  Un fichier d'accords naît à côté, rempli de ceux d'`arr` : corrigez ceux que vous entendez
-  autrement. `arr truth` note ensuite la grille et les accords de tous les morceaux contre ces
-  passages, et dit lesquels vont mieux ou moins bien que la fois d'avant.
+  boucle : Entrée dit qu'un passage est bon, et son « ? » part.
+- **Barres corrigées** : dans `arr review`, m donne quatre clics puis joue le passage une fois ;
+  Espace se tape sur le 1 de chaque mesure, chaque frappe va au temps détecté le plus proche, et
+  le passage rejoue avec la nouvelle grille avant d'être gardé. La correction se lit partout
+  (`arr play`, `arr chordpro`, `arr sheet`, décompte) ; `arr review --undo` la reprend. Vos
+  réponses sont rangées dans `review/` du morceau ; ce qu'`arr` a détecté n'est jamais modifié.
 - **Accords à l'écran** : après `arr transcribe`, `arr play` et `arr record` affichent la
   grille d'accords de la section en cours, une case par mesure et un `/` par temps tenu, et
   surlignent l'accord du moment, pour jouer par-dessus.
@@ -262,9 +261,7 @@ d'un instrument note à note.
 | `arr models pull` | installe les modèles et leurs moteurs, et les met à jour (réseau) |
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
-| `arr play -s SECTION --mark` | repère à l'oreille les barres de mesure du passage (Espace sur chaque 1) : un passage de référence, dans `truth/` |
-| `arr review [-s SECTION] [--list]` | joue un par un les passages où `arr` n'est pas sûr du compte des mesures ; Entrée dit qu'un passage est bon |
-| `arr truth [DOSSIER]` | note la grille et les accords de chaque morceau contre ses passages de référence, et dit ce qui va mieux ou moins bien |
+| `arr review [-s SECTION] [--list] [--undo]` | joue un par un les passages où `arr` n'est pas sûr du compte des mesures ; Entrée dit qu'un passage est bon, m corrige ses barres |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).
@@ -282,7 +279,7 @@ night-drive/
   score/           score.abc (éditable), fichiers MIDI, accords et structure horodatés
   takes/           t001.flac + t001.json (style, mode, graine)
   tracks/<piste>/  vNNN.flac + vNNN.json
-  truth/           passages de référence : vos barres repérées (`arr play --mark`), les notes d'`arr truth`
+  review/          vos réponses d'`arr review` : passages jugés bons, barres corrigées, une version par réponse
   mix/  export/
   trash/           ce que `arr rm` a retiré ; `arr rm --purge trash` le vide
 ```

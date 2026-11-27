@@ -1,27 +1,24 @@
-"""Passages de référence : les barres de mesure que le musicien a comptées à l'oreille, et la note de la grille.
+"""Les barres tapées à l'oreille : dater une frappe, lire les passages repérés autrefois, noter une grille contre elles.
 
-Chaque passage repéré vit dans `truth/` du projet, une version par passe (`chorus.v001.toml`) :
-la plus récente fait foi, les autres restent. À côté, `chorus.v001.chords.txt` porte les accords
-de ses mesures : ceux d'`arr`, que le musicien corrige. `truth/runs.json` garde les notes de chaque
-lancement d'`arr truth`, pour dire ce qui va mieux ou moins bien que la fois d'avant.
+`Taps` dit ce qui s'entendait à l'heure de chaque frappe : `arr review` s'en sert pour corriger les
+barres. Un projet peut porter des passages dans `truth/` (`chorus.v001.toml`, des barres tapées, la
+version la plus récente fait foi ; `chorus.v001.chords.txt`, leurs accords) : rien ne les écrit ici,
+ils se lisent comme des corrections (`review.legacy_fix`). `score` et `chord_score` notent ce que les
+détecteurs ont lu contre ce que le musicien a fixé (`scripts/grid_score.py`).
 """
 
 from __future__ import annotations
 
-import json
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import tomli_w
 
 from arr.project import Project, ProjectError
-from arr.sheet import chord_label, chord_name
+from arr.sheet import chord_label
 
 FOLDER = "truth"
-RUNS = "runs.json"
 ON_BAR = 0.07  # une barre est « juste » à moins de 70 ms d'une barre repérée : la tolérance d'usage (mir_eval)
 BOUNCE = 0.25  # deux frappes plus rapprochées sont une seule frappe (rebond, touche tenue)
 
@@ -110,39 +107,6 @@ def passages(p: Project) -> list[Passage]:
     return [read(versions[-1]) for versions in _files(p).values()]
 
 
-def save(p: Project, name: str, start: float, end: float, bars: list[float]) -> Passage:
-    """Écrit une nouvelle version du passage ; les précédentes restent, et donnent leur nombre de temps par mesure."""
-    earlier = _files(p).get(name, [])
-    number = int(earlier[-1].name[-len("000.toml") : -len(".toml")]) + 1 if earlier else 1
-    beats_per_bar = read(earlier[-1]).beats_per_bar if earlier else 4
-    path = p.root / FOLDER / f"{name}.v{number:03d}.toml"
-    path.parent.mkdir(exist_ok=True)
-    data = {
-        "start": round(start, 3),
-        "end": round(end, 3),
-        "beats_per_bar": beats_per_bar,
-        "marked": datetime.now().isoformat(timespec="seconds"),
-        "bars": bars,
-    }
-    path.write_text(tomli_w.dumps(data))
-    return read(path)
-
-
-def last_run(p: Project) -> dict:
-    """Les notes du dernier lancement, par passage ; vide la première fois."""
-    f = p.root / FOLDER / RUNS
-    runs = json.loads(f.read_text()) if f.exists() else []
-    return runs[-1]["passages"] if runs else {}
-
-
-def record_run(p: Project, scores: dict[str, dict]) -> None:
-    """Ajoute ce lancement à l'historique du projet."""
-    f = p.root / FOLDER / RUNS
-    runs = json.loads(f.read_text()) if f.exists() else []
-    runs.append({"at": datetime.now().isoformat(timespec="seconds"), "passages": scores})
-    f.write_text(json.dumps(runs, indent=1))
-
-
 # --- la note
 
 
@@ -185,18 +149,6 @@ def score(marks: list[float], beats_per_bar: int, beats: list[float], bars: list
     }
 
 
-def doubted(marks: list[float], beats_per_bar: int, doubtful: list[float]) -> list[bool]:
-    """Pour chaque mesure repérée, si la grille y marque une mesure douteuse (`doubtful` : leurs débuts).
-
-    Une mesure de la grille va à la mesure repérée dont la barre la précède à un demi-temps près.
-    """
-    out = []
-    for a, b in zip(marks, marks[1:], strict=False):
-        half = (b - a) / (2 * beats_per_bar)
-        out.append(any(a - half <= d < b - half for d in doubtful))
-    return out
-
-
 def verdict(now: dict, before: dict | None) -> str:
     """« mieux », « moins bien » ou « pareil » depuis la dernière fois ; « nouveau » sans note comparable.
 
@@ -215,23 +167,10 @@ def verdict(now: dict, before: dict | None) -> str:
 
 # --- les accords des passages
 
-CHORDS_HEAD = """# {name} {version} : les accords que tu entends, mesure par mesure.
-# Un accord par mesure, deux s'il change au milieu (« A E »). Corrige ceux que tu entends
-# autrement ; vide une mesure dont tu n'es pas sûr, elle ne comptera pas. Après la barre « | » :
-# ce qu'arr avait transcrit, à ne pas toucher.
-"""
-
 
 def shown_chords(chart: list[tuple]) -> list[tuple[float, float, str]]:
     """Les accords de la grille d'`arr play` (`song_chart`), à plat : (début, fin, étiquette)."""
     return [(start, end, label) for bar in chart for _, _, label, start, end in bar[3]]
-
-
-def _halves(a: float, b: float, chords: list[tuple[float, float, str]]) -> list[str]:
-    """L'accord de chaque moitié de la mesure, lu en son milieu ; un seul s'ils sont les mêmes."""
-    at = lambda t: next((label for start, end, label in chords if start <= t < end), "N")
-    first, second = at(a + (b - a) / 4), at(a + 3 * (b - a) / 4)
-    return [first] if first == second else [first, second]
 
 
 def chords_path(p: Project, passage: Passage) -> Path:
@@ -247,28 +186,6 @@ def read_chords(path: Path) -> list[tuple[int, list[str], list[str]]]:
             continue
         rows.append((int(heard.split()[0]) - 1, heard.split()[2:4], given.split()))
     return rows
-
-
-def write_chords(p: Project, passage: Passage, chords: list[tuple[float, float, str]]) -> Path | None:
-    """Écrit le fichier d'accords du passage, rempli de ceux d'`arr` ; None s'il existe déjà : il n'est jamais récrit.
-
-    Une mesure corrigée dans le fichier d'une version précédente du passage, et qui commence
-    au même endroit à un quart de mesure près, garde sa correction.
-    """
-    path = chords_path(p, passage)
-    if path.exists() or len(passage.bars) < 2 or not chords:
-        return None
-    corrected: list[tuple[float, list[str]]] = []
-    for earlier in map(read, _files(p).get(passage.name, [])[:-1]):
-        if (old := chords_path(p, earlier)).exists():
-            corrected += [(earlier.bars[i], heard) for i, heard, given in read_chords(old) if heard != given]
-    lines = []
-    for i, (a, b) in enumerate(zip(passage.bars, passage.bars[1:], strict=False)):
-        given = [chord_name(label).replace("–", "N.C.") for label in _halves(a, b, chords)]
-        heard = next((kept for start, kept in reversed(corrected) if abs(start - a) < (b - a) / 4), given)
-        lines.append(f"{i + 1:>3}  {int(a) // 60}:{a % 60:05.2f}  {' '.join(heard):<16} | {' '.join(given)}")
-    path.write_text(CHORDS_HEAD.format(name=passage.name, version=passage.version) + "\n".join(lines) + "\n")
-    return path
 
 
 def chord_score(passage: Passage, rows: list[tuple[int, list[str], list[str]]], chords: list[tuple]) -> dict:

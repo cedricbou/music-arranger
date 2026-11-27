@@ -12,7 +12,7 @@ from typing import Optional
 import numpy as np
 import typer
 
-from arr import audio, grid, review
+from arr import audio, grid, review, truth
 from arr.app import ANALYSIS, FRAMES, ORIGINAL
 from arr.project import Project, ProjectError
 
@@ -58,10 +58,9 @@ def convert(source: Path, dst: Path) -> None:
         typer.secho(f"attention : {source.name} est silencieux (niveau max sous -60 dB)", fg="yellow", err=True)
 
 
-def song_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
+def detected_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
     """Temps et barres d'`arr analyze`, sans les temps entendus deux fois, les temps manqués comblés ; None sans analyse.
 
-    Toute la grille du morceau passe par ici : écran, fichier ChordPro, décompte, clic, tempo.
     `analysis.json` garde ce que beat_this a détecté ; le nettoyage est refait à chaque lecture.
     Un temps manqué n'est comblé que si le projet garde ce que beat_this entendait (`activations`).
     """
@@ -70,6 +69,22 @@ def song_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
         return None
     detected = json.loads(f.read_text())
     return read_grid(detected["beats"], detected["downbeats"], activations(p))
+
+
+def song_fixes(p: Project, beats: list[float]) -> list[review.Fix]:
+    """Les barres corrigées par le musicien : les passages de `truth/` du projet, puis ceux d'`arr review`."""
+    old = (review.legacy_fix(x.bars, x.beats_per_bar, beats) for x in truth.passages(p))
+    return [*(fix for fix in old if fix), *review.bar_fixes(p)]
+
+
+def song_grid(p: Project, more: tuple = ()) -> Optional[tuple[list[float], list[float]]]:
+    """Les temps et les barres détectées du morceau, avec les corrections du musicien ; None sans analyse.
+
+    Décompte, clic, tempo et sections lisent la grille ici ; l'écran et le prompteur, dans
+    `song_bars`. `more` : des corrections à essayer, pas encore gardées.
+    """
+    read = detected_grid(p)
+    return review.fix_grid(*read, [*song_fixes(p, read[0]), *more]) if read else None
 
 
 def read_grid(beats: list[float], downbeats: list[float], heard) -> tuple[list[float], list[float]]:
@@ -84,22 +99,32 @@ def activations(p: Project) -> Optional[np.ndarray]:
     return np.load(f)["frames"] if f.exists() else None
 
 
-def song_bars(p: Project) -> Optional[tuple[list[float], list[float]]]:
-    """Les temps et les barres de la grille d'`arr play`, posées tous les N temps ; None sans analyse."""
-    read = song_grid(p)
-    return (read[0], grid.regular_bars(read[1], read[0])) if read else None
+def song_bars(p: Project, more: tuple = ()) -> Optional[tuple[list[float], list[float]]]:
+    """Les temps et les barres de la grille d'`arr play` ; None sans analyse.
+
+    Les barres sont posées tous les N temps (`grid.regular_bars`) sur ce que le détecteur a lu,
+    puis les passages corrigés par le musicien prennent ses temps et ses barres : une barre
+    qu'il a fixée ne bouge pas, et rien ne bouge hors de ses passages.
+    """
+    read = detected_grid(p)
+    if not read:
+        return None
+    return review.fix_grid(read[0], grid.regular_bars(read[1], read[0]), [*song_fixes(p, read[0]), *more])
 
 
 def song_doubts(p: Project, mine: bool = False) -> Optional[dict[float, str]]:
     """Les mesures douteuses de la grille d'`arr play` (`grid.doubtful_bars`) ; None si le projet ne garde pas ce que beat_this entendait.
 
-    Avec `mine`, sans celles que le musicien a jugées bonnes dans `arr review` : ce qui garde un « ? ».
+    Avec `mine`, sans celles que le musicien a jugées bonnes ou corrigées dans `arr review` : ce qui garde un « ? ».
     """
     read, heard = song_bars(p), activations(p)
     if not read or heard is None:
         return None
     found = grid.doubtful_bars(*read, heard[:, 0])
-    return review.unjudged(found, review.measures(*read), review.right_bars(p)) if mine and found else found
+    if not mine or not found:
+        return found
+    fixes = song_fixes(p, detected_grid(p)[0])
+    return review.unjudged(found, review.measures(*read), review.right_bars(p), fixes)
 
 
 def song_passages(p: Project) -> Optional[list[review.Passage]]:
@@ -108,7 +133,8 @@ def song_passages(p: Project) -> Optional[list[review.Passage]]:
     if not read or found is None:
         return None
     end = max(float(p.song.get("duration") or 0.0), read[0][-1] if read[0] else 0.0)
-    return review.passages(review.measures(*read), found, review.right_bars(p), end)
+    fixes = song_fixes(p, detected_grid(p)[0])
+    return review.passages(review.measures(*read), found, review.right_bars(p), end, fixes)
 
 
 def review_line(p: Project) -> str:

@@ -8,7 +8,7 @@ from arr import audio, review
 from arr.cli import app
 from arr.commands import _playback as playback
 from arr.commands._common import save_analysis, song_doubts, song_passages
-from tests.helpers import WEAK, doubtful_song, fake_studio, runner
+from tests.helpers import WEAK, doubtful_song, fake_studio, fake_taps, gappy_song, marked_passage, runner
 
 # Seize mesures : les mesures 3 et 4 douteuses, puis la 7 (leurs passages se touchent), puis la 13.
 FAR = (*WEAK, (25.0, 0.6))
@@ -180,3 +180,168 @@ def test_analyze_and_transcribe_end_with_what_is_left_to_review(tmp_path, monkey
     monkeypatch.setattr(analysis, "activations", lambda path: heard)
     assert lines(runner.invoke(app, ["analyze"]))[-1] == "1 passage à relire : arr review"
     assert lines(runner.invoke(app, ["transcribe"]))[-1] == "1 passage à relire : arr review"
+
+
+# --- corriger les barres
+
+EVERY = [0.5 * i for i in range(64)]  # seize mesures à 120 à la noire
+
+
+def test_a_tap_goes_to_the_nearest_detected_beat():
+    # 45 ms en avance, 40 ms en retard, pile entre deux temps : les mêmes barres
+    assert review.snap([3.955, 6.04, 8.25], EVERY) == ([4.0, 6.0, 8.0], [])
+    assert review.snap([4.02, 3.97, 6.0], EVERY) == ([4.0, 6.0], [])  # deux frappes sur le même temps
+    # au milieu d'un trou de deux temps, aucun temps à moins d'un demi-temps : la frappe est signalée
+    holed = [t for t in EVERY if t != 4.0]
+    assert review.snap([2.0, 4.01, 6.0], holed) == ([2.0, 4.01, 6.0], [4.01])
+
+
+def test_a_missed_beat_is_spread_and_a_real_short_bar_is_kept():
+    beats = [t for t in EVERY if t != 9.5]  # la mesure de 8 s n'a que trois temps
+    taps = [6.0, 8.0, 10.0, 12.0]
+    assert review.counts(taps, beats) == [4, 3, 4]
+    regular = [2.0 * i for i in range(16)]
+    # un temps manqué : quatre temps égaux entre les deux frappes
+    fix = review.make_fix(taps, beats, {1})
+    fixed, bars = review.fix_grid(beats, regular, [fix])
+    assert fixed == EVERY and bars == regular
+    assert all(len(bar) == 4 for bar in review.measures(fixed, bars))
+    # une vraie mesure à trois temps : ses temps restent ceux du détecteur
+    real = review.make_fix(taps, beats, set())
+    assert review.fix_grid(beats, regular, [real]) == (beats, regular)
+    assert [len(bar) for bar in review.measures(beats, regular)][3:6] == [4, 3, 4]
+    # deux temps manqués de suite, ou un temps entendu deux fois : quatre temps égaux aussi
+    two = [t for t in EVERY if t not in (9.0, 9.5)]
+    assert review.fix_grid(two, regular, [review.make_fix(taps, two, {1})])[0] == EVERY
+    twice = sorted([*EVERY, 9.1])
+    assert review.counts(taps, twice) == [4, 5, 4]
+    assert review.fix_grid(twice, regular, [review.make_fix(taps, twice, {1})])[0] == EVERY
+
+
+def test_my_bars_are_pinned_and_nothing_moves_outside_them():
+    late = [t + 1.0 for t in EVERY[::4]]  # le détecteur pose le 1 deux temps trop tard, partout
+    fix = review.make_fix([8.0, 10.0, 12.0, 14.0], EVERY, set())
+    beats, bars = review.fix_grid(EVERY, late, [fix])
+    assert beats == EVERY
+    assert bars == [
+        1.0,
+        3.0,
+        5.0,
+        7.0,
+        8.0,
+        10.0,
+        12.0,
+        14.0,
+        15.0,
+        *late[8:],
+    ]  # les miennes dedans, les siennes dehors
+    assert fix.covers(8.0) and fix.covers(12.0) and not fix.covers(14.0) and not fix.covers(7.0)
+    # une correction plus récente l'emporte là où elle recouvre l'ancienne
+    again = review.make_fix([9.0, 11.0, 13.0], EVERY, set())
+    assert review.fix_grid(EVERY, late, [fix, again])[1][3:9] == [7.0, 8.0, 9.0, 11.0, 13.0, 14.0]
+
+
+def test_m_fixes_the_bars_by_tapping_and_the_fix_shows_everywhere(tmp_path, monkeypatch):
+    from arr.commands._common import song_bars, song_grid
+
+    p = gappy_song(tmp_path, monkeypatch)
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    assert "{time: 3/4}" in (p.root / "export/song.cho").read_text()
+    # m, puis cinq frappes (une en avance de 40 ms, une en retard), « temps manqué », Entrée garde
+    taps = [5.96, 8.04, 10.0, 12.0, 14.0]
+    session = fake_taps(monkeypatch, [taps], [["bars"], ["pause"], ["enter"]], lead=2.0, start=6.0)
+    out = runner.invoke(app, ["review"], input="t\n").output
+    assert "m : les barres sont mal placées" in out and "│?G   /   /   │" in out
+    assert "Espace sur le 1 de chaque mesure" in out and "5 frappes" in out
+    assert "1 mesure à 3 temps entre vos frappes (0:08,0)" in out and "temps manqué : 4 temps égaux (t)" in out
+    before, after = out.split("Avant\n")[1].split("Après\n")
+    assert before.startswith("│ F   /   /   /   │ G   /   /   │ A   /   /   /   │")
+    assert after.startswith("│ F   /   /   /   │ G   /   /   /   │ A   /   /   /   │")
+    assert "✔ verse · mes. 4 à 6 : barres corrigées (review/v001.toml)" in out and "morceau vérifié" in out
+    assert "Le fichier du prompteur est plus ancien que vos corrections : arr chordpro" in out
+    # le passage (6 s), quatre clics (2 s) puis le passage et une mesure de plus, une fois ; enfin la boucle
+    assert session["played"] == [(6.0, True), (10.0, False), (8.0, True)]
+    # la correction se lit partout : grille, doutes, prompteur, décompte
+    assert song_bars(p)[0] == EVERY and song_grid(p)[0] == EVERY
+    assert song_doubts(p, mine=True) == {} and [x.state for x in song_passages(p)] == ["corrigé"]
+    assert "corrigé" in runner.invoke(app, ["review", "--list"]).output
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    assert "{time: 3/4}" not in (p.root / "export/song.cho").read_text()
+    out = runner.invoke(app, ["play", "-s", "verse"]).output
+    assert "│ G   /   /   /   │" in out and "?" not in out
+
+    # elle tient après une nouvelle analyse, même si le détecteur lit le passage tout autrement
+    heard = np.ones((1601, 2), np.float32)
+    moved = [t + 0.02 for t in EVERY if not 8.0 < t < 10.0]
+    save_analysis(p, moved, [t + 1.02 for t in EVERY[::4]], heard)
+    beats, bars = song_bars(p)
+    assert [t for t in beats if 6.0 <= t <= 14.0] == [t for t in EVERY if 6.0 <= t <= 14.0]
+    assert [t for t in bars if 6.0 <= t <= 14.0] == taps_on_beats(taps)
+
+    # --undo la reprend, dans une nouvelle version ; il n'y a alors plus rien à reprendre
+    out = runner.invoke(app, ["review", "--undo"]).output
+    assert "correction reprise : verse · 0:06,0 à 0:14,0 (4 mesures)" in out
+    assert [f.name for f in sorted((p.root / "review").iterdir())] == ["v001.toml", "v002.toml"]
+    assert review.bar_fixes(p) == [] and song_bars(p)[0] == moved
+    assert "aucune correction" in str(runner.invoke(app, ["review", "--undo"]).exception)
+
+
+def taps_on_beats(taps: list[float]) -> list[float]:
+    return review.snap(taps, EVERY)[0]
+
+
+def test_taps_can_be_redone_dropped_or_refused(tmp_path, monkeypatch):
+    p = gappy_song(tmp_path, monkeypatch)
+    # une frappe au milieu du trou : refusée, on refait ; puis une vraie mesure à trois temps, r, et Échap
+    passes = [[6.0, 8.0, 9.5, 12.0], [6.0, 8.0, 10.0, 12.0], [6.0, 8.0, 10.0, 12.0]]
+    session = fake_taps(monkeypatch, passes, [["bars"], ["redo"], ["escape"], ["quit"]], lead=2.0, start=6.0)
+    out = runner.invoke(app, ["review"], input="o\nv\nx\nv\n").output
+    assert "frappe à 0:09,5 : aucun temps détecté à moins d'un demi-temps" in out and "Refaire ?" in out
+    assert out.count("vraie mesure à 3 temps (v)") == 3  # deux passes, et une réponse à côté redemandée
+    assert "barres laissées telles quelles" in out and not (p.root / "review").exists()
+    assert [played for played, _ in session["played"]] == [6.0, 10.0, 10.0, 8.0, 10.0, 8.0, 6.0]
+    # une seule frappe : il en faut deux ; « n » abandonne
+    fake_taps(monkeypatch, [[8.0]], [["bars"], ["quit"]], lead=2.0, start=6.0)
+    out = runner.invoke(app, ["review"], input="n\n").output
+    assert "1 frappe : il en faut deux au moins" in out and not (p.root / "review").exists()
+
+
+def test_a_shifted_one_is_fixed_in_a_section_and_chords_stay_where_they_sound(tmp_path, monkeypatch):
+    from arr.commands._screen import song_chart
+
+    # le détecteur pose toutes les barres deux temps trop tard ; aucun temps faible : rien n'est douteux
+    p = gappy_song(tmp_path, monkeypatch, missing=(), late=1.0, weak=())
+    # sans l'original, les accords transcrits ne sont pas replacés sur les barres du détecteur (`measure.seat_chords`)
+    (p.root / "source/original.flac").unlink()
+    wrong = song_chart(p)
+    late = {m[0]: m for m in wrong}
+    assert late[17.0][2] == 4 and late[19.0][2] == 4
+    assert [(c[0], c[2]) for c in late[17.0][3]] == [
+        (0, "D:maj"),
+        (2, "E:maj"),
+    ]  # l'accord change au milieu de la mesure
+    session = fake_taps(monkeypatch, [[16.0, 18.0, 20.0, 22.0]], [["bars"], ["enter"]], lead=2.0, start=17.0)
+    out = runner.invoke(app, ["review", "-s", "chorus"]).output
+    assert "✔ chorus" in out and "barres corrigées" in out
+    assert session["played"][1] == (17.0, False)  # deux secondes de clics, la section, une mesure de plus
+    chart = {m[0]: m for m in song_chart(p)}
+    # mes barres : l'accord écrit sur le temps 3 d'une mesure fausse est sur le 1 de la bonne, au même instant
+    assert [(c[0], c[2], c[3]) for c in chart[18.0][3]] == [(0, "E:maj", 18.0)]
+    assert [(c[2], c[3]) for c in late[17.0][3]][1] == ("E:maj", 18.0)
+    # hors de mes frappes rien ne bouge : la mesure d'avant et celle d'après sont celles du détecteur
+    assert 15.0 in chart and 23.0 in chart and chart[22.0][2] == 2
+    assert [m for m in song_chart(p) if m[0] < 15.0] == [m for m in wrong if m[0] < 15.0]
+    assert [m for m in song_chart(p) if m[0] >= 23.0] == [m for m in wrong if m[0] >= 23.0]
+
+
+def test_passages_marked_with_the_old_command_are_read_as_fixes(tmp_path, monkeypatch):
+    from arr.commands._common import song_bars
+
+    p = gappy_song(tmp_path, monkeypatch)
+    # tapé autrefois à 30 ms près, en comptant quatre temps par mesure
+    marked_passage(p, "verse", [6.03, 7.98, 10.01, 12.0])
+    assert song_bars(p)[0] == EVERY and [x.state for x in song_passages(p)] == ["corrigé"]
+    assert "aucune correction" in str(runner.invoke(app, ["review", "--undo"]).exception)  # --undo n'y touche pas
+    # un passage compté à trois temps : trois temps égaux là où le détecteur en lit quatre
+    marked_passage(p, "verse", [6.0, 8.0, 10.0, 12.0], version=2, per_bar=3)
+    assert len(song_bars(p)[0]) == 61 and [len(b) for b in review.measures(*song_bars(p))][3:6] == [3, 3, 3]

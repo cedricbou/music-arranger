@@ -216,3 +216,85 @@ def doubtful_song(tmp_path, monkeypatch, weak=WEAK, bars: int = 8):
     monkeypatch.chdir(p.root)
     monkeypatch.setenv("COLUMNS", "120")
     return p
+
+
+def marked_passage(p: Project, name: str, bars: list[float], version: int = 1, per_bar: int = 4):
+    """Un passage de barres tapées, tel qu'un projet peut en porter dans `truth/`."""
+    import tomli_w
+
+    f = p.root / "truth" / f"{name}.v{version:03d}.toml"
+    f.parent.mkdir(exist_ok=True)
+    f.write_text(tomli_w.dumps({"start": bars[0], "end": bars[-1], "beats_per_bar": per_bar, "bars": bars}))
+    return f
+
+
+def gappy_song(tmp_path, monkeypatch, missing=(9.5,), late: float = 0.0, weak=((9.0, 0.6),), bars: int = 16):
+    """Un morceau à 120 à la noire, un accord par mesure, où le détecteur a manqué les temps `missing`.
+
+    Rien ne reste de ces temps dans ce qu'il entendait : `arr` ne les comble pas seul. `late` : ses
+    barres sont posées ce nombre de secondes après les vraies. `weak` : (instant, activation) des temps faibles.
+    """
+    from arr.commands._common import save_analysis
+    from arr.project import Section
+
+    p = Project.create(tmp_path / "song", "song")
+    audio.save(p.root / "source/original.flac", tone(330, 2.0 * bars, amp=0.1))
+    add_track(p, "guitar", tone(330, 2.0 * bars, amp=0.1), {"op": "split"})
+    p.set_sections([Section("verse", 0.0, 1.0 * bars), Section("chorus", 1.0 * bars, 2.0 * bars)])
+    p.song["duration"] = 2.0 * bars
+    p.save()
+    every = [0.5 * i for i in range(4 * bars)]
+    beats = [t for t in every if t not in missing]
+    heard = np.zeros((100 * bars + 1, 2), np.float32)
+    heard[[int(t * 50) for t in beats], 0] = 1.0
+    for t, level in weak:
+        heard[int(t * 50), 0] = level
+    save_analysis(p, beats, [t + late for t in every[::4]], heard)
+    score = p.root / "score"
+    score.mkdir(exist_ok=True)
+    (score / "chord.lab").write_text(
+        "".join(f"{2.0 * i}\t{2.0 * i + 2}\t{'CDEFGAB'[i % 7]}:maj\n" for i in range(bars))
+    )
+    (score / "beat.lab").write_text("".join(f"{t:.2f}\t{i % 4 + 1}\t4\t4\n" for i, t in enumerate(every)))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "120")
+    return p
+
+
+def fake_taps(monkeypatch, passes: list[list[float]], keys: list[list[str]], lead: float, start: float):
+    """Un clavier et une carte son d'essai pour `arr review` : frappes d'Espace et touches, sans rien jouer.
+
+    `passes` : pour chaque passe de frappes, les instants du morceau où Espace est tapé ; le passage
+    commence à `start`, après `lead` secondes de décompte, et chaque bloc sort 30 ms après l'heure du
+    flux. `keys` : les touches reçues par chaque écran en boucle, un lot par image. Rend ce qui a été joué.
+    """
+    from contextlib import contextmanager
+
+    from arr import studio
+    from arr.commands import _playback
+
+    session = {"played": [], "tap": None}
+    todo, typed = iter(passes), iter(keys)
+
+    @contextmanager
+    def keyboard(tap=None):
+        session["tap"] = tap
+        yield (lambda: []) if tap else (lambda: next(typed, []))  # pendant les frappes, le clavier ne pilote rien
+
+    def play(data, loop=None, watch=None, follow=None):
+        session["played"].append((len(data) / audio.SR, loop is not None))
+        if follow:  # une passe de frappes : le flux avance, les frappes arrivent à leur heure
+            for i in range(int(len(data) / audio.SR / 0.02)):
+                follow(0.02 * i, 100.03 + 0.02 * i, False)
+            for at in next(todo, []):
+                session["tap"](100.03 + at - start + lead)
+            watch(len(data) / audio.SR)
+            return
+        for _ in range(50):
+            if watch(0.0)[2:] == (True,):
+                return
+
+    monkeypatch.setattr(studio, "config", lambda: {"output": {"device": "", "channels": [1, 2]}})
+    monkeypatch.setattr(_playback, "keyboard", keyboard)
+    monkeypatch.setattr(studio, "play", play)
+    return session

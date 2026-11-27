@@ -79,30 +79,30 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
     return [tuple(bar) for bar in bars]
 
 
-def song_chart(p: Project) -> list[tuple]:
-    """La grille d'accords du morceau, sur ses mesures de référence (`arr analyze`) ; vide sans transcription.
+def song_chart(p: Project, more: tuple = ()) -> list[tuple]:
+    """La grille d'accords du morceau, sur ses mesures de référence (`song_bars`) ; vide sans transcription.
 
-    Les barres sont posées tous les N temps (`grid.regular_bars`) : beat_this hésite parfois
-    entre des mesures de quatre et de deux temps. Les accords viennent de la transcription, qui
-    compte parfois les mesures autrement (une mesure à deux temps non vue) : `measure.seat_chords`
-    les replace. Les temps entendus deux fois sont retirés d'abord, les temps manqués comblés (`song_grid`).
+    Les accords viennent de la transcription, qui compte parfois les mesures autrement (une mesure
+    à deux temps non vue) : `measure.seat_chords` les replace sur les barres lues par `arr analyze`.
+    Les barres corrigées par le musicien viennent après : un accord reste à l'instant où il sonne,
+    ce sont les barres qui bougent autour de lui. `more` : des corrections à essayer.
     Sans `analysis.json`, la grille suit les temps de la transcription.
     """
     from arr import grid, measure
     from arr.app import ORIGINAL, SCORE
-    from arr.commands._common import song_grid
+    from arr.commands._common import detected_grid, song_bars
     from arr.engines import transcription
 
     score = (p.root / SCORE).parent
     chords, own = transcription.chords(score), transcription.beats(score)
-    original, found = p.root / ORIGINAL, song_grid(p)
+    original, found = p.root / ORIGINAL, detected_grid(p)
     if not chords or not found:
         return chart(chords, own)
-    raw, detected = found
-    downbeats = grid.regular_bars(detected, raw)
     if original.exists():
         own_bars = [t for t, number in own if number == 1]
-        chords = measure.seat_chords(chords, own_bars, downbeats, raw, lambda: audio.load(original))
+        read = grid.regular_bars(found[1], found[0])
+        chords = measure.seat_chords(chords, own_bars, read, found[0], lambda: audio.load(original))
+    raw, downbeats = song_bars(p, more)
     beats, strong = [], iter(sorted(downbeats) + [float("inf")])
     bar = next(strong)
     for t in raw:

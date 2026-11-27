@@ -1,6 +1,7 @@
 # 019 — Ce que le musicien décide vit dans une couche à part, appliquée à la lecture
 
-Date : 26 novembre 2026. État : en vigueur, pour les passages jugés bons. Complète les fiches 015 et 018.
+Date : 26 novembre 2026, complétée le 27 pour les barres. État : en vigueur, pour les passages jugés bons
+et les barres corrigées. Complète les fiches 015 et 018 ; remplace la commande de la fiche 016.
 
 ## Contexte
 
@@ -29,6 +30,37 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
   avec les corrections.
 - **`arr doubts` part** : `arr review --list` dit la même chose, avec l'état de chaque passage.
 
+## Complément du 27 novembre 2026 : les barres corrigées
+
+- **Le musicien donne le compte, `arr` garde ses temps.** Dans `arr review`, m joue le passage
+  une fois après quatre clics ; Espace se tape sur le 1 de chaque mesure. Chaque frappe est
+  datée à l'instant où elle s'entendait (fiche 016) puis menée au temps détecté le plus proche ;
+  à plus d'un demi-temps de tout temps, elle est refusée.
+- **Une correction porte ses barres et tous ses temps**, de la première frappe à la dernière.
+  `review.fix_grid` les met à la place de ce que le détecteur a lu entre ces deux instants, à un
+  quart de temps près. Elle vaut donc quoi que le détecteur relise : la sienne l'emporte, sans
+  signature à comparer.
+- **Rien ne bouge hors du passage.** Les barres régulières (`grid.regular_bars`, fiche 013) sont
+  posées sur ce que le détecteur a lu, sans les corrections ; celles du passage sont remplacées
+  ensuite. Une barre fixée ne peut donc pas être déplacée, et la première barre après le
+  passage reste où elle était. Le prix : un 1 décalé dans tout le morceau laisse une mesure
+  courte ou longue à chaque bord du passage, jusqu'à ce que la correction soit étendue (story
+  « une erreur sur tout le morceau »).
+- **Une mesure qui ne tient pas quatre temps se demande** : vraie mesure, ou temps manqué ou
+  entendu deux fois. Pour la seconde réponse, quatre temps égaux sont posés entre les deux
+  frappes. Cela couvre deux temps manqués de suite, que `grid.fill_beats` ne comble pas (fiche 017).
+- **Les accords ne sont pas réécrits.** Ils sont replacés sur les barres du détecteur comme
+  avant (`measure.seat_chords`, fiche 008), puis la grille est redessinée sur les barres du
+  musicien : un accord reste à son instant, les barres bougent autour.
+- **Deux lectures de la grille** : `song_bars` (barres régulières puis corrections) pour l'écran,
+  le prompteur et l'antisèche ; `song_grid` (barres détectées puis corrections) pour le décompte,
+  le clic et les sections, comme avant.
+- **Les passages de `truth/` se lisent comme des corrections**, avant celles de `review/`. Le
+  musicien y a écrit son nombre de temps par mesure : là où le détecteur en compte un autre, ce
+  nombre de temps égaux est posé. `arr play --mark` et `arr truth` partent ; `truth.score` et
+  `chord_score` notent la lecture brute contre les corrections dans `scripts/grid_score.py`.
+- **`arr review --undo`** écrit une version sans la dernière correction : rien n'est effacé.
+
 ## Ce qui a été écarté
 
 - **Un quart de mesure de tolérance sur le début d'une mesure**, comme prévu au cadrage : en
@@ -44,5 +76,9 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
   reste à constater. beat_this est déterministe sur le même fichier ; un original remplacé par
   une autre édition décale tout, et tout serait redemandé.
 - Une mesure de plus avant et après suffit-elle pour juger un passage ? À dire à l'oreille.
-- Les corrections de barres devront passer avant `grid.regular_bars`, qui ne doit pas déplacer
-  une barre fixée par le musicien : ce n'est pas fait ici.
+- Un 1 que le détecteur a manqué ne peut pas être tapé : la frappe tombe à un temps entier de
+  tout temps détecté et est refusée. Il faut taper les mesures voisines et répondre « temps manqué ».
+- Les accords sont replacés sur les barres du détecteur, pas sur celles du musicien : là où il
+  s'est trompé de plusieurs temps, un accord peut rester décalé jusqu'à la correction des accords.
+- Les numéros de mesure d'`arr sections` suivent les barres détectées, ceux de l'écran les barres
+  régulières : l'écart existait avant, les corrections s'appliquent aux deux.

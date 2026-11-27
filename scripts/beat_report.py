@@ -50,7 +50,7 @@ def filling(on: bool):
 
 def grid_facts(p: Project, on: bool) -> dict:
     with filling(on):
-        beats, detected = _common.song_grid(p)
+        beats, detected = _common.detected_grid(p)
     shown = grid.regular_bars(detected, beats)
     step = audio.period(beats)
     t = np.asarray(beats)

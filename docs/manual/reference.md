@@ -25,11 +25,10 @@ des explications et des exemples, voir les autres pages du [manuel](README.md).
 - [`arr mute`](#arr-mute) : Sort une piste du mix sans la supprimer.
 - [`arr mix`](#arr-mix) : Mixe les versions actives dans mix/mix.flac.
 - [`arr play`](#arr-play) : Écoute le mix (complet ou partiel), une piste ou une prise, en entier ou par sections.
-- [`arr review`](#arr-review) : Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour dire lesquels sont bons.
+- [`arr review`](#arr-review) : Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour les juger ou les corriger.
 - [`arr nudge`](#arr-nudge) : Décale une piste dans le mix, en entier ou par section, sans toucher à ses fichiers.
 - [`arr align`](#arr-align) : Cale les stems d'une prise sur l'original, section par section.
 - [`arr chordpro`](#arr-chordpro) : Écrit le morceau en fichier ChordPro pour un prompteur de scène : export/<dossier>.cho.
-- [`arr truth`](#arr-truth) : Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
 - [`arr capture`](#arr-capture) : Enregistre ce que joue l'ordinateur dans un nouveau projet.
 - [`arr record`](#arr-record) : Enregistre ton instrument pendant que le playback joue, avec un décompte au tempo.
 - [`arr calibrate`](#arr-calibrate) : Mesure le retard entre ce qui est joué et ce qui est enregistré, pour caler tes prises.
@@ -332,8 +331,6 @@ Une mesure marquée « ? » sur la grille est une mesure dont `arr` n'est pas s�
 
 Avec --clock, un prompteur de scène sur le même ordinateur (namfoop) suit la lecture : l'horloge donne le tempo dès le décompte, Start part sur la mesure 1 du fichier ChordPro, la position suit les sections, les flèches et la boucle, la pause envoie Stop.
 
-Avec --mark, le passage joué devient un passage de référence : Espace se tape sur le premier temps de chaque mesure (ni pause ni flèches pendant ce temps), une passe suffit. À la fin, les barres repérées sont rangées dans `truth/` du morceau, à l'instant où elles s'entendaient ; refaire un passage garde le repérage précédent à côté. `arr truth` note la grille contre elles. Un fichier d'accords naît avec le passage, rempli de ceux d'`arr` : corrige ceux que tu entends autrement.
-
 | Argument | Défaut | Rôle |
 |---|---|---|
 | `NAME` |  | Piste ou prise (ex. t001) ; sinon le mix. |
@@ -347,7 +344,6 @@ Avec --mark, le passage joué devient un passage de référence : Espace se tape
 | `--loop`, `-l` | non | Rejoue en boucle jusqu'à Ctrl+C. |
 | `--count-in` | `0` | Mesures de décompte avant de commencer (pas à chaque boucle). |
 | `--clock` | non | Envoie l'horloge et le transport MIDI sur le port « arr:transport » : un prompteur de scène suit le morceau. |
-| `--mark` | non | Repère les barres de mesure à l'oreille : Espace sur le 1 de chaque mesure du passage joué. |
 
 ## `arr review`
 
@@ -355,16 +351,21 @@ Avec --mark, le passage joué devient un passage de référence : Espace se tape
 arr review [OPTIONS]
 ```
 
-Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour dire lesquels sont bons.
+Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour les juger ou les corriger.
 
 Un passage, ce sont des mesures douteuses voisines (un de leurs temps a été entendu faiblement), avec une mesure avant et une après. Il joue en boucle, sur l'original, avec sa grille d'accords et la raison du doute. Entrée dit qu'il est bon et passe au suivant ; flèche gauche et flèche droite mènent à un autre passage sans répondre ; Espace met en pause ; q quitte.
 
-Un passage jugé bon perd son « ? » dans `arr play`, et le garde perdu après un nouvel `arr analyze` tant que ses mesures ne changent pas. La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est vérifié. Les réponses sont rangées dans `review/` du morceau, une version par réponse ; rien de ce qu'`arr` a détecté n'est modifié.
+m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté le plus proche. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est vraiment plus courte ou plus longue, ou si un temps a été manqué ou entendu deux fois : il pose alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
+
+Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne bouge hors des mesures tapées. --undo reprend la dernière correction.
+
+Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement tient après un nouvel `arr analyze` tant que les mesures ne changent pas ; une correction tient toujours. La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est vérifié. Tout est rangé dans `review/` du morceau, une version par décision ; rien de ce qu'`arr` a détecté n'est modifié.
 
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux. |
 | `--list` | non | Liste les passages à relire et leur état, sans rien jouer. |
+| `--undo` | non | Reprend la dernière correction de barres du morceau, ou de la section donnée par -s. |
 
 ## `arr nudge`
 
@@ -419,30 +420,6 @@ Une grille d'accords standard par passage, dans l'ordre joué : quatre mesures p
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--show` | non | Montre le morceau ici, passage par passage, sans l'écrire. |
-
-## `arr truth`
-
-```
-arr truth [OPTIONS] [LIBRARY]
-```
-
-Note la grille de chaque morceau contre ses passages de référence, repérés par `arr play --mark`.
-
-Pour chaque passage : les barres repérées, celles où `arr` pose une barre à moins de 70 ms, les barres qu'`arr` pose en trop, les mesures où il compte le bon nombre de temps (4, ou le `beats_per_bar` écrit dans le fichier du passage), l'écart médian entre ses barres et les frappes, et si le passage va mieux ou moins bien qu'au lancement précédent. La grille notée est celle d'`arr play`. Les notes sont gardées dans `truth/runs.json` de chaque morceau.
-
-« Accords » note ceux d'`arr play` contre le fichier d'accords du passage, que tu corriges à l'oreille (`truth/<passage>.vNNN.chords.txt`, écrit ici s'il manque) : part du temps où la fondamentale est juste, puis fondamentale et majeur ou mineur, et le nombre de mesures corrigées.
-
-« Doute » dit ce que valent les mesures marquées « ? » dans `arr play` : parmi les mesures où la grille se trompe, combien sont marquées, et combien le sont parmi celles où elle est juste.
-
-Sort en erreur si un passage va moins bien : un changement de la grille ne se livre pas ainsi.
-
-| Argument | Défaut | Rôle |
-|---|---|---|
-| `LIBRARY` |  | Dossier des morceaux ; sinon celui qui contient le projet courant, ou le dossier courant. |
-
-| Option | Défaut | Rôle |
-|---|---|---|
-| `--dry-run` | non | Note sans rien retenir : le prochain lancement se compare encore au précédent. |
 
 ## `arr capture`
 

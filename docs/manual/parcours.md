@@ -349,12 +349,14 @@ longueur différente de l'original, prise mal calée).
 ## Relire les passages dont `arr` n'est pas sûr
 
 Là où le détecteur de temps hésitait, `arr` le dit au lieu de trancher en silence, et vous
-fait écouter ces passages un par un : vous dites lesquels sont bons.
+fait écouter ces passages un par un : vous dites lesquels sont bons, et vous corrigez les barres
+mal placées.
 
 ```
 arr review              # joue le premier passage à relire, en boucle
 arr review --list       # les passages, leur instant, la raison, leur état ; rien ne joue
 arr review -s chorus    # relit une section de votre choix, douteuse ou non
+arr review --undo       # reprend la dernière correction de barres
 arr play                # « ? » devant les mesures douteuses ; d saute au passage douteux suivant
 ```
 
@@ -368,7 +370,8 @@ Accords · verse · mes. 11 à 15
 │ G   /   /   /   │
 ? compte incertain · 0:23 : temps 2 entendu faiblement (0,62)
 
-Entrée : c'est bon · ← → : autre passage · Espace : pause · q : quitter (reprise plus tard)
+Entrée : c'est bon · m : les barres sont mal placées
+← → : autre passage · Espace : pause · q : quitter (reprise plus tard)
 vérifié : 0/2 passages
 ```
 
@@ -378,78 +381,70 @@ vérifié : 0/2 passages
 - **Un passage à relire** réunit les mesures douteuses voisines, avec une mesure avant et une
   après pour entrer dans le compte. Il joue en boucle, de barre à barre, sur l'original.
 - **Entrée** dit que le passage est bon et passe au suivant. ← et → mènent à un autre passage
-  sans répondre, Espace met en pause, q quitte. Les deux touches de correction ne sont pas
-  encore là : un passage faux se laisse sans réponse.
-- **Un passage jugé bon perd son « ? »** dans `arr play`. Il le garde perdu après un nouvel
-  `arr analyze` tant que ses mesures sont les mêmes : même début, mêmes temps. Si le détecteur
-  les lit autrement, le passage revient à relire.
+  sans répondre, Espace met en pause, q quitte. m corrige les barres (ci-dessous) ; un accord
+  faux se laisse sans réponse.
+- **Un passage jugé bon ou corrigé perd son « ? »** dans `arr play`. Un jugement tient après un
+  nouvel `arr analyze` tant que les mesures sont les mêmes : même début, mêmes temps. Si le
+  détecteur les lit autrement, le passage revient à relire. Une correction tient toujours.
 - **La relecture se reprend** : `arr review` repart du premier passage qui reste. Quand il n'en
   reste aucun, il dit « morceau vérifié ». `arr analyze` et `arr transcribe` finissent par le
   nombre de passages à relire.
 - **Vos réponses** vivent dans `review/` du morceau, un fichier par réponse (`review/v001.toml`,
-  `review/v002.toml`…) : le dernier fait foi, les précédents restent. Ni la grille, ni les accords, ni
-  le fichier du prompteur ne changent ; une mesure sans marque peut être fausse aussi.
+  `review/v002.toml`…) : le dernier fait foi, les précédents restent. Ce qu'`arr` a détecté
+  n'est jamais modifié ; une mesure sans marque peut être fausse aussi.
 - Sur un morceau au tempo net, moins d'une mesure sur vingt est marquée ; sur un morceau sans
-  batterie ou au tempo flottant, bien plus. `arr truth` dit, sur vos passages de référence,
-  combien de mesures fausses sont marquées (colonne « Doute »).
+  batterie ou au tempo flottant, bien plus.
 - Un morceau analysé avant que cette information ne soit gardée n'a aucun passage : `arr analyze`.
 
-## Noter la grille contre ce que vous comptez
+### Corriger des barres mal placées
 
-Sur un passage difficile (pas de batterie, entrée inhabituelle), comptez les mesures vous-même
-une fois : `arr` garde vos barres et note sa grille contre elles à chaque changement.
-
-```
-arr play -s chorus2,outro --mark --count-in 1   # Espace sur le 1 de chaque mesure
-arr truth                                       # la note, pour tous les morceaux du dossier
-```
-
-- **Repérer** : le passage joue une seule fois. Tapez Espace sur le premier temps de chaque
-  mesure ; pendant ce temps, Espace ne met pas en pause et les flèches ne font rien. Plusieurs
-  sections se repèrent ensemble si elles se suivent dans le morceau ; sans `-s`, c'est le morceau
-  entier. Trente à soixante secondes suffisent.
-- **Chaque frappe est rangée à l'instant où elle s'entendait**, retard de la sortie compris.
-  À la fin, `arr` dit combien de vos barres tombent sur les siennes et demande s'il les garde.
-- **Refaire un passage** écrit une nouvelle version (`truth/chorus2+outro.v002.toml`) : la
-  dernière fait foi, les précédentes restent à côté.
-- **Un passage à trois temps** : changez `beats_per_bar` dans le fichier du passage ; les
-  passes suivantes le gardent.
-- **La dernière frappe ferme la mesure d'avant** : seize frappes font quinze mesures notées.
-- **Les accords que vous entendez** : avec le repérage naît `truth/chorus2+outro.v001.chords.txt`,
-  une ligne par mesure, déjà remplie des accords d'`arr` :
-
-  ```
-    1  0:37.42  F#m              | F#m
-    2  0:39.50  A E              | A E
-    3  0:41.60  N.C.             | N.C.
-  ```
-
-  Corrigez à gauche de la barre ce que vous entendez autrement : un accord, ou deux quand il
-  change au milieu de la mesure. Seuls la fondamentale et majeur ou mineur comptent (`F#m7` vaut
-  `F#m`). Videz une mesure dont vous n'êtes pas sûr : elle ne compte pas. La droite garde ce
-  qu'`arr` avait écrit. Le fichier n'est jamais récrit ; refaire le passage en crée un autre, qui
-  reprend vos corrections là où les barres n'ont pas bougé.
-- **`arr truth`** lit tous les morceaux du dossier qui contient le projet (ou du dossier donné) :
+Quand la barre ne tombe pas là où vous comptez « 1 », ou qu'une mesure montre trois ou cinq
+cases, appuyez sur m pendant que le passage joue.
 
 ```
-Morceau                      Passage                       Barres justes  En trop  Mesures au compte   Écart  Doute                      Accords                                     Depuis
-paper-lanterns--night-drive  chorus2+outro v001 · 4 temps          15/16        1              14/15  -22 ms  1/1 fausses · 2/14 justes  93% fond. · 90% maj/min · 2/15 corrigées  mieux
-Total                                                              15/16        1              14/15          1/1 fausses · 2/14 justes  93% fond. · 90% maj/min · 2/15 corrigées
-mieux : paper-lanterns--night-drive chorus2+outro
+Corriger les barres · verse · mes. 11 à 15 · le passage joue une fois
+Espace sur le 1 de chaque mesure, et sur le 1 qui suit la dernière
+
+décompte : clic · clic · clic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0 frappe
 ```
 
-  « Barres justes » : vos barres où `arr` en pose une à moins de 70 ms. « En trop » : les barres
-  qu'il pose ailleurs dans le passage. « Mesures au compte » : vos mesures où il compte le bon
-  nombre de temps. « Écart » : de ses barres à vos frappes ; négatif, vous tapez après lui.
-  « Doute » : parmi vos mesures où la grille se trompe, celles qu'`arr` marque douteuses, puis
-  celles qu'il marque à tort parmi les justes.
-  « Accords » : la part du temps où l'accord d'`arr play` a la fondamentale que vous entendez,
-  puis la fondamentale et majeur ou mineur, et le nombre de mesures que vous avez corrigées. Une
-  mesure laissée telle quelle compte juste : la note penche du côté d'`arr`.
-  « Depuis » compare au lancement précédent, gardé dans `truth/runs.json` ; `--dry-run` note
-  sans rien retenir. Un passage qui va moins bien fait sortir la commande en erreur.
-- **Vérifier vos frappes** : repérez un passage d'un morceau au clic régulier ; l'écart doit
-  rester sous 70 ms, et toutes les barres être justes.
+```
+1 mesure à 3 temps entre vos frappes (0:25,1)
+  vraie mesure à 3 temps (v), ou temps manqué : 4 temps égaux (t) ?: t
+
+Avant
+│ Am  /   /   /   │ F   /   /   │ /   C   /   /   /   │ G   /   /   /   │
+Après
+│ Am  /   /   /   │ F   /   /   /   │ C   /   /   /   │ G   /   /   /   │
+
+Entrée : garder · r : refaire · Échap : abandonner · Espace : pause
+```
+
+- **Quatre clics au tempo du passage**, puis il joue une fois, jusqu'à une mesure après sa fin.
+  Tapez Espace sur le 1 de chaque mesure, et sur le 1 qui suit la dernière : cinq frappes font
+  quatre mesures. Seules les mesures entre votre première et votre dernière frappe changent.
+- **Vos frappes n'ont pas à être exactes** : chacune va au temps le plus proche qu'`arr` a
+  détecté. Une frappe à plus d'un demi-temps de tout temps est refusée, et `arr` dit laquelle.
+- **Là où deux frappes ne tiennent pas quatre temps**, `arr` demande : v pour une vraie mesure
+  plus courte ou plus longue, t si un temps a été manqué ou entendu deux fois. Pour t, quatre
+  temps égaux sont posés entre les deux frappes ; cela vaut aussi pour deux temps manqués de suite.
+- **Le passage rejoue en boucle avec la nouvelle grille** sous l'ancienne. Entrée la garde, r
+  refait les frappes, Échap abandonne.
+- **Les accords restent à l'instant où ils sonnent** : un accord écrit sur le temps 2 d'une
+  mesure fausse se retrouve sur le 1 de la bonne.
+- **La correction se voit partout** : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les
+  numéros de mesure. Le fichier du prompteur déjà écrit ne change pas seul : relancez
+  `arr chordpro`, la relecture le rappelle.
+- **Rien ne bouge hors de vos frappes.** Si le 1 est décalé dans tout le morceau, la mesure
+  juste avant et celle juste après le passage corrigé sont plus courtes ou plus longues.
+- **`arr review --undo`** reprend la dernière correction du morceau ; avec `-s chorus`, la
+  dernière qui touche cette section. Les versions précédentes restent dans `review/`.
+- **Un morceau qui porte des barres tapées dans `truth/`** les lit comme des corrections : là
+  où le détecteur ne compte pas le nombre de temps par mesure écrit dans le fichier du passage,
+  ce nombre de temps égaux est posé entre deux barres. Pour ne pas en tenir compte, déplacez le
+  dossier `truth/` hors du projet.
 
 ## Faire le ménage
 
