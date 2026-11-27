@@ -77,7 +77,8 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
   une autre édition décale tout, et tout serait redemandé.
 - Une mesure de plus avant et après suffit-elle pour juger un passage ? À dire à l'oreille.
 - Un 1 que le détecteur a manqué ne peut pas être tapé : la frappe tombe à un temps entier de
-  tout temps détecté et est refusée. Il faut taper les mesures voisines et répondre « temps manqué ».
+  tout temps détecté et est refusée. Taper les mesures voisines ne suffit pas : les deux mesures
+  n'en feraient qu'une. Cette barre-là ne se corrige pas encore.
 - Les accords sont replacés sur les barres du détecteur, pas sur celles du musicien : là où il
   s'est trompé de plusieurs temps, un accord peut rester décalé jusqu'à la correction des accords.
 - Les numéros de mesure d'`arr sections` suivent les barres détectées, ceux de l'écran les barres
