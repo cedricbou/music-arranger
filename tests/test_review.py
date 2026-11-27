@@ -320,10 +320,11 @@ def test_a_shifted_one_is_fixed_in_a_section_and_chords_stay_where_they_sound(tm
         (0, "D:maj"),
         (2, "E:maj"),
     ]  # l'accord change au milieu de la mesure
-    session = fake_taps(monkeypatch, [[16.0, 18.0, 20.0, 22.0]], [["bars"], ["enter"]], lead=2.0, start=17.0)
+    session = fake_taps(monkeypatch, [[16.0, 18.0, 20.0, 22.0]], [["bars"], ["enter"]], lead=2.0, start=16.0)
     out = runner.invoke(app, ["review", "-s", "chorus"]).output
     assert "✔ chorus" in out and "barres corrigées" in out
-    assert session["played"][1] == (17.0, False)  # deux secondes de clics, la section, une mesure de plus
+    # deux secondes de clics, la section depuis son début (16 s, avant la première barre du détecteur), une mesure de plus
+    assert session["played"][1] == (18.0, False)
     chart = {m[0]: m for m in song_chart(p)}
     # mes barres : l'accord écrit sur le temps 3 d'une mesure fausse est sur le 1 de la bonne, au même instant
     assert [(c[0], c[2], c[3]) for c in chart[18.0][3]] == [(0, "E:maj", 18.0)]
@@ -345,3 +346,36 @@ def test_passages_marked_with_the_old_command_are_read_as_fixes(tmp_path, monkey
     # un passage compté à trois temps : trois temps égaux là où le détecteur en lit quatre
     marked_passage(p, "verse", [6.0, 8.0, 10.0, 12.0], version=2, per_bar=3)
     assert len(song_bars(p)[0]) == 61 and [len(b) for b in review.measures(*song_bars(p))][3:6] == [3, 3, 3]
+
+
+def test_sections_in_a_row_play_from_their_very_start_and_the_taps_can_be_stopped(tmp_path, monkeypatch):
+    from arr.commands._common import song_bars
+    from arr.project import Section
+
+    # un morceau sans ce que le détecteur entendait, dont les barres sont posées un temps trop tard
+    p = gappy_song(tmp_path, monkeypatch, missing=(), late=0.5, weak=())
+    (p.root / "analysis_frames.npz").unlink()
+    p.set_sections([Section("intro", 0.0, 4.0), Section("intro2", 4.0, 8.0), Section("verse", 8.0, 32.0)])
+    p.save()
+    assert "lance arr analyze" in str(
+        runner.invoke(app, ["review"]).exception
+    )  # les passages douteux, eux, en ont besoin
+    assert "doivent se suivre" in str(runner.invoke(app, ["review", "-s", "intro,verse"]).exception)
+
+    # r pendant les frappes : la passe repart des quatre clics ; puis Échap : rien n'est gardé
+    session = fake_taps(monkeypatch, ["redo", "escape"], [["bars"], ["quit"]], lead=2.0, start=0.0)
+    out = runner.invoke(app, ["review", "-s", "intro,intro2"]).output
+    assert "song · section intro,intro2" in out and "r : recommencer · Échap : abandonner" in out
+    assert "barres laissées telles quelles" in out and not (p.root / "review").exists()
+    # la boucle part du début de la première section, pas de sa première barre (0,5 s) ; les frappes aussi
+    assert session["played"] == [(8.5, True), (12.5, False), (12.5, False), (8.5, True)]
+    # la grille du moment est sous les yeux pendant les frappes
+    tapping = out.split("Corriger les barres")[1]
+    assert "Accords · intro" in tapping and "│ C   /   /   /   │" in tapping
+
+    # les frappes couvrent les deux sections, depuis le tout premier temps
+    taps = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+    fake_taps(monkeypatch, [taps], [["bars"], ["enter"]], lead=2.0, start=0.0)
+    out = runner.invoke(app, ["review", "-s", "intro,intro2"], input="v\n").output
+    assert "barres corrigées" in out and [t for t in song_bars(p)[1] if t <= 10.0] == taps
+    assert "correction reprise" in runner.invoke(app, ["review", "--undo", "-s", "intro,intro2"]).output

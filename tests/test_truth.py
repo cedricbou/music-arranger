@@ -74,7 +74,7 @@ def test_verdict_since_the_last_run():
 
 
 def test_taps_are_dated_when_the_key_arrives(monkeypatch):
-    """Sur un vrai terminal (ici un pseudo-terminal) : Espace est daté par le fil, les flèches sont ignorées."""
+    """Sur un vrai terminal (ici un pseudo-terminal) : Espace est daté par le fil, qui rend les autres touches."""
     import pty
     import sys
     import types
@@ -89,9 +89,9 @@ def test_taps_are_dated_when_the_key_arrives(monkeypatch):
         sent = time.monotonic()
         os.write(master, b" \x1b[C")
         time.sleep(0.15)
-        os.write(master, b" ")
+        os.write(master, b" r")
         time.sleep(0.1)
-        assert pressed() == []
+        assert pressed() == ["forward", "redo"] and pressed() == []
     os.close(master), os.close(slave)
     assert len(taps) == 2 and 0 <= taps[0] - sent < 0.03 and taps[1] - taps[0] == pytest.approx(0.15, abs=0.03)
 

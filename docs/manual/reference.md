@@ -355,7 +355,7 @@ Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesu
 
 Un passage, ce sont des mesures douteuses voisines (un de leurs temps a été entendu faiblement), avec une mesure avant et une après. Il joue en boucle, sur l'original, avec sa grille d'accords et la raison du doute. Entrée dit qu'il est bon et passe au suivant ; flèche gauche et flèche droite mènent à un autre passage sans répondre ; Espace met en pause ; q quitte.
 
-m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté le plus proche. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est vraiment plus courte ou plus longue, ou si un temps a été manqué ou entendu deux fois : il pose alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
+m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté le plus proche. Pendant les frappes, la grille du moment défile ; r recommence, Échap abandonne. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est vraiment plus courte ou plus longue, ou si un temps a été manqué ou entendu deux fois : il pose alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
 
 Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne bouge hors des mesures tapées. --undo reprend la dernière correction.
 
@@ -363,7 +363,7 @@ Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement t
 
 | Option | Défaut | Rôle |
 |---|---|---|
-| `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux. |
+| `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux ; plusieurs qui se suivent : -s intro,intro2. |
 | `--list` | non | Liste les passages à relire et leur état, sans rien jouer. |
 | `--undo` | non | Reprend la dernière correction de barres du morceau, ou de la section donnée par -s. |
 

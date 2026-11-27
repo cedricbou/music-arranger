@@ -32,9 +32,10 @@ def parse_keys(data: bytes) -> list[str]:
 def keyboard(tap=None):
     """Le temps de la lecture, lit les touches sans attendre Entrée ; donne une fonction qui rend celles tapées.
 
-    Avec `tap`, le clavier ne pilote plus la lecture : un fil appelle `tap(heure)` à chaque
+    Avec `tap`, Espace ne pilote plus la lecture : un fil appelle `tap(heure)` à chaque
     Espace, l'heure (`time.monotonic`) lue dès que la touche arrive, là où l'écran ne passe
-    que vingt fois par seconde. Hors d'un terminal (tests, sortie redirigée), aucune touche n'est lue.
+    que vingt fois par seconde ; la fonction donnée rend les autres touches.
+    Hors d'un terminal (tests, sortie redirigée), aucune touche n'est lue.
     """
     import select
     import sys
@@ -58,19 +59,24 @@ def keyboard(tap=None):
             data += os.read(fd, 64)
         return parse_keys(data)
 
+    others: list[str] = []
+
     def listen() -> None:
         while not done.is_set():
             if select.select([fd], [], [], 0.05)[0]:
                 at = time.monotonic()
                 for key in parse_keys(os.read(fd, 64)):
-                    if key == "pause":
-                        tap(at)
+                    tap(at) if key == "pause" else others.append(key)
+
+    def beside() -> list[str]:
+        """Les touches autres qu'Espace reçues par le fil depuis le dernier appel."""
+        return [others.pop(0) for _ in range(len(others))]
 
     thread = threading.Thread(target=listen, daemon=True) if tap else None
     try:
         if thread:
             thread.start()
-        yield (lambda: []) if tap else pressed
+        yield beside if tap else pressed
     finally:
         done.set()
         if thread:
