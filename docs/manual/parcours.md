@@ -452,13 +452,47 @@ Entrée : garder · r : refaire · Échap : abandonner · Espace : pause
   `arr chordpro`, la relecture le rappelle.
 - **Rien ne bouge hors de vos frappes.** Si le 1 est décalé dans tout le morceau, la mesure
   juste avant et celle juste après le passage corrigé sont plus courtes ou plus longues.
-- **`arr review --undo`** reprend la dernière correction du morceau, de barres ou d'accords ;
-  avec `-s chorus`, la dernière qui touche cette section. Les versions précédentes restent dans
+- **`arr review --undo`** reprend la dernière correction du morceau (tempo, barres, décalage ou
+  accords) ; avec `-s chorus`, la dernière qui touche cette section. Les versions précédentes restent dans
   `review/`.
 - **Un morceau qui porte des barres tapées dans `truth/`** les lit comme des corrections : là
   où le détecteur ne compte pas le nombre de temps par mesure écrit dans le fichier du passage,
   ce nombre de temps égaux est posé entre deux barres. Pour ne pas en tenir compte, déplacez le
   dossier `truth/` hors du projet.
+
+### Une erreur qui court sur tout le morceau
+
+Deux erreurs se répètent d'un bout à l'autre d'un morceau. `arr review` les traite d'une seule
+question au lieu de cinquante passages.
+
+```
+Night Drive · avant la relecture
+
+? arr ne compte pas partout au même tempo
+  67   intro2, chorus3, chorus4, interlude
+  136  verse, verse2, chorus, chorus2
+
+▶ verse · en boucle, avec un clic sur chaque temps à 67
+
+1 : écouter le clic à 67 · 2 : écouter le clic à 136
+Entrée : garder le clic en cours pour tout le morceau · s : laisser tel quel · q : quitter
+```
+
+- **Un morceau compté à deux tempos**, l'un double de l'autre : la relecture commence par cette
+  question. Une section joue en boucle avec un clic sur chaque temps ; 1 et 2 font entendre
+  l'un et l'autre tempo. Entrée garde celui qui joue : les sections comptées à l'autre sont
+  recomptées, leurs mesures et leurs numéros changent, les accords restent à leur instant.
+  s laisse le morceau tel quel, et la question n'est plus posée.
+- La question ne vient que si au moins quatre mesures sont à chaque tempo, et seulement pour un
+  rapport de deux. `arr review --list` dit si elle attend.
+- **Le tempo écrit dans `song.toml`** (`bpm`) n'est pas changé : le prompteur et l'antisèche
+  l'affichent. Si vous gardez l'autre tempo, `arr` le rappelle : corrigez `bpm` à la main.
+- **Un 1 décalé partout** : après avoir tapé les barres d'un passage (m), si votre 1 tombe le
+  même nombre de temps après celui d'`arr` sur toutes vos mesures, `arr` propose d'appliquer ce
+  décalage à la section (s), à tout le morceau (m), ou seulement ici (Entrée). Au bord d'une
+  section décalée seule, une mesure reste plus longue ou plus courte.
+- **Rien n'est appliqué sans votre réponse**, et `arr review --undo` reprend la dernière
+  correction, quelle qu'elle soit : tempo, barres, décalage, accords.
 
 ### Corriger un accord faux
 

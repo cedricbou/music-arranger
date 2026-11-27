@@ -6,11 +6,20 @@ from typing import Optional
 
 import typer
 
-from arr import audio, chordfix
+from arr import audio
 from arr import review as layer
 from arr.app import app
-from arr.commands._common import detected_grid, lead_in, reference, song_bars, song_doubts, song_fixes, song_passages
-from arr.commands._fixes import clicks, cut, fix_bars, fix_chords, looped, stamp, within
+from arr.commands._common import (
+    detected_grid,
+    lead_in,
+    reference,
+    song_bars,
+    song_doubts,
+    song_fixes,
+    song_passages,
+    tempo_question,
+)
+from arr.commands._fixes import ask_shift, ask_tempo, clicks, cut, fix_bars, fix_chords, looped, stamp, within
 from arr.commands._screen import chord_block, clock, song_chart
 from arr.project import Project, ProjectError
 
@@ -77,13 +86,39 @@ def undo(p: Project, section: Optional[str]) -> None:
     taken = layer.undo_fix(p, *section_range(p, section)) if section else layer.undo_fix(p)
     if taken is None:
         raise ProjectError(f"aucune correction à reprendre{f' dans {section}' if section else ''}")
-    chords = isinstance(taken, chordfix.ChordFix)
-    start, end = (taken.start, taken.end) if chords else (taken.bars[0], taken.bars[-1])
+    kind, start, end = taken
     name = section_of(p, start)
+    where = "tout le morceau" if end == float("inf") else f"{name + ' · ' if name else ''}{stamp(start)} à {stamp(end)}"
     typer.echo(
-        f"correction {'des accords' if chords else 'des barres'} reprise : {name + ' · ' if name else ''}"
-        f"{stamp(start)} à {stamp(end)} ; elle reste lisible dans les versions précédentes de review/"
+        f"correction {layer.KINDS[kind]} reprise : {where} ; elle reste lisible dans les versions précédentes de review/"
     )
+
+
+def tempo_first(p: Project, whole, title: str) -> bool:
+    """Pose la question des deux tempos si elle se pose, et recompte le morceau selon la réponse ; False si le musicien quitte."""
+    split = tempo_question(p)
+    if not split:
+        return True
+    keep, ranges = ask_tempo(p, whole, split, title)
+    if keep == "quit":
+        return False
+    count = lambda: sum(
+        any(a - 0.05 <= bar[0] < b - 0.05 for a, b, _ in ranges) for bar in layer.measures(*song_bars(p))
+    )
+    before = count()
+    layer.save_tempo(p, keep, split["period"], ranges)
+    if keep == "asis":
+        typer.echo("tempo laissé tel quel ; la question ne sera plus posée (arr review --undo pour y revenir)")
+        return True
+    bpm, names = round((30 if keep == "slow" else 60) / split["period"]), split["fast" if keep == "slow" else "slow"]
+    typer.echo(f"✔ {bpm} partout : {', '.join(names)} recompté{'s' if len(names) > 1 else ''}")
+    typer.echo(f"  {before} mesures deviennent {count()} · les accords restent à leur instant")
+    written = float(p.song.get("bpm") or 0)
+    if written and abs(written / bpm - 1) > 0.25:
+        typer.echo(
+            f"  song.toml dit bpm = {written:g} : prompteur et antisèche l'affichent encore ; écrivez-y {bpm} si c'est votre compte"
+        )
+    return True
 
 
 @app.command()
@@ -98,7 +133,7 @@ def review(
     back: bool = typer.Option(
         False,
         "--undo",
-        help="Reprend la dernière correction (barres ou accords) du morceau, ou de la section donnée par -s.",
+        help="Reprend la dernière correction (tempo, barres, décalage ou accords) du morceau, ou de la section donnée par -s.",
     ),
     count: bool = typer.Option(
         False,
@@ -133,6 +168,13 @@ def review(
     le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne
     bouge hors des mesures tapées. --undo reprend la dernière correction, de barres ou d'accords.
 
+    Quand le morceau est compté à deux tempos, l'un double de l'autre, la relecture commence par
+    une question : une section joue en boucle avec un clic sur chaque temps, 1 et 2 passent d'un
+    tempo à l'autre, Entrée garde celui qui s'entend pour tout le morceau (les sections comptées
+    à l'autre sont recomptées), s laisse tel quel. Après des barres tapées, si le 1 était décalé
+    du même nombre de temps sur toutes les mesures, `arr` propose d'appliquer ce décalage à la
+    section ou à tout le morceau. Rien n'est appliqué sans réponse, et --undo le reprend.
+
     Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement tient après un
     nouvel `arr analyze` tant que les mesures ne changent pas ; une correction tient toujours.
     La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est
@@ -142,9 +184,15 @@ def review(
     p = Project.find()
     if back:
         return undo(p, section)
-    found, read = song_passages(p), song_bars(p)
-    if not read:
+    if not song_bars(p):
         raise ProjectError("pas d'analyse (lance `arr analyze`)")
+    title = p.song.get("title") or p.root.name
+    if listing and tempo_question(p):
+        typer.echo("? arr ne compte pas partout au même tempo : arr review pose la question avant la relecture")
+    whole = None if listing else audio.load(reference(p))
+    if not listing and not tempo_first(p, whole, title):
+        return
+    found = song_passages(p)
     if found is None and (listing or not section):
         raise ProjectError(
             "ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze "
@@ -158,7 +206,6 @@ def review(
             typer.echo(f"{clock(x.start):>5}  {x.where:<16} {name:<10} {why[0]}{more}  ·  {x.state}")
         typer.echo(verified(found) if found else "aucun passage douteux")
         return
-    title = p.song.get("title") or p.root.name
 
     def chosen() -> list[layer.Passage]:
         """Le passage de la section demandée, sur la grille du moment."""
@@ -175,7 +222,7 @@ def review(
     if at is None:
         typer.echo(f"{title} · {verified(found) if found else 'aucun passage douteux'} · morceau vérifié")
         return
-    whole, chart, fixed = audio.load(reference(p)), song_chart(p), 0
+    chart, fixed = song_chart(p), 0
     while True:
         head = f"{title} · section {section}" if section else f"{title} · relecture {at + 1}/{len(todo)}"
         answer = listen(p, whole, chart, todo[at], head, "" if section else verified(todo), count)
@@ -185,8 +232,13 @@ def review(
             if fix is None:
                 typer.echo(f"{name} : {'barres laissées telles quelles' if bars else 'accords laissés tels quels'}")
                 continue
+            written = song_bars(p)
             saved = layer.save_fix(p, fix) if bars else layer.save_chord_fix(p, fix)
             typer.echo(f"✔ {name} : {'barres corrigées' if bars else 'accords corrigés'} ({layer.FOLDER}/{saved.name})")
+            if bars and (wide := ask_shift(p, fix, written)):
+                layer.save_shift(p, *wide)
+                where = "tout le morceau" if wide[1] == float("inf") else f"{stamp(wide[0])} à {stamp(wide[1])}"
+                typer.echo(f"✔ le 1 décalé de {wide[2]} temps : {where}")
             # La grille a changé : les passages et leurs numéros de mesure se relisent, et le passage rejoue.
             start, chart, fixed = todo[at].start, song_chart(p), fixed + 1
             todo = chosen() if section else song_passages(p)

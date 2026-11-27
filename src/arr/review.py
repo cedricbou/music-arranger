@@ -14,6 +14,9 @@ première et la dernière : `fix_grid` les met à la place de ce que le détecte
 rien d'autre. Elle vaut quoi que le détecteur relise ensuite.
 
 Une correction d'accords (`chordfix.ChordFix`) est rangée et reprise ici, avec les barres.
+
+Deux corrections valent pour tout un morceau ou toute une section, et passent avant les barres
+tapées : un tempo lu double par endroits (`retempo`) et un 1 décalé partout (`shifted`).
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from pathlib import Path
 
 import tomli_w
 
+from arr import grid
 from arr.chordfix import ChordFix
 from arr.project import Project, ProjectError
 
@@ -220,6 +224,35 @@ def fix_grid(beats: list[float], bars: list[float], fixes: list[Fix]) -> tuple[l
     return beats, bars
 
 
+# --- ce qui vaut pour tout le morceau
+
+
+def retempo(beats: list[float], downbeats: list[float], fixes: list[dict]) -> tuple[list[float], list[float]]:
+    """La grille recomptée au tempo que le musicien a gardé : un temps sur deux là où elle allait au double, ou un de plus à chaque écart.
+
+    Chaque plage (début, fin, premier temps gardé) n'est recomptée que si elle est encore lue à
+    l'autre tempo : une nouvelle analyse qui la lit bien n'est pas recomptée une seconde fois.
+    """
+    for fix in fixes:
+        for start, end, anchor in fix["ranges"]:
+            inside = [t for t in beats if start - 0.05 <= t < end - 0.05]
+            if len(inside) < 3:
+                continue
+            fast = statistics.median(b - a for a, b in zip(inside, inside[1:], strict=False)) < 1.5 * fix["period"]
+            if fix["keep"] == "slow" and fast:
+                beats, downbeats, _ = grid.halve_beats(beats, downbeats, start, end, anchor)
+            elif fix["keep"] == "fast" and not fast:
+                beats, downbeats = grid.double_beats(beats, downbeats, start, end)
+    return beats, downbeats
+
+
+def shifted(beats: list[float], bars: list[float], shifts: list[dict]) -> list[float]:
+    """Les barres, décalées du nombre de temps que le musicien a dit, dans les plages qu'il a dites."""
+    for shift in shifts:
+        bars = grid.shift_bars(beats, bars, shift["start"], shift["end"], shift["by"])
+    return bars
+
+
 # --- sur le disque
 
 
@@ -304,17 +337,52 @@ def save_chord_fix(p: Project, fix: ChordFix) -> Path:
     return _write(p, {**data, "chords": [*data.get("chords", []), entry]})
 
 
-def undo_fix(p: Project, start: float = 0.0, end: float = float("inf")) -> Fix | ChordFix | None:
-    """Reprend la dernière correction (barres ou accords) qui touche à `start`–`end`, dans une nouvelle version.
+def tempo_fixes(p: Project) -> list[dict]:
+    """Ce que le musicien a répondu à la question des deux tempos : `keep` (« slow », « fast » ou « asis »), `period`, `ranges`."""
+    return list(_latest(p).get("tempos", []))
 
-    Rend la correction reprise, ou None s'il n'y en a pas. À la même seconde, les accords d'abord : ils viennent après les barres.
+
+def save_tempo(p: Project, keep: str, period: float, ranges: list[tuple[float, float, float]]) -> Path:
+    """Garde la réponse à la question des deux tempos, dans une nouvelle version."""
+    data, now = _latest(p), datetime.now().isoformat(timespec="seconds")
+    entry = {
+        "fixed": now,
+        "keep": keep,
+        "period": round(period, 4),
+        "ranges": [[round(t, 3) for t in r] for r in ranges],
+    }
+    return _write(p, {**data, "tempos": [*data.get("tempos", []), entry]})
+
+
+def shifts(p: Project) -> list[dict]:
+    """Les décalages du 1 étendus à une section ou au morceau : `start`, `end`, `by` (en temps)."""
+    return list(_latest(p).get("shifts", []))
+
+
+def save_shift(p: Project, start: float, end: float, by: int) -> Path:
+    data, now = _latest(p), datetime.now().isoformat(timespec="seconds")
+    entry = {"fixed": now, "start": round(start, 3), "end": round(end, 3), "by": by}
+    return _write(p, {**data, "shifts": [*data.get("shifts", []), entry]})
+
+
+KINDS = {"fixes": "des barres", "chords": "des accords", "shifts": "du décalage du 1", "tempos": "du tempo"}
+
+
+def undo_fix(p: Project, start: float = 0.0, end: float = float("inf")) -> tuple[str, float, float] | None:
+    """Reprend la dernière correction qui touche à `start`–`end`, dans une nouvelle version.
+
+    Rend ce qu'elle était (une clé de `KINDS`) et ses bornes, ou None s'il n'y en a pas. À la même
+    seconde, la plus tardive dans l'ordre de la relecture : tempo, barres, décalage, accords.
     """
     data = _latest(p)
-    found = [("fixes", i, f, f.bars[0], f.bars[-1]) for i, f in enumerate(bar_fixes(p))]
-    found += [("chords", i, f, f.start, f.end) for i, f in enumerate(chord_fixes(p))]
+    found = [("fixes", i, f.fixed, f.bars[0], f.bars[-1]) for i, f in enumerate(bar_fixes(p))]
+    found += [("chords", i, f.fixed, f.start, f.end) for i, f in enumerate(chord_fixes(p))]
+    found += [("shifts", i, e["fixed"], e["start"], e["end"]) for i, e in enumerate(shifts(p))]
+    found += [("tempos", i, e["fixed"], 0.0, float("inf")) for i, e in enumerate(tempo_fixes(p))]
     found = [x for x in found if x[3] < end and x[4] > start]
     if not found:
         return None
-    key, last, fix, _, _ = max(found, key=lambda x: (x[2].fixed, x[0] == "chords", x[1]))
+    order = ["tempos", "fixes", "shifts", "chords"]
+    key, last, _, a, b = max(found, key=lambda x: (x[2], order.index(x[0]), x[1]))
     _write(p, {**data, key: [e for i, e in enumerate(data[key]) if i != last]})
-    return fix
+    return key, a, b

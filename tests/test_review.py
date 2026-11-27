@@ -323,8 +323,10 @@ def test_a_shifted_one_is_fixed_in_a_section_and_chords_stay_where_they_sound(tm
         (2, "E:maj"),
     ]  # l'accord change au milieu de la mesure
     session = fake_taps(monkeypatch, [[16.0, 18.0, 20.0, 22.0]], [["bars"], ["enter"]], lead=2.0, start=16.0)
-    out = runner.invoke(app, ["review", "-s", "chorus"]).output
+    out = runner.invoke(app, ["review", "-s", "chorus"], input="\n").output  # le décalage : « seulement ici »
     assert "✔ chorus" in out and "barres corrigées" in out
+    assert "le 1 est 2 temps plus tard qu'écrit, sur toutes vos mesures" in out
+    assert "à la section chorus (s), à tout le morceau (m), ou seulement ici (Entrée)" in out
     # deux secondes de clics, la section depuis son début (16 s, avant la première barre du détecteur), une mesure de plus
     assert session["played"][1] == (18.0, False)
     chart = {m[0]: m for m in song_chart(p)}
@@ -378,7 +380,7 @@ def test_sections_in_a_row_play_from_their_very_start_and_the_taps_can_be_stoppe
     # les frappes couvrent les deux sections, depuis le tout premier temps
     taps = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
     fake_taps(monkeypatch, [taps], [["bars"], ["enter"]], lead=2.0, start=0.0)
-    out = runner.invoke(app, ["review", "-s", "intro,intro2"], input="v\n").output
+    out = runner.invoke(app, ["review", "-s", "intro,intro2"], input="\n").output
     assert "barres corrigées" in out and [t for t in song_bars(p)[1] if t <= 10.0] == taps
     assert "correction des barres reprise" in runner.invoke(app, ["review", "--undo", "-s", "intro,intro2"]).output
 
@@ -596,3 +598,173 @@ def test_a_bar_fix_made_later_keeps_the_chords_i_fixed():
     fix = chordfix.ChordFix(8.0, 10.0, [(8.0, 9.0, "Gm"), (9.0, 10.0, "D7")])
     chords = chordfix.lay_chords([(2.0 * i, 2.0 * i + 2, "C:maj") for i in range(8)], [fix])
     assert (8.0, 9.0, "Gm") in chords and (9.0, 10.0, "D7") in chords and len(chords) == 9
+
+
+# --- ce qui se trompe sur tout le morceau
+
+
+def two_tempo_song(tmp_path, monkeypatch):
+    """Un morceau à 60 à la noire, quatre sections de quatre mesures ; le détecteur en compte deux au double (120)."""
+    from arr.cli import add_track
+    from arr.project import Project, Section
+
+    p = Project.create(tmp_path / "song", "song")
+    add_track(p, "guitar", np.zeros((64 * audio.SR, 2), np.float32), {"op": "split"})  # seuls les clics s'entendent
+    p.set_sections([Section(n, 16.0 * i, 16.0 * i + 16) for i, n in enumerate(["intro", "verse", "chorus", "verse2"])])
+    p.song.update(duration=64.0, key="C major", bpm=60)
+    p.save()
+    fast = lambda t: 16.0 <= t < 32.0 or 48.0 <= t < 64.0
+    beats = [0.5 * i for i in range(128) if fast(0.5 * i) or i % 2 == 0]
+    bars = [t for t in beats if t % 4 == 0 or (fast(t) and t % 2 == 0)]  # quatre de ses temps par mesure, partout
+    heard = np.zeros((3201, 2), np.float32)
+    heard[[int(t * 50) for t in beats], 0] = 1.0
+    save_analysis(p, beats, bars, heard)
+    score = p.root / "score"
+    score.mkdir(exist_ok=True)
+    (score / "chord.lab").write_text("".join(f"{4.0 * i}\t{4.0 * i + 4}\t{'CDEFGAB'[i % 7]}:maj\n" for i in range(16)))
+    (score / "beat.lab").write_text("".join(f"{float(i):.2f}\t{i % 4 + 1}\t4\t4\n" for i in range(64)))
+    monkeypatch.chdir(p.root)
+    monkeypatch.setenv("COLUMNS", "120")
+    return p
+
+
+def test_a_song_counted_at_two_tempos_is_told_from_a_steady_one():
+    from arr import grid
+
+    slow, fast = [float(i) for i in range(32)], [32 + 0.5 * i for i in range(64)]
+    parts = [("intro", 0.0, 16.0), ("verse", 16.0, 32.0), ("chorus", 32.0, 48.0), ("outro", 48.0, 64.0)]
+    found = grid.tempo_split(slow + fast, parts)
+    assert found == {"period": 0.5, "fast": ["chorus", "outro"], "slow": ["intro", "verse"]}
+    assert grid.tempo_split([0.5 * i for i in range(128)], parts) is None  # un seul tempo
+    assert grid.tempo_split(slow + [32 + 0.73 * i for i in range(44)], parts) is None  # 60 contre 82 : pas le double
+    assert grid.tempo_split(slow + [32 + 0.5 * i for i in range(8)], parts) is None  # deux mesures : trop peu
+    assert grid.tempo_split(slow + fast, []) is None
+
+    # un temps sur deux : du côté des barres détectées, ou de l'ancre donnée
+    beats, bars = [0.5 * i for i in range(16)], [0.5, 2.5, 4.5, 6.5]
+    halved, kept, anchor = grid.halve_beats(beats, bars, 0.0, 8.0)
+    # les barres étaient deux fois trop serrées : une sur deux reste, quatre temps gardés par mesure
+    assert halved == [0.5 + i for i in range(8)] and kept == [0.5, 4.5] and anchor == 0.5
+    halved, kept, _ = grid.halve_beats(beats, bars, 0.0, 8.0, anchor=1.02)
+    assert halved == [float(i) for i in range(8)] and kept == []  # les barres des temps retirés partent
+    assert grid.halve_beats(beats, bars, 4.0, 8.0)[0] == [*beats[:8], 4.5, 5.5, 6.5, 7.5]  # rien hors de la plage
+    # un temps de plus au milieu de chaque écart, jusqu'au premier temps d'après la plage
+    doubled = grid.double_beats([float(i) for i in range(13)], [0.0, 4.0, 8.0, 12.0], 0.0, 8.0)
+    assert doubled[0] == [*(0.5 * i for i in range(16)), 8.0, 9.0, 10.0, 11.0, 12.0]
+    assert doubled[1] == [0.0, 2.0, 4.0, 6.0, 8.0, 12.0]  # une barre de plus au milieu de chaque mesure de la plage
+
+
+def test_the_review_opens_with_one_question_about_the_tempo(tmp_path, monkeypatch):
+    from arr.commands._common import song_bars, tempo_question
+    from arr.commands._screen import song_chart
+
+    p = two_tempo_song(tmp_path, monkeypatch)
+    assert (
+        len(review.measures(*song_bars(p))) == 24
+    )  # 4 + 8 + 4 + 8 : les sections comptées au double ont deux fois plus de mesures
+    assert "arr ne compte pas partout au même tempo" in runner.invoke(app, ["review", "--list"]).output
+    # 2 : le clic à 120 ; 1 : à 60 ; Entrée garde 60 pour tout le morceau
+    session = fake_taps(monkeypatch, [], [["two"], ["one"], ["enter"]], lead=0.0, start=0.0)
+    calls = []
+    from arr import studio
+
+    real = studio.play
+    monkeypatch.setattr(
+        studio,
+        "play",
+        lambda data, loop=None, watch=None, follow=None: calls.append(data) or real(data, loop, watch, follow),
+    )
+    out = runner.invoke(app, ["review"]).output
+    assert "song · avant la relecture" in out and "? arr ne compte pas partout au même tempo" in out
+    assert "60   intro, chorus" in out and "120  verse, verse2" in out
+    assert (
+        "verse · en boucle, avec un clic sur chaque temps à 60" in out
+        and "1 : écouter le clic à 60 · 2 : écouter le clic à 120" in out
+    )
+    loud = lambda data: np.flatnonzero(np.abs(data[:, 0]) > 0.1)
+    clicks = lambda data: 1 + int((np.diff(loud(data)) > 0.1 * audio.SR).sum())
+    assert [(len(d) // audio.SR, clicks(d)) for d in calls] == [
+        (16, 16),
+        (16, 32),
+        (16, 16),
+    ]  # la section, un clic par temps
+    assert (
+        "✔ 60 partout : verse, verse2 recomptés" in out
+        and "16 mesures deviennent 8 · les accords restent à leur instant" in out
+    )
+    assert "aucun passage douteux · morceau vérifié" in out and session["played"]
+    # tout le morceau se compte à 60 : seize mesures de quatre temps, les accords aux mêmes instants
+    beats, bars = song_bars(p)
+    assert beats == [float(i) for i in range(64)] and bars == [4.0 * i for i in range(16)]
+    assert [(c[2], c[3]) for m in song_chart(p) for c in m[3]] == [
+        (f"{'CDEFGAB'[i % 7]}:maj", 4.0 * i) for i in range(16)
+    ]
+    assert tempo_question(p) is None and "tempo" not in runner.invoke(app, ["review", "--list"]).output
+
+    # --undo reprend la réponse : la question revient ; s laisse tel quel, et elle n'est plus posée
+    assert "correction du tempo reprise : tout le morceau" in runner.invoke(app, ["review", "--undo"]).output
+    assert len(song_bars(p)[0]) == 96 and tempo_question(p)
+    fake_taps(monkeypatch, [], [["skip"]], lead=0.0, start=0.0)
+    out = runner.invoke(app, ["review"]).output
+    assert "tempo laissé tel quel" in out and len(song_bars(p)[0]) == 96
+    assert "avant la relecture" not in runner.invoke(app, ["review"]).output
+
+    # l'autre réponse : 120 partout ; les temps ajoutés ne sont pas des temps « entendus faiblement »
+    runner.invoke(app, ["review", "--undo"])
+    fake_taps(monkeypatch, [], [["two"], ["enter"]], lead=0.0, start=0.0)
+    out = runner.invoke(app, ["review"]).output
+    assert "✔ 120 partout : intro, chorus recomptés" in out and "8 mesures deviennent 16" in out
+    assert song_bars(p)[0] == [0.5 * i for i in range(128)] and song_doubts(p) == {}
+    # q à la question : rien n'est noté
+    runner.invoke(app, ["review", "--undo"])
+    fake_taps(monkeypatch, [], [["quit"]], lead=0.0, start=0.0)
+    assert "relecture" not in runner.invoke(app, ["review"]).output.replace(
+        "avant la relecture", ""
+    ) and not review.tempo_fixes(p)
+
+
+def test_a_steady_song_never_gets_the_question(tmp_path, monkeypatch):
+    from arr.commands._common import tempo_question
+
+    p = gappy_song(tmp_path, monkeypatch)
+    assert tempo_question(p) is None
+    fake_taps(monkeypatch, [], [["quit"]], lead=0.0, start=0.0)
+    assert "avant la relecture" not in runner.invoke(app, ["review"]).output
+
+
+def test_a_shift_of_the_one_is_offered_for_the_section_or_the_song(tmp_path, monkeypatch):
+    from arr import grid
+    from arr.commands._common import song_bars
+
+    assert grid.bar_shift([8.0, 10.0, 12.0], EVERY, [1.0 + 2 * i for i in range(15)]) == 2
+    assert grid.bar_shift([8.0, 10.5, 12.0], EVERY, [1.0 + 2 * i for i in range(15)]) == 0  # pas le même partout
+    assert grid.bar_shift([8.0, 10.0], EVERY, [2.0 * i for i in range(16)]) == 0  # mes barres sont les siennes
+    assert grid.shift_bars(EVERY, [1.0, 3.0, 5.0, 7.0, 9.0], 2.0, 8.0, 2) == [2.0, 4.0, 6.0, 9.0]
+
+    # le détecteur pose toutes les barres deux temps trop tard ; je tape trois mesures du refrain
+    p = gappy_song(tmp_path, monkeypatch, missing=(), late=1.0, weak=())
+    late = song_bars(p)[1]
+    fake_taps(monkeypatch, [[18.0, 20.0, 22.0, 24.0]], [["bars"], ["enter"], ["quit"]], lead=2.0, start=16.0)
+    out = runner.invoke(app, ["review", "-s", "chorus"], input="s\n").output
+    assert (
+        "le 1 est 2 temps plus tard qu'écrit, sur toutes vos mesures" in out
+        and "✔ le 1 décalé de 2 temps : 0:16,0 à 0:32,0" in out
+    )
+    bars = song_bars(p)[1]
+    assert [t for t in bars if 16.0 <= t < 32.0] == [16.0 + 2 * i for i in range(8)]  # tout le refrain suit mes frappes
+    assert [t for t in bars if t < 16.0] == [
+        t for t in late if t < 15.0
+    ]  # le couplet garde ses barres, sauf la dernière : devenue le 1 du refrain
+    # --undo : le décalage d'abord, puis les barres tapées
+    assert "du décalage du 1 reprise : chorus · 0:16,0 à 0:32,0" in runner.invoke(app, ["review", "--undo"]).output
+    assert [t for t in song_bars(p)[1] if 16.0 <= t < 32.0] == [17.0, 18.0, 20.0, 22.0, 24.0, 25.0, 27.0, 29.0, 31.0]
+    assert "des barres reprise" in runner.invoke(app, ["review", "--undo"]).output and song_bars(p)[1] == late
+
+    # m : tout le morceau
+    fake_taps(monkeypatch, [[18.0, 20.0, 22.0, 24.0]], [["bars"], ["enter"], ["quit"]], lead=2.0, start=16.0)
+    out = runner.invoke(app, ["review", "-s", "chorus"], input="m\n").output
+    assert "✔ le 1 décalé de 2 temps : tout le morceau" in out
+    assert song_bars(p)[1] == [2.0 * i for i in range(16)]
+    assert "du décalage du 1 reprise : tout le morceau" in runner.invoke(app, ["review", "--undo"]).output
+    # une mesure recomptée parmi les frappes : rien n'est proposé
+    assert "plus tard qu'écrit" not in out.split("✔ le 1 décalé")[1]

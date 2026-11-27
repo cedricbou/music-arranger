@@ -183,3 +183,112 @@ def doubtful_bars(beats: list[float], bars: list[float], activation, fps: float 
         if peak < WEAK and start not in out:
             out[start] = f"temps {rank} entendu faiblement ({peak:.2f})".replace(".", ",")
     return out
+
+
+# --- ce qui se trompe sur tout un morceau
+
+
+def tempo_split(beats: list[float], parts: list[tuple[str, float, float]], near: float = 0.1) -> dict | None:
+    """Un morceau compté à deux tempos, l'un double de l'autre : quelles parties à chacun ; None sinon.
+
+    `parts` sont (nom, début, fin), les sections du morceau. La période d'une partie est la médiane
+    de ses écarts entre temps ; « double » s'entend à `near` près (10 %). Il faut au moins quatre
+    mesures à chaque tempo. Rend `period` (celle du tempo rapide), `fast` et `slow` (les noms).
+    """
+    periods: dict[str, tuple[float, int]] = {}
+    for name, start, end in parts:
+        inside = [t for t in beats if start - 0.05 <= t < end - 0.05]
+        if len(inside) >= 5:
+            periods[name] = (float(np.median(np.diff(inside))), len(inside))
+    if len(periods) < 2:
+        return None
+    lowest = min(p for p, _ in periods.values())
+    step = float(np.median([p for p, _ in periods.values() if p / lowest < 1 + near]))
+    fast = [n for n, (p, _) in periods.items() if abs(p / step - 1) < near]
+    slow = [n for n, (p, _) in periods.items() if abs(p / step - 2) < 2 * near]
+    if sum(periods[n][1] for n in fast) < 16 or sum(periods[n][1] for n in slow) < 16:
+        return None
+    return {"period": step, "fast": fast, "slow": slow}
+
+
+def halve_beats(
+    beats: list[float], downbeats: list[float], start: float, end: float, anchor: float | None = None, size: int = 4
+):
+    """Un temps sur deux entre `start` et `end` : le passage y était compté au double.
+
+    Sont gardés les temps du rang de celui qui est le plus près d'`anchor` ; sans `anchor`, du rang
+    qui garde le plus de barres détectées. Les barres y étaient deux fois trop serrées : restent
+    celles qui continuent le compte de `size` temps depuis la dernière barre d'avant la plage (à
+    défaut, depuis la première de la plage). Rend les temps, les barres et le premier temps gardé,
+    à redonner comme `anchor`.
+    """
+    inside = [t for t in beats if start - 0.05 <= t < end - 0.05]
+    if len(inside) < 2:
+        return beats, downbeats, anchor
+    within = lambda d: start - 0.05 <= d < end - 0.05
+    strong = lambda kept: sum(any(abs(d - t) < 0.05 for t in kept) for d in downbeats if within(d))
+    if anchor is None:
+        first = 0 if strong(inside[0::2]) >= strong(inside[1::2]) else 1
+    else:
+        first = min(range(len(inside)), key=lambda i: abs(inside[i] - anchor)) % 2
+    dropped = set(inside[1 - first :: 2])
+    kept = [t for t in beats if t not in dropped]
+    rank = lambda d: min(range(len(kept)), key=lambda i: abs(kept[i] - d))
+    here = [d for d in downbeats if within(d) and not any(abs(d - t) < 0.05 for t in dropped)]
+    before = [d for d in downbeats if d < start - 0.05]
+    origin = rank(before[-1]) if before else rank(here[0]) if here else 0
+    on_count = [d for d in here if (rank(d) - origin) % size == 0]
+    bars = [d for d in downbeats if not within(d)] + (on_count or here[::2])
+    return kept, sorted(bars), inside[first]
+
+
+def double_beats(beats: list[float], downbeats: list[float], start: float, end: float):
+    """Un temps de plus au milieu de chaque écart entre `start` et `end` : le passage y était compté à moitié.
+
+    Les barres y étaient deux fois trop espacées : une de plus au milieu de chaque mesure. Rend les temps et les barres.
+    """
+    inside = lambda t: start - 0.05 <= t < end - 0.05
+    out: list[float] = []
+    for t, after in zip(beats, [*beats[1:], None], strict=True):
+        out.append(t)
+        if after is not None and inside(t):
+            out.append((t + after) / 2)
+    bars = list(downbeats)
+    for a, b in zip(downbeats, downbeats[1:], strict=False):
+        if inside(a) and b <= end + 0.05:
+            bars.append(min(out, key=lambda t: abs(t - (a + b) / 2)))
+    return out, sorted(set(bars))
+
+
+def shift_bars(beats: list[float], bars: list[float], start: float, end: float, by: int, size: int = 4) -> list[float]:
+    """Les barres posées `by` temps plus tard, là où elles arrivent entre `start` et `end` : le 1 y était décalé d'autant.
+
+    Une barre de la plage que le décalage ferait sortir par la fin est retirée ; si la première
+    barre déplacée laisse une mesure entière de `size` temps au début de la plage, elle y est
+    posée aussi. Hors de la plage, rien ne bouge.
+    """
+    t = np.asarray(beats, dtype=float)
+    inside = lambda x: start - 0.05 <= x < end - 0.05
+    moved, kept = [], []
+    for bar in bars:
+        i = int(np.abs(t - bar).argmin()) + by if len(t) else 0
+        if len(t) and i < len(t) and inside(float(t[i])):
+            moved.append(i)
+        elif not inside(bar):
+            kept.append(bar)
+    first = min(moved, default=0) - size
+    while moved and first >= 0 and inside(float(t[first])):
+        moved.append(first)
+        first -= size
+    return sorted({*kept, *(float(t[i]) for i in moved)})
+
+
+def bar_shift(marks: list[float], beats: list[float], bars: list[float], size: int = 4) -> int:
+    """De combien de temps les barres `marks` du musicien suivent celles écrites (`bars`), si c'est partout pareil ; 0 sinon."""
+    t, found = np.asarray(beats, dtype=float), set()
+    for mark in marks:
+        before = [b for b in bars if b <= mark + 0.05]
+        if not before or not len(t):
+            return 0
+        found.add((int(np.abs(t - mark).argmin()) - int(np.abs(t - before[-1]).argmin())) % size)
+    return found.pop() if len(found) == 1 else 0

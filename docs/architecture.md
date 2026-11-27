@@ -25,7 +25,9 @@ choix, dans `docs/decisions/`.
 - **Relecture** : `review/vNNN.toml`, une version par décision du musicien dans `arr review`, chacune
   portant tout l'état ; la dernière fait foi. `right` : les passages jugés bons, chaque mesure par
   ses temps. `fixes` : les barres corrigées, chacune avec ses barres (`bars`) et tous les temps de
-  la première à la dernière (`beats`). `chords` : les accords corrigés, chacun avec son passage
+  la première à la dernière (`beats`). `tempos` : la réponse à la question des deux
+  tempos (`keep`, `period`, les plages recomptées) ; `shifts` : un 1 décalé sur une plage (`start`,
+  `end`, `by` temps). `chords` : les accords corrigés, chacun avec son passage
   (`start`, `end`) et ses accords à leur instant (début, fin, nom tel qu'écrit). Appliquée à la
   lecture (`song_grid`, `song_bars`, `song_chart`, `song_doubts(p, mine=True)`), jamais recopiée
   dans `analysis.json` ni dans `score/` (fiche 019).

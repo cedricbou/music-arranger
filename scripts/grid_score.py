@@ -39,7 +39,7 @@ from arr.project import SONG_FILE, Project
 
 def song_scores(p: Project) -> dict[str, dict]:
     """La note de chaque passage corrigé du morceau, par nom : « truth chorus v002 », « review 1:23,4 »."""
-    read = detected_grid(p)
+    read = detected_grid(p, mine=False)
     if not read:
         return {}
     beats, bars = read[0], grid.regular_bars(read[1], read[0])

@@ -123,6 +123,9 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
   Espace se tape sur le 1 de chaque mesure, chaque frappe va au temps détecté le plus proche, et
   le passage rejoue avec la nouvelle grille avant d'être gardé. La correction se lit partout
   (`arr play`, `arr chordpro`, `arr sheet`, décompte).
+- **Erreur sur tout le morceau** : si `arr` compte un morceau à deux tempos, l'un double de l'autre,
+  `arr review` commence par une question, avec un clic à chaque tempo ; un 1 décalé partout se
+  corrige une fois, puis s'étend à la section ou au morceau.
 - **Accords corrigés** : dans `arr review`, a ouvre le passage dans votre éditeur, une ligne par
   mesure, une case par temps ; à la fermeture il rejoue avec vos accords avant d'être gardé.
   `arr review --undo` reprend la dernière correction. Vos réponses sont rangées dans `review/`

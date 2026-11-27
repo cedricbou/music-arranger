@@ -6,7 +6,7 @@ from typing import Optional
 
 import typer
 
-from arr import audio, chordfix, truth
+from arr import audio, chordfix, grid, truth
 from arr import review as layer
 from arr.commands._common import confirm, detected_grid, lead_in, open_editor, song_bars
 from arr.commands._playback import playing
@@ -246,3 +246,77 @@ def fix_chords(p: Project, whole, chart: list[tuple], passage: layer.Passage, na
             if answer != "redo":
                 return fix if answer == "keep" else None
             path.write_text(text)
+
+
+# --- ce qui se trompe sur tout le morceau
+
+
+def ask_tempo(p: Project, whole, split: dict, title: str) -> tuple[str, list[tuple[float, float, float]]]:
+    """La question des deux tempos : une section en boucle avec un clic par temps, à l'un ou l'autre tempo.
+
+    Rend le tempo gardé (« slow », « fast »), « asis » (laisser tel quel) ou « quit », et les plages
+    à recompter : (début, fin, premier temps gardé). La section jouée est une de celles lues au
+    tempo rapide : son clic lent tombe un temps sur deux, du côté de ses barres détectées.
+    """
+    beats, downbeats = detected_grid(p)
+    parts = {s.name: s for s in p.sections}
+    played = parts[split["fast"][0]]
+    inside = [t for t in beats if played.start - 0.05 <= t < played.end - 0.05]
+    _, _, anchor = grid.halve_beats(beats, downbeats, played.start, played.end)
+    body = cut(whole, played.start, played.end)
+    ticks = {"fast": inside, "slow": inside[inside.index(anchor) % 2 :: 2]}
+    clicked = {k: audio.add_clicks(body, [(t - played.start, False) for t in v]) for k, v in ticks.items()}
+    bpm = {"fast": round(60 / split["period"]), "slow": round(30 / split["period"])}
+    current = "slow"
+
+    def lines(t: float, paused: bool) -> list:
+        state = "[yellow]⏸ en pause ·[/]" if paused else "[green]▶[/]"
+        return [
+            f"[bold]{title} · avant la relecture[/]",
+            "",
+            "[yellow]?[/] arr ne compte pas partout au même tempo",
+            f"  {bpm['slow']:<5}{', '.join(split['slow'])}",
+            f"  {bpm['fast']:<5}{', '.join(split['fast'])}",
+            "",
+            f"{state} [bold cyan]{played.name}[/] · en boucle, avec un clic sur chaque temps à [bold]{bpm[current]}[/]",
+            "",
+            f"[dim]1 : écouter le clic à {bpm['slow']} · 2 : écouter le clic à {bpm['fast']}[/]",
+            "[dim]Entrée : garder le clic en cours pour tout le morceau · s : laisser tel quel · q : quitter[/]",
+        ]
+
+    answers = {"one": "slow", "two": "fast", "enter": "keep", "skip": "asis", "quit": "quit"}
+    while (answer := looped(clicked[current], lines, answers)) in ("slow", "fast"):
+        current = answer
+    if answer != "keep":
+        return answer, []
+    if current == "fast":
+        return "fast", [(parts[n].start, parts[n].end, 0.0) for n in split["slow"]]
+    kept = [grid.halve_beats(beats, downbeats, parts[n].start, parts[n].end)[2] for n in split["fast"]]
+    return "slow", [(parts[n].start, parts[n].end, a) for n, a in zip(split["fast"], kept, strict=True)]
+
+
+def ask_shift(
+    p: Project, fix: layer.Fix, written: tuple[list[float], list[float]]
+) -> Optional[tuple[float, float, int]]:
+    """Après des barres tapées : si le 1 suit partout celui d'`arr` du même nombre de temps, propose d'étendre ce décalage.
+
+    `written` : la grille d'avant la correction. Rend (début, fin, temps) pour la section ou le
+    morceau, None pour « seulement ici ». Rien n'est proposé si une mesure tapée a été recomptée.
+    """
+    beats = detected_grid(p)[0]
+    untouched = [t for t in beats if fix.bars[0] - 0.05 <= t <= fix.bars[-1] + 0.05]
+    by = grid.bar_shift(fix.bars, beats, written[1], USUAL) if len(untouched) == len(fix.beats) else 0
+    if not by:
+        return None
+    touched = [s for s in p.sections if s.start < fix.bars[-1] - 0.05 and s.end > fix.bars[0] + 0.05]
+    names = ", ".join(s.name for s in touched)
+    here = (
+        f"à {'la section ' + names if len(touched) == 1 else 'ces sections (' + names + ')'} (s), " if touched else ""
+    )
+    typer.echo(f"le 1 est {by} temps plus tard qu'écrit, sur toutes vos mesures")
+    answer = typer.prompt(
+        f"  appliquer {here}à tout le morceau (m), ou seulement ici (Entrée) ?", default="", show_default=False
+    )
+    if answer.strip().lower() == "s" and touched:
+        return touched[0].start, touched[-1].end, by
+    return (0.0, float("inf"), by) if answer.strip().lower() == "m" else None
