@@ -58,17 +58,20 @@ def convert(source: Path, dst: Path) -> None:
         typer.secho(f"attention : {source.name} est silencieux (niveau max sous -60 dB)", fg="yellow", err=True)
 
 
-def detected_grid(p: Project) -> Optional[tuple[list[float], list[float]]]:
+def detected_grid(p: Project, mine: bool = True) -> Optional[tuple[list[float], list[float]]]:
     """Temps et barres d'`arr analyze`, sans les temps entendus deux fois, les temps manqués comblés ; None sans analyse.
 
     `analysis.json` garde ce que beat_this a détecté ; le nettoyage est refait à chaque lecture.
     Un temps manqué n'est comblé que si le projet garde ce que beat_this entendait (`activations`).
+    Un morceau lu à deux tempos est recompté à celui que le musicien a gardé (`review.retempo`) ;
+    `mine=False` : sans cela, la lecture brute.
     """
     f = p.root / ANALYSIS
     if not f.exists():
         return None
     detected = json.loads(f.read_text())
-    return read_grid(detected["beats"], detected["downbeats"], activations(p))
+    read = read_grid(detected["beats"], detected["downbeats"], activations(p))
+    return review.retempo(*read, review.tempo_fixes(p)) if mine else read
 
 
 def song_fixes(p: Project, beats: list[float]) -> list[review.Fix]:
@@ -84,7 +87,9 @@ def song_grid(p: Project, more: tuple = ()) -> Optional[tuple[list[float], list[
     `song_bars`. `more` : des corrections à essayer, pas encore gardées.
     """
     read = detected_grid(p)
-    return review.fix_grid(*read, [*song_fixes(p, read[0]), *more]) if read else None
+    if not read:
+        return None
+    return review.fix_grid(read[0], review.shifted(*read, review.shifts(p)), [*song_fixes(p, read[0]), *more])
 
 
 def read_grid(beats: list[float], downbeats: list[float], heard) -> tuple[list[float], list[float]]:
@@ -103,13 +108,14 @@ def song_bars(p: Project, more: tuple = ()) -> Optional[tuple[list[float], list[
     """Les temps et les barres de la grille d'`arr play` ; None sans analyse.
 
     Les barres sont posées tous les N temps (`grid.regular_bars`) sur ce que le détecteur a lu,
-    puis les passages corrigés par le musicien prennent ses temps et ses barres : une barre
+    décalées là où le musicien a dit que le 1 l'était (`review.shifted`), puis les passages corrigés par le musicien prennent ses temps et ses barres : une barre
     qu'il a fixée ne bouge pas, et rien ne bouge hors de ses passages.
     """
     read = detected_grid(p)
     if not read:
         return None
-    return review.fix_grid(read[0], grid.regular_bars(read[1], read[0]), [*song_fixes(p, read[0]), *more])
+    bars = review.shifted(read[0], grid.regular_bars(read[1], read[0]), review.shifts(p))
+    return review.fix_grid(read[0], bars, [*song_fixes(p, read[0]), *more])
 
 
 def song_chord_fixes(p: Project) -> list:
@@ -125,6 +131,12 @@ def song_doubts(p: Project, mine: bool = False) -> Optional[dict[float, str]]:
     read, heard = song_bars(p), activations(p)
     if not read or heard is None:
         return None
+    # Un temps ajouté en recomptant un tempo vient du musicien : il n'est pas « entendu faiblement ».
+    added = set(detected_grid(p)[0]) - set(detected_grid(p, mine=False)[0])
+    if added:
+        heard = heard.copy()
+        for t in added:
+            heard[max(int(round(t * 50)) - 1, 0) : int(round(t * 50)) + 2, 0] = 1.0
     found = grid.doubtful_bars(*read, heard[:, 0])
     if not mine or not found:
         return found
@@ -140,6 +152,14 @@ def song_passages(p: Project) -> Optional[list[review.Passage]]:
     end = max(float(p.song.get("duration") or 0.0), read[0][-1] if read[0] else 0.0)
     fixes = [*song_fixes(p, detected_grid(p)[0]), *review.chord_fixes(p)]
     return review.passages(review.measures(*read), found, review.right_bars(p), end, fixes)
+
+
+def tempo_question(p: Project) -> Optional[dict]:
+    """Le morceau est-il compté à deux tempos sans que le musicien ait répondu ? (`grid.tempo_split`) ; None sinon."""
+    read = detected_grid(p)
+    if not read or review.tempo_fixes(p):
+        return None
+    return grid.tempo_split(read[0], [(s.name, s.start, s.end) for s in p.sections])
 
 
 def review_line(p: Project) -> str:

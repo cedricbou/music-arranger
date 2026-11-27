@@ -361,13 +361,15 @@ a corrige les accords : le passage s'ouvre dans l'éditeur ($VISUAL ou $EDITOR),
 
 Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne bouge hors des mesures tapées. --undo reprend la dernière correction, de barres ou d'accords.
 
+Quand le morceau est compté à deux tempos, l'un double de l'autre, la relecture commence par une question : une section joue en boucle avec un clic sur chaque temps, 1 et 2 passent d'un tempo à l'autre, Entrée garde celui qui s'entend pour tout le morceau (les sections comptées à l'autre sont recomptées), s laisse tel quel. Après des barres tapées, si le 1 était décalé du même nombre de temps sur toutes les mesures, `arr` propose d'appliquer ce décalage à la section ou à tout le morceau. Rien n'est appliqué sans réponse, et --undo le reprend.
+
 Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement tient après un nouvel `arr analyze` tant que les mesures ne changent pas ; une correction tient toujours. La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est vérifié. Tout est rangé dans `review/` du morceau, une version par décision ; rien de ce qu'`arr` a détecté n'est modifié.
 
 | Option | Défaut | Rôle |
 |---|---|---|
 | `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux ; plusieurs qui se suivent : -s intro,intro2. |
 | `--list` | non | Liste les passages à relire et leur état, sans rien jouer. |
-| `--undo` | non | Reprend la dernière correction (barres ou accords) du morceau, ou de la section donnée par -s. |
+| `--undo` | non | Reprend la dernière correction (tempo, barres, décalage ou accords) du morceau, ou de la section donnée par -s. |
 | `--count-in` | non | Quatre clics au tempo du passage avant chaque tour de boucle : pour s'entraîner à entrer. |
 
 ## `arr nudge`

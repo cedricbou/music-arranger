@@ -1,6 +1,7 @@
 # 019 — Ce que le musicien décide vit dans une couche à part, appliquée à la lecture
 
-Date : 26 novembre 2026, complétée le 27 pour les barres et les accords. État : en vigueur, pour les
+Date : 26 novembre 2026, complétée le 27 pour les barres, les accords et les
+erreurs de tout un morceau. État : en vigueur, pour les
 passages jugés bons, les barres et les accords corrigés. Complète les fiches 015 et 018 ; remplace la commande de la fiche 016.
 
 ## Contexte
@@ -78,6 +79,31 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
 - **Corriger les accords d'un passage, c'est aussi dire que ses barres sont bonnes** : le
   passage perd son « ? ». Après une correction gardée, le passage rejoue : barres, puis accords.
 - **`arr review --undo`** reprend la correction la plus récente, de barres ou d'accords.
+
+## Complément du 27 novembre 2026 : ce qui se trompe sur tout un morceau
+
+- **Le signe** (`grid.tempo_split`) : par section, la médiane des écarts entre temps ; deux
+  groupes dont l'un vaut le double de l'autre à 10 % près, seize temps au moins dans chacun.
+  Sur les 40 projets de la bibliothèque, la question se pose pour deux morceaux : celui du
+  constat (10 sections vers 67, 6 vers 136) et un second (2 sections à 71, 9 à 143). Un morceau
+  à 115 et 158 selon les sections n'est pas concerné.
+- **La réponse se prend à l'oreille** : une section lue au tempo rapide joue en boucle avec un
+  clic par temps, à l'un ou l'autre tempo. Le clic lent tombe un temps sur deux, du côté des
+  barres détectées de la section.
+- **Recompter** (`review.retempo`, avant tout le reste dans `detected_grid`) : au tempo lent, un
+  temps sur deux et une barre sur deux (celles qui continuent le compte de quatre depuis la
+  section d'avant) ; au tempo rapide, un temps et une barre de plus au milieu de chaque écart.
+  Simulé sur le morceau du constat : 101 mesures dont 2 hors quatre temps telles quelles ; 79
+  dont 1 en gardant 67 ; 150 dont 3 en gardant 136. Une plage n'est recomptée que si elle est
+  encore lue à l'autre tempo : une nouvelle analyse qui la lit bien n'est pas recomptée deux fois.
+- **Un temps ajouté en recomptant n'est pas douteux** : il vient du musicien.
+- **Le 1 décalé** (`grid.bar_shift`, `grid.shift_bars`) : après des barres tapées sans mesure
+  recomptée, si chaque frappe suit la barre écrite du même nombre de temps, ce décalage est
+  proposé pour la section ou le morceau, et rangé comme une plage et un nombre de temps. Il
+  s'applique aux barres régulières avant les barres tapées.
+- **`bpm` de `song.toml` et les bornes des sections ne sont pas touchés** : la relecture ne
+  récrit rien de ce que les autres commandes ont écrit. Si le tempo gardé n'est pas celui de
+  `song.toml`, la relecture le dit.
 
 ## Ce qui a été écarté
 
