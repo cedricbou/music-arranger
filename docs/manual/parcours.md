@@ -358,6 +358,7 @@ arr review --list       # les passages, leur instant, la raison, leur état ; ri
 arr review -s chorus    # relit une section de votre choix, douteuse ou non
 arr review -s intro,intro2   # plusieurs sections qui se suivent, depuis le tout début de la première
 arr review --undo       # reprend la dernière correction de barres
+arr review -s intro,intro2 --count-in   # quatre clics avant chaque tour de boucle, pour s'entraîner à entrer
 arr play                # « ? » devant les mesures douteuses ; d saute au passage douteux suivant
 ```
 
@@ -434,6 +435,8 @@ Entrée : garder · r : refaire · Échap : abandonner · Espace : pause
 - **Pour entrer dans le compte**, partez de plus loin : `arr review -s intro,intro2` joue les
   sections à la suite, dès la première seconde de la première, et m les fait taper d'une traite.
   Une section seule joue aussi depuis son début, avant sa première barre.
+- **Pour vous entraîner à entrer**, `--count-in` fait précéder chaque tour de la boucle des mêmes
+  quatre clics que m ; l'écran dit « décompte » pendant les clics.
 - **Pendant les frappes**, la grille du moment défile, la mesure qui joue en surbrillance. r
   arrête la passe et repart des quatre clics ; Échap l'abandonne, rien n'est gardé.
 - **Vos frappes n'ont pas à être exactes** : chacune va au temps le plus proche qu'`arr` a

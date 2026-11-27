@@ -55,14 +55,24 @@ def within(chart: list[tuple], start: float, end: float) -> list[tuple]:
     return [m for m in chart if start - 0.05 <= m[0] < end - 0.05]
 
 
-def looped(body, lines, answers: dict[str, str]) -> str:
-    """Joue `body` en boucle sous l'écran `lines(instant, en pause)` jusqu'à une touche d'`answers` ; rend sa réponse."""
+def clicks(period: float) -> list[tuple[float, bool]]:
+    """Les quatre clics du décompte, au tempo du passage, juste avant son début."""
+    return [(-k * period, False) for k in range(4, 0, -1)]
+
+
+def looped(body, lines, answers: dict[str, str], lead: int = 0) -> str:
+    """Joue `body` en boucle sous l'écran `lines(instant, en pause)` jusqu'à une touche d'`answers` ; rend sa réponse.
+
+    `lead` : la longueur, en échantillons, d'un décompte au début de `body`, rejoué à chaque tour ;
+    l'instant est alors négatif pendant les clics.
+    """
     from rich.console import Group
 
-    length, paused, answer = len(body) / audio.SR, False, "quit"
+    length, paused, answer = (len(body) - lead) / audio.SR, False, "quit"
 
     def screen(seconds: float):
-        return Group(*lines(min(position(seconds, 0, len(body)), length - 1e-3), paused))
+        t = (int(seconds * audio.SR) % len(body) - lead) / audio.SR
+        return Group(*lines(min(t, length - 1e-3), paused))
 
     def steer(keys: list[str], seconds: float):
         nonlocal paused, answer
@@ -78,23 +88,31 @@ def looped(body, lines, answers: dict[str, str]) -> str:
     return answer
 
 
-def listen(p: Project, whole, chart: list[tuple], passage: layer.Passage, head: str, foot: str) -> str:
-    """Joue le passage en boucle jusqu'à une réponse : « right », « bars », « back », « forward » ou « quit »."""
-    body = cut(whole, passage.start, passage.end)
+def listen(
+    p: Project, whole, chart: list[tuple], passage: layer.Passage, head: str, foot: str, count: bool = False
+) -> str:
+    """Joue le passage en boucle jusqu'à une réponse : « right », « bars », « back », « forward » ou « quit ».
+
+    `count` : quatre clics au tempo du passage avant chaque tour de boucle.
+    """
+    body, lead = cut(whole, passage.start, passage.end), 0
     if not len(body):
         raise ProjectError(f"rien à jouer : {passage.where} est hors du morceau")
     length, name = len(body) / audio.SR, label(p, passage)
+    if count:
+        period = layer.local_period(detected_grid(p)[0], (passage.start + passage.end) / 2)
+        body, lead = lead_in(body, clicks(period))
     bars, doubts = within(chart, passage.start, passage.end), {} if passage.right else passage.doubts
     marks = [(0.0, length, name, passage.start)]
 
     def lines(t: float, paused: bool) -> list:
-        state = "[yellow]⏸ en pause ·[/]" if paused else "[green]▶[/]"
+        state = "[yellow]⏸ en pause ·[/]" if paused else "[yellow]décompte ·[/]" if t < 0 else "[green]▶[/]"
         judged = f" · [green]✔ {passage.state}[/]" if passage.right else ""
-        where = f"{state} [bold cyan]{name}[/] · en boucle · {clock(t)} / {clock(length)}{judged}"
+        where = f"{state} [bold cyan]{name}[/] · en boucle · {clock(max(t, 0.0))} / {clock(length)}{judged}"
         grid = chord_block(bars, marks, t, True, doubts) or ["", "[dim]pas d'accords (arr transcribe)[/]"]
         return [f"[bold]{head}[/]", "", where, *grid, "", f"[dim]{KEYS}[/]", foot]
 
-    return looped(body, lines, ANSWERS)
+    return looped(body, lines, ANSWERS, lead)
 
 
 # --- corriger les barres
@@ -110,7 +128,7 @@ def tap_bars(whole, chart: list[tuple], start: float, end: float, period: float,
     from rich.progress_bar import ProgressBar
 
     body = cut(whole, start, end)
-    playback, lead = lead_in(body, [(-k * period, False) for k in range(4, 0, -1)])
+    playback, lead = lead_in(body, clicks(period))
     taps, length, stopped = truth.Taps(), len(body) / audio.SR, ""
     bars, marks = within(chart, start, end), [(0.0, len(body) / audio.SR, name, start)]
 
@@ -258,6 +276,11 @@ def review(
     back: bool = typer.Option(
         False, "--undo", help="Reprend la dernière correction de barres du morceau, ou de la section donnée par -s."
     ),
+    count: bool = typer.Option(
+        False,
+        "--count-in",
+        help="Quatre clics au tempo du passage avant chaque tour de boucle : pour s'entraîner à entrer.",
+    ),
 ) -> None:
     """Fait écouter un par un les passages où `arr` n'est pas sûr du compte des mesures, pour les juger ou les corriger.
 
@@ -265,6 +288,8 @@ def review(
     avec une mesure avant et une après. Il joue en boucle, sur l'original, avec sa grille d'accords
     et la raison du doute. Entrée dit qu'il est bon et passe au suivant ; flèche gauche et flèche
     droite mènent à un autre passage sans répondre ; Espace met en pause ; q quitte.
+    Avec --count-in, quatre clics au tempo du passage précèdent chaque tour de la boucle : les
+    mêmes que ceux de m, pour se préparer à entrer sur le 1.
 
     m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape
     sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté
@@ -322,7 +347,7 @@ def review(
     whole, chart, fixed = audio.load(reference(p)), song_chart(p), 0
     while True:
         head = f"{title} · section {section}" if section else f"{title} · relecture {at + 1}/{len(todo)}"
-        answer = listen(p, whole, chart, todo[at], head, "" if section else verified(todo))
+        answer = listen(p, whole, chart, todo[at], head, "" if section else verified(todo), count)
         if answer == "bars":
             fix = fix_bars(p, whole, chart, todo[at])
             if fix is None:
