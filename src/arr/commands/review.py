@@ -100,14 +100,19 @@ def listen(p: Project, whole, chart: list[tuple], passage: layer.Passage, head: 
 # --- corriger les barres
 
 
-def tap_bars(whole, start: float, end: float, period: float, name: str) -> list[float]:
-    """Quatre clics au tempo, puis le passage joue une fois : rend les instants du morceau où Espace a été tapé."""
+def tap_bars(whole, chart: list[tuple], start: float, end: float, period: float, name: str) -> tuple[str, list[float]]:
+    """Quatre clics au tempo, puis le passage joue une fois : rend les instants du morceau où Espace a été tapé.
+
+    La grille du moment défile sous les yeux. Rend aussi la touche qui a arrêté la passe avant
+    sa fin : « redo » (r, à refaire), « escape » ou « quit » (abandon) ; vide si elle est allée au bout.
+    """
     from rich.console import Group
     from rich.progress_bar import ProgressBar
 
     body = cut(whole, start, end)
     playback, lead = lead_in(body, [(-k * period, False) for k in range(4, 0, -1)])
-    taps, length = truth.Taps(), len(body) / audio.SR
+    taps, length, stopped = truth.Taps(), len(body) / audio.SR, ""
+    bars, marks = within(chart, start, end), [(0.0, len(body) / audio.SR, name, start)]
 
     def screen(seconds: float):
         t = position(seconds, lead)
@@ -121,11 +126,19 @@ def tap_bars(whole, start: float, end: float, period: float, name: str) -> list[
             now,
             ProgressBar(total=max(length, 1e-9), completed=max(t, 0.0), width=30),
             f"{n} frappe{'s' if n > 1 else ''}",
+            *chord_block(bars, marks, min(t, length - 1e-3))[1:3],
+            "",
+            "[dim]r : recommencer · Échap : abandonner[/]",
         )
 
-    playing(playback, None, screen, lambda keys, seconds: (False, None), taps.tap, taps.heard, transient=True)
+    def steer(keys: list[str], seconds: float):
+        nonlocal stopped
+        stopped = next((key for key in keys if key in ("redo", "escape", "quit")), "")
+        return (False, None, True) if stopped else (False, None)
+
+    playing(playback, None, screen, steer, taps.tap, taps.heard, transient=True)
     # Une frappe date une position du flux, décompte compris : elle devient un instant du morceau.
-    return truth.bar_marks([start + position(t, lead) for t in taps.positions()], start, end + period)
+    return stopped, truth.bar_marks([start + position(t, lead) for t in taps.positions()], start, end + period)
 
 
 def stamp(t: float) -> str:
@@ -192,7 +205,12 @@ def fix_bars(p: Project, whole, chart: list[tuple], passage: layer.Passage) -> O
     period = layer.local_period(beats, (passage.start + passage.end) / 2)
     end = min(passage.end + USUAL * period, len(whole) / audio.SR)
     while True:
-        bars, far = layer.snap(tap_bars(whole, passage.start, end, period, name), beats)
+        stopped, marks = tap_bars(whole, chart, passage.start, end, period, name)
+        if stopped == "redo":
+            continue
+        if stopped:
+            return None
+        bars, far = layer.snap(marks, beats)
         if far:
             typer.echo(f"frappe à {', '.join(map(stamp, far))} : aucun temps détecté à moins d'un demi-temps")
         elif len(bars) < 2:
@@ -207,9 +225,18 @@ def fix_bars(p: Project, whole, chart: list[tuple], passage: layer.Passage) -> O
             return None
 
 
+def section_range(p: Project, given: str) -> tuple[float, float]:
+    """Le début et la fin des sections données (« intro,intro2 »), qui doivent se suivre dans le morceau."""
+    found = [p.section(name.strip()) for name in given.split(",") if name.strip()]
+    if not found:
+        raise ProjectError("-s : donne une section, ou plusieurs qui se suivent (ex. -s intro,intro2)")
+    if any(abs(b.start - a.end) > 0.05 for a, b in zip(found, found[1:], strict=False)):
+        raise ProjectError(f"-s {given} : les sections doivent se suivre dans le morceau (ex. -s chorus2,outro)")
+    return found[0].start, found[-1].end
+
+
 def undo(p: Project, section: Optional[str]) -> None:
-    s = p.section(section) if section else None
-    taken = layer.undo_fix(p, s.start, s.end) if s else layer.undo_fix(p)
+    taken = layer.undo_fix(p, *section_range(p, section)) if section else layer.undo_fix(p)
     if taken is None:
         raise ProjectError(f"aucune correction de barres à reprendre{f' dans {section}' if section else ''}")
     name = section_of(p, taken.bars[0])
@@ -222,7 +249,10 @@ def undo(p: Project, section: Optional[str]) -> None:
 @app.command()
 def review(
     section: Optional[str] = typer.Option(
-        None, "--section", "-s", help="Relit cette section, douteuse ou non, au lieu des passages douteux."
+        None,
+        "--section",
+        "-s",
+        help="Relit cette section, douteuse ou non, au lieu des passages douteux ; plusieurs qui se suivent : -s intro,intro2.",
     ),
     listing: bool = typer.Option(False, "--list", help="Liste les passages à relire et leur état, sans rien jouer."),
     back: bool = typer.Option(
@@ -238,7 +268,7 @@ def review(
 
     m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape
     sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté
-    le plus proche. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est
+    le plus proche. Pendant les frappes, la grille du moment défile ; r recommence, Échap abandonne. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est
     vraiment plus courte ou plus longue, ou si un temps a été manqué ou entendu deux fois : il pose
     alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous
     l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
@@ -259,7 +289,7 @@ def review(
     found, read = song_passages(p), song_bars(p)
     if not read:
         raise ProjectError("pas d'analyse (lance `arr analyze`)")
-    if found is None:
+    if found is None and (listing or not section):
         raise ProjectError(
             "ce morceau ne garde pas encore ce que le détecteur entendait : lance arr analyze "
             "(sur un morceau déjà transcrit, arr analyze remplace la tonalité par son estimation)"
@@ -276,11 +306,12 @@ def review(
 
     def chosen() -> list[layer.Passage]:
         """Le passage de la section demandée, sur la grille du moment."""
-        s, fixes = p.section(section), song_fixes(p, detected_grid(p)[0])
+        (start, end), fixes = section_range(p, section), song_fixes(p, detected_grid(p)[0])
         bars = layer.measures(*song_bars(p))
-        one = layer.between(bars, s.start, s.end, song_doubts(p) or {}, layer.right_bars(p), fixes)
+        one = layer.between(bars, start, end, song_doubts(p) or {}, layer.right_bars(p), fixes)
         if one is None:
             raise ProjectError(f"aucune mesure ne commence dans {section}")
+        one.start = min(one.start, start)  # dès le début de la section : ce qui précède sa première barre s'entend
         return [one]
 
     todo = chosen() if section else found

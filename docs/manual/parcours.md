@@ -356,6 +356,7 @@ mal placées.
 arr review              # joue le premier passage à relire, en boucle
 arr review --list       # les passages, leur instant, la raison, leur état ; rien ne joue
 arr review -s chorus    # relit une section de votre choix, douteuse ou non
+arr review -s intro,intro2   # plusieurs sections qui se suivent, depuis le tout début de la première
 arr review --undo       # reprend la dernière correction de barres
 arr play                # « ? » devant les mesures douteuses ; d saute au passage douteux suivant
 ```
@@ -394,7 +395,8 @@ vérifié : 0/2 passages
   n'est jamais modifié ; une mesure sans marque peut être fausse aussi.
 - Sur un morceau au tempo net, moins d'une mesure sur vingt est marquée ; sur un morceau sans
   batterie ou au tempo flottant, bien plus.
-- Un morceau analysé avant que cette information ne soit gardée n'a aucun passage : `arr analyze`.
+- Un morceau analysé avant que cette information ne soit gardée n'a aucun passage douteux à
+  proposer (`arr analyze` les donne) ; `arr review -s SECTION` y marche quand même.
 
 ### Corriger des barres mal placées
 
@@ -408,6 +410,10 @@ Espace sur le 1 de chaque mesure, et sur le 1 qui suit la dernière
 décompte : clic · clic · clic
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 0 frappe
+Accords · verse · mes. 11 à 15
+│ Am  /   /   /   │ F   /   /   │ /   C   /   /   /   │ G   /   /   /   │
+
+r : recommencer · Échap : abandonner
 ```
 
 ```
@@ -425,6 +431,11 @@ Entrée : garder · r : refaire · Échap : abandonner · Espace : pause
 - **Quatre clics au tempo du passage**, puis il joue une fois, jusqu'à une mesure après sa fin.
   Tapez Espace sur le 1 de chaque mesure, et sur le 1 qui suit la dernière : cinq frappes font
   quatre mesures. Seules les mesures entre votre première et votre dernière frappe changent.
+- **Pour entrer dans le compte**, partez de plus loin : `arr review -s intro,intro2` joue les
+  sections à la suite, dès la première seconde de la première, et m les fait taper d'une traite.
+  Une section seule joue aussi depuis son début, avant sa première barre.
+- **Pendant les frappes**, la grille du moment défile, la mesure qui joue en surbrillance. r
+  arrête la passe et repart des quatre clics ; Échap l'abandonne, rien n'est gardé.
 - **Vos frappes n'ont pas à être exactes** : chacune va au temps le plus proche qu'`arr` a
   détecté. Une frappe à plus d'un demi-temps de tout temps est refusée, et `arr` dit laquelle.
 - **Là où deux frappes ne tiennent pas quatre temps**, `arr` demande : v pour une vraie mesure

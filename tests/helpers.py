@@ -261,10 +261,11 @@ def gappy_song(tmp_path, monkeypatch, missing=(9.5,), late: float = 0.0, weak=((
     return p
 
 
-def fake_taps(monkeypatch, passes: list[list[float]], keys: list[list[str]], lead: float, start: float):
+def fake_taps(monkeypatch, passes: list[list], keys: list[list[str]], lead: float, start: float):
     """Un clavier et une carte son d'essai pour `arr review` : frappes d'Espace et touches, sans rien jouer.
 
-    `passes` : pour chaque passe de frappes, les instants du morceau où Espace est tapé ; le passage
+    `passes` : pour chaque passe de frappes, les instants du morceau où Espace est tapé, ou la touche
+    (« redo », « escape ») qui l'arrête ; le passage
     commence à `start`, après `lead` secondes de décompte, et chaque bloc sort 30 ms après l'heure du
     flux. `keys` : les touches reçues par chaque écran en boucle, un lot par image. Rend ce qui a été joué.
     """
@@ -279,15 +280,19 @@ def fake_taps(monkeypatch, passes: list[list[float]], keys: list[list[str]], lea
     @contextmanager
     def keyboard(tap=None):
         session["tap"] = tap
-        yield (lambda: []) if tap else (lambda: next(typed, []))  # pendant les frappes, le clavier ne pilote rien
+        yield (lambda: session.pop("key", [])) if tap else (lambda: next(typed, []))
 
     def play(data, loop=None, watch=None, follow=None):
         session["played"].append((len(data) / audio.SR, loop is not None))
         if follow:  # une passe de frappes : le flux avance, les frappes arrivent à leur heure
             for i in range(int(len(data) / audio.SR / 0.02)):
                 follow(0.02 * i, 100.03 + 0.02 * i, False)
-            for at in next(todo, []):
-                session["tap"](100.03 + at - start + lead)
+            given = next(todo, [])
+            if isinstance(given, str):  # la passe est arrêtée d'une touche
+                session["key"] = [given]
+            else:
+                for at in given:
+                    session["tap"](100.03 + at - start + lead)
             watch(len(data) / audio.SR)
             return
         for _ in range(50):
