@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 import tomllib
 from pathlib import Path
 from typing import Optional
@@ -13,6 +10,7 @@ import typer
 
 from arr import sheet as sheets
 from arr.app import app, set_app
+from arr.commands._common import open_editor
 from arr.commands._screen import song_chart
 from arr.project import Project, ProjectError
 
@@ -70,16 +68,6 @@ def show(p: Project, sheet: dict, written: bool) -> None:
         console.print(f"• {note}", highlight=False)
     origin = sheets.SHEET_FILE if written else "proposition déduite du projet : arr sheet --edit pour la modifier"
     console.print(f"[dim]({origin})[/]", highlight=False)
-
-
-def open_editor(path: Path) -> bool:
-    """Ouvre `path` dans l'éditeur de l'utilisateur ; sans éditeur ni terminal, indique seulement le fichier."""
-    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
-    if editor and sys.stdin.isatty():
-        subprocess.run([*editor.split(), str(path)], check=False)
-        return True
-    typer.echo(f"à modifier : {path}")
-    return False
 
 
 def entry(p: Project, number: int | str = "", semitones: int | None = None, note: str = "") -> dict:

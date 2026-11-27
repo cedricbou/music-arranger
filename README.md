@@ -122,8 +122,11 @@ arr tracks bass                    # tes prises, versionnées ; arr pick pour ch
 - **Barres corrigées** : dans `arr review`, m donne quatre clics puis joue le passage une fois ;
   Espace se tape sur le 1 de chaque mesure, chaque frappe va au temps détecté le plus proche, et
   le passage rejoue avec la nouvelle grille avant d'être gardé. La correction se lit partout
-  (`arr play`, `arr chordpro`, `arr sheet`, décompte) ; `arr review --undo` la reprend. Vos
-  réponses sont rangées dans `review/` du morceau ; ce qu'`arr` a détecté n'est jamais modifié.
+  (`arr play`, `arr chordpro`, `arr sheet`, décompte).
+- **Accords corrigés** : dans `arr review`, a ouvre le passage dans votre éditeur, une ligne par
+  mesure, une case par temps ; à la fermeture il rejoue avec vos accords avant d'être gardé.
+  `arr review --undo` reprend la dernière correction. Vos réponses sont rangées dans `review/`
+  du morceau ; ce qu'`arr` a détecté et transcrit n'est jamais modifié.
 - **Accords à l'écran** : après `arr transcribe`, `arr play` et `arr record` affichent la
   grille d'accords de la section en cours, une case par mesure et un `/` par temps tenu, et
   surlignent l'accord du moment, pour jouer par-dessus.
@@ -261,7 +264,7 @@ d'un instrument note à note.
 | `arr models pull` | installe les modèles et leurs moteurs, et les met à jour (réseau) |
 | `arr doctor` | vérifie le GPU et la présence des moteurs |
 | `arr check` | mesure chaque fichier du projet : durée, niveaux, volume, anomalies (silence, saturation, longueur, calage) |
-| `arr review [-s SECTION] [--count-in] [--list] [--undo]` | joue un par un les passages où `arr` n'est pas sûr du compte des mesures ; Entrée dit qu'un passage est bon, m corrige ses barres |
+| `arr review [-s SECTION] [--count-in] [--list] [--undo]` | joue un par un les passages où `arr` n'est pas sûr du compte des mesures ; Entrée dit qu'un passage est bon, m corrige ses barres, a ses accords |
 
 Deux modèles de séparation : `htdemucs_6s` (6 stems, par défaut ; guitare et piano peu
 fiables sur de la musique électronique) et `htdemucs_ft` (4 stems, plus précis).
@@ -279,7 +282,7 @@ night-drive/
   score/           score.abc (éditable), fichiers MIDI, accords et structure horodatés
   takes/           t001.flac + t001.json (style, mode, graine)
   tracks/<piste>/  vNNN.flac + vNNN.json
-  review/          vos réponses d'`arr review` : passages jugés bons, barres corrigées, une version par réponse
+  review/          vos réponses d'`arr review` : passages jugés bons, barres et accords corrigés, une version par réponse
   mix/  export/
   trash/           ce que `arr rm` a retiré ; `arr rm --purge trash` le vide
 ```

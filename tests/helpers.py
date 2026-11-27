@@ -241,7 +241,7 @@ def gappy_song(tmp_path, monkeypatch, missing=(9.5,), late: float = 0.0, weak=((
     audio.save(p.root / "source/original.flac", tone(330, 2.0 * bars, amp=0.1))
     add_track(p, "guitar", tone(330, 2.0 * bars, amp=0.1), {"op": "split"})
     p.set_sections([Section("verse", 0.0, 1.0 * bars), Section("chorus", 1.0 * bars, 2.0 * bars)])
-    p.song["duration"] = 2.0 * bars
+    p.song.update(duration=2.0 * bars, key="C major", bpm=120)
     p.save()
     every = [0.5 * i for i in range(4 * bars)]
     beats = [t for t in every if t not in missing]

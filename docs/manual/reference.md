@@ -357,7 +357,9 @@ Un passage, ce sont des mesures douteuses voisines (un de leurs temps a été en
 
 m corrige les barres : après quatre clics au tempo, le passage joue une fois, et Espace se tape sur le 1 de chaque mesure, puis sur le 1 qui suit la dernière. Chaque frappe va au temps détecté le plus proche. Pendant les frappes, la grille du moment défile ; r recommence, Échap abandonne. Là où deux frappes ne tiennent pas quatre temps, `arr` demande si la mesure est vraiment plus courte ou plus longue, ou si un temps a été manqué ou entendu deux fois : il pose alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
 
-Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne bouge hors des mesures tapées. --undo reprend la dernière correction.
+a corrige les accords : le passage s'ouvre dans l'éditeur ($VISUAL ou $EDITOR), une ligne par mesure, une case par temps, rempli de ce qu'`arr` montre ; « / » tient l'accord, « N.C. » dit qu'il n'y en a pas. À la fermeture, le passage rejoue avec les nouveaux accords sous les anciens : Entrée garde, r rouvre l'éditeur, Échap abandonne. Une ligne illisible (nom d'accord inconnu, cinq cases pour quatre temps) est dite avec son numéro, et l'éditeur se rouvre sur le texte. Barres et accords faux : m d'abord, puis a sur les barres corrigées.
+
+Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`, le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne bouge hors des mesures tapées. --undo reprend la dernière correction, de barres ou d'accords.
 
 Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement tient après un nouvel `arr analyze` tant que les mesures ne changent pas ; une correction tient toujours. La relecture reprend au premier passage qui reste ; quand il n'en reste aucun, le morceau est vérifié. Tout est rangé dans `review/` du morceau, une version par décision ; rien de ce qu'`arr` a détecté n'est modifié.
 
@@ -365,7 +367,7 @@ Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement t
 |---|---|---|
 | `--section`, `-s` |  | Relit cette section, douteuse ou non, au lieu des passages douteux ; plusieurs qui se suivent : -s intro,intro2. |
 | `--list` | non | Liste les passages à relire et leur état, sans rien jouer. |
-| `--undo` | non | Reprend la dernière correction de barres du morceau, ou de la section donnée par -s. |
+| `--undo` | non | Reprend la dernière correction (barres ou accords) du morceau, ou de la section donnée par -s. |
 | `--count-in` | non | Quatre clics au tempo du passage avant chaque tour de boucle : pour s'entraîner à entrer. |
 
 ## `arr nudge`

@@ -6,30 +6,19 @@ from typing import Optional
 
 import typer
 
-from arr import audio, truth
+from arr import audio, chordfix
 from arr import review as layer
 from arr.app import app
-from arr.commands._common import (
-    confirm,
-    detected_grid,
-    lead_in,
-    reference,
-    song_bars,
-    song_doubts,
-    song_fixes,
-    song_passages,
-)
-from arr.commands._playback import playing
-from arr.commands._screen import chord_block, clock, position, song_chart
+from arr.commands._common import detected_grid, lead_in, reference, song_bars, song_doubts, song_fixes, song_passages
+from arr.commands._fixes import clicks, cut, fix_bars, fix_chords, looped, stamp, within
+from arr.commands._screen import chord_block, clock, song_chart
 from arr.project import Project, ProjectError
 
-ANSWERS = {"enter": "right", "back": "back", "forward": "forward", "quit": "quit", "bars": "bars"}
+ANSWERS = {"enter": "right", "back": "back", "forward": "forward", "quit": "quit", "bars": "bars", "chords": "chords"}
 KEYS = (
-    "Entrée : c'est bon · m : les barres sont mal placées\n"
+    "Entrée : c'est bon · m : les barres sont mal placées · a : un accord est faux\n"
     "← → : autre passage · Espace : pause · q : quitter (reprise plus tard)"
 )
-KEPT = {"enter": "keep", "redo": "redo", "escape": "drop", "quit": "drop"}
-USUAL = 4  # temps posés dans une mesure où le détecteur en a manqué un, ou entendu un deux fois
 
 
 def section_of(p: Project, t: float) -> str:
@@ -45,47 +34,6 @@ def label(p: Project, passage: layer.Passage) -> str:
 def verified(found: list[layer.Passage]) -> str:
     done = sum(x.right for x in found)
     return f"vérifié : {done}/{len(found)} passage{'s' if len(found) > 1 else ''}"
-
-
-def cut(whole, start: float, end: float):
-    return whole[int(round(start * audio.SR)) : int(round(end * audio.SR))]
-
-
-def within(chart: list[tuple], start: float, end: float) -> list[tuple]:
-    return [m for m in chart if start - 0.05 <= m[0] < end - 0.05]
-
-
-def clicks(period: float) -> list[tuple[float, bool]]:
-    """Les quatre clics du décompte, au tempo du passage, juste avant son début."""
-    return [(-k * period, False) for k in range(4, 0, -1)]
-
-
-def looped(body, lines, answers: dict[str, str], lead: int = 0) -> str:
-    """Joue `body` en boucle sous l'écran `lines(instant, en pause)` jusqu'à une touche d'`answers` ; rend sa réponse.
-
-    `lead` : la longueur, en échantillons, d'un décompte au début de `body`, rejoué à chaque tour ;
-    l'instant est alors négatif pendant les clics.
-    """
-    from rich.console import Group
-
-    length, paused, answer = (len(body) - lead) / audio.SR, False, "quit"
-
-    def screen(seconds: float):
-        t = (int(seconds * audio.SR) % len(body) - lead) / audio.SR
-        return Group(*lines(min(t, length - 1e-3), paused))
-
-    def steer(keys: list[str], seconds: float):
-        nonlocal paused, answer
-        for key in keys:
-            if key == "pause":
-                paused = not paused
-            elif key in answers:
-                answer = answers[key]
-                return paused, None, True
-        return paused, None
-
-    playing(body, body, screen, steer, transient=True)
-    return answer
 
 
 def listen(
@@ -115,134 +63,6 @@ def listen(
     return looped(body, lines, ANSWERS, lead)
 
 
-# --- corriger les barres
-
-
-def tap_bars(whole, chart: list[tuple], start: float, end: float, period: float, name: str) -> tuple[str, list[float]]:
-    """Quatre clics au tempo, puis le passage joue une fois : rend les instants du morceau où Espace a été tapé.
-
-    La grille du moment défile sous les yeux. Rend aussi la touche qui a arrêté la passe avant
-    sa fin : « redo » (r, à refaire), « escape » ou « quit » (abandon) ; vide si elle est allée au bout.
-    """
-    from rich.console import Group
-    from rich.progress_bar import ProgressBar
-
-    body = cut(whole, start, end)
-    playback, lead = lead_in(body, clicks(period))
-    taps, length, stopped = truth.Taps(), len(body) / audio.SR, ""
-    bars, marks = within(chart, start, end), [(0.0, len(body) / audio.SR, name, start)]
-
-    def screen(seconds: float):
-        t = position(seconds, lead)
-        clicks = " · ".join(["clic"] * min(4, int((t + 4 * period) / period) + 1))
-        now = f"décompte : {clicks}" if t < 0 else f"[green]▶[/] {clock(t)} / {clock(length)}"
-        n = len(taps.times)
-        return Group(
-            f"[bold]Corriger les barres · {name}[/] · le passage joue une fois",
-            "Espace sur le 1 de chaque mesure, et sur le 1 qui suit la dernière",
-            "",
-            now,
-            ProgressBar(total=max(length, 1e-9), completed=max(t, 0.0), width=30),
-            f"{n} frappe{'s' if n > 1 else ''}",
-            *chord_block(bars, marks, min(t, length - 1e-3))[1:3],
-            "",
-            "[dim]r : recommencer · Échap : abandonner[/]",
-        )
-
-    def steer(keys: list[str], seconds: float):
-        nonlocal stopped
-        stopped = next((key for key in keys if key in ("redo", "escape", "quit")), "")
-        return (False, None, True) if stopped else (False, None)
-
-    playing(playback, None, screen, steer, taps.tap, taps.heard, transient=True)
-    # Une frappe date une position du flux, décompte compris : elle devient un instant du morceau.
-    return stopped, truth.bar_marks([start + position(t, lead) for t in taps.positions()], start, end + period)
-
-
-def stamp(t: float) -> str:
-    return f"{int(t) // 60}:{t % 60:04.1f}".replace(".", ",")
-
-
-def odd_bars(bars: list[float], beats: list[float]) -> set[int]:
-    """Demande, pour les mesures tapées qui ne tiennent pas quatre temps, si elles sont vraies ; rend celles à recompter."""
-    found = layer.counts(bars, beats)
-    spread: set[int] = set()
-    for n in sorted({n for n in found if n != USUAL}):
-        where = [i for i, k in enumerate(found) if k == n]
-        some = f"{len(where)} mesure{'s' if len(where) > 1 else ''} à {n} temps entre vos frappes"
-        wrong = "temps manqué" if n < USUAL else "temps entendu en trop"
-        typer.echo(f"{some} ({', '.join(stamp(bars[i]) for i in where)})")
-        answer = ""
-        while answer not in ("v", "t"):
-            answer = (
-                typer.prompt(f"  vraie mesure à {n} temps (v), ou {wrong} : {USUAL} temps égaux (t) ?").strip().lower()
-            )
-        if answer == "t":
-            spread.update(where)
-    return spread
-
-
-def beat_counts(read: tuple[list[float], list[float]], start: float, end: float) -> str:
-    """Le compte des mesures du passage, pour un morceau sans accords : « 4 · 3 · 5 · 4 temps »."""
-    inside = [bar for bar in layer.measures(*read) if start - 0.05 <= bar[0] < end - 0.05]
-    return " · ".join(str(len(bar)) for bar in inside) + " temps"
-
-
-def replay(p: Project, whole, start: float, end: float, name: str, fix: layer.Fix, before: list[tuple]) -> str:
-    """Rejoue le passage en boucle avec la nouvelle grille sous l'ancienne ; rend « keep », « redo » ou « drop »."""
-    after = song_chart(p, (fix,))
-    body = cut(whole, start, end)
-    marks = [(0.0, len(body) / audio.SR, name, start)]
-    old = chord_block(within(before, start, end), marks, -1.0)[2:3] or [beat_counts(song_bars(p), start, end)]
-
-    def lines(t: float, paused: bool) -> list:
-        new = chord_block(within(after, start, end), marks, t, True)[2:3]
-        state = "[yellow]⏸ en pause ·[/]" if paused else "[green]▶[/]"
-        return [
-            f"[bold]Corriger les barres · {name}[/] · le passage rejoue avec la nouvelle grille",
-            f"{state} en boucle · {clock(t)} / {clock(len(body) / audio.SR)}",
-            "",
-            "[dim]Avant[/]",
-            *old,
-            "[bold]Après[/]",
-            *(new or [beat_counts(song_bars(p, (fix,)), start, end)]),
-            "",
-            "[dim]Entrée : garder · r : refaire · Échap : abandonner · Espace : pause[/]",
-        ]
-
-    return looped(body, lines, KEPT)
-
-
-def fix_bars(p: Project, whole, chart: list[tuple], passage: layer.Passage) -> Optional[layer.Fix]:
-    """Fait taper le 1 de chaque mesure du passage, montre la grille qui en sort, et rend la correction gardée ou None.
-
-    Le passage joue jusqu'à une mesure après sa fin : le 1 qui ferme la dernière mesure s'y entend.
-    Chaque frappe va au temps détecté le plus proche ; à plus d'un demi-temps de tout temps, elle est refusée.
-    """
-    beats, name = detected_grid(p)[0], label(p, passage)
-    period = layer.local_period(beats, (passage.start + passage.end) / 2)
-    end = min(passage.end + USUAL * period, len(whole) / audio.SR)
-    while True:
-        stopped, marks = tap_bars(whole, chart, passage.start, end, period, name)
-        if stopped == "redo":
-            continue
-        if stopped:
-            return None
-        bars, far = layer.snap(marks, beats)
-        if far:
-            typer.echo(f"frappe à {', '.join(map(stamp, far))} : aucun temps détecté à moins d'un demi-temps")
-        elif len(bars) < 2:
-            typer.echo(f"{len(bars)} frappe : il en faut deux au moins (le 1 d'une mesure, et le 1 qui la suit)")
-        else:
-            fix = layer.make_fix(bars, beats, odd_bars(bars, beats), USUAL)
-            answer = replay(p, whole, passage.start, end, name, fix, chart)
-            if answer != "redo":
-                return fix if answer == "keep" else None
-            continue
-        if not confirm("Refaire ?"):
-            return None
-
-
 def section_range(p: Project, given: str) -> tuple[float, float]:
     """Le début et la fin des sections données (« intro,intro2 »), qui doivent se suivre dans le morceau."""
     found = [p.section(name.strip()) for name in given.split(",") if name.strip()]
@@ -256,11 +76,13 @@ def section_range(p: Project, given: str) -> tuple[float, float]:
 def undo(p: Project, section: Optional[str]) -> None:
     taken = layer.undo_fix(p, *section_range(p, section)) if section else layer.undo_fix(p)
     if taken is None:
-        raise ProjectError(f"aucune correction de barres à reprendre{f' dans {section}' if section else ''}")
-    name = section_of(p, taken.bars[0])
+        raise ProjectError(f"aucune correction à reprendre{f' dans {section}' if section else ''}")
+    chords = isinstance(taken, chordfix.ChordFix)
+    start, end = (taken.start, taken.end) if chords else (taken.bars[0], taken.bars[-1])
+    name = section_of(p, start)
     typer.echo(
-        f"correction reprise : {name + ' · ' if name else ''}{stamp(taken.bars[0])} à {stamp(taken.bars[-1])}"
-        f" ({len(taken.bars) - 1} mesures) ; elle reste lisible dans les versions précédentes de review/"
+        f"correction {'des accords' if chords else 'des barres'} reprise : {name + ' · ' if name else ''}"
+        f"{stamp(start)} à {stamp(end)} ; elle reste lisible dans les versions précédentes de review/"
     )
 
 
@@ -274,7 +96,9 @@ def review(
     ),
     listing: bool = typer.Option(False, "--list", help="Liste les passages à relire et leur état, sans rien jouer."),
     back: bool = typer.Option(
-        False, "--undo", help="Reprend la dernière correction de barres du morceau, ou de la section donnée par -s."
+        False,
+        "--undo",
+        help="Reprend la dernière correction (barres ou accords) du morceau, ou de la section donnée par -s.",
     ),
     count: bool = typer.Option(
         False,
@@ -298,9 +122,16 @@ def review(
     alors quatre temps égaux entre les deux frappes. Le passage rejoue avec la nouvelle grille sous
     l'ancienne : Entrée la garde, r refait les frappes, Échap abandonne.
 
+    a corrige les accords : le passage s'ouvre dans l'éditeur ($VISUAL ou $EDITOR), une ligne par
+    mesure, une case par temps, rempli de ce qu'`arr` montre ; « / » tient l'accord, « N.C. » dit
+    qu'il n'y en a pas. À la fermeture, le passage rejoue avec les nouveaux accords sous les anciens :
+    Entrée garde, r rouvre l'éditeur, Échap abandonne. Une ligne illisible (nom d'accord inconnu,
+    cinq cases pour quatre temps) est dite avec son numéro, et l'éditeur se rouvre sur le texte.
+    Barres et accords faux : m d'abord, puis a sur les barres corrigées.
+
     Une correction se voit partout où le morceau se lit : `arr play`, `arr chordpro`, `arr sheet`,
     le décompte, les numéros de mesure. Les accords restent à l'instant où ils sonnent. Rien ne
-    bouge hors des mesures tapées. --undo reprend la dernière correction.
+    bouge hors des mesures tapées. --undo reprend la dernière correction, de barres ou d'accords.
 
     Un passage jugé bon ou corrigé perd son « ? » dans `arr play`. Un jugement tient après un
     nouvel `arr analyze` tant que les mesures ne changent pas ; une correction tient toujours.
@@ -348,21 +179,24 @@ def review(
     while True:
         head = f"{title} · section {section}" if section else f"{title} · relecture {at + 1}/{len(todo)}"
         answer = listen(p, whole, chart, todo[at], head, "" if section else verified(todo), count)
-        if answer == "bars":
-            fix = fix_bars(p, whole, chart, todo[at])
+        if answer in ("bars", "chords"):
+            name, bars = label(p, todo[at]), answer == "bars"
+            fix = (fix_bars if bars else fix_chords)(p, whole, chart, todo[at], name)
             if fix is None:
-                typer.echo(f"{label(p, todo[at])} : barres laissées telles quelles")
+                typer.echo(f"{name} : {'barres laissées telles quelles' if bars else 'accords laissés tels quels'}")
                 continue
-            saved = layer.save_fix(p, fix)
-            typer.echo(f"✔ {label(p, todo[at])} : barres corrigées ({layer.FOLDER}/{saved.name})")
-            # Les barres ont bougé : les passages et leurs numéros de mesure se relisent sur la nouvelle grille.
+            saved = layer.save_fix(p, fix) if bars else layer.save_chord_fix(p, fix)
+            typer.echo(f"✔ {name} : {'barres corrigées' if bars else 'accords corrigés'} ({layer.FOLDER}/{saved.name})")
+            # La grille a changé : les passages et leurs numéros de mesure se relisent, et le passage rejoue.
             start, chart, fixed = todo[at].start, song_chart(p), fixed + 1
             todo = chosen() if section else song_passages(p)
             at = min(range(len(todo)), key=lambda i: abs(todo[i].start - start), default=None)
             if at is None:
                 break
+            continue
         elif answer == "right":
-            layer.judge_right(p, todo[at])
+            if not todo[at].right:  # un passage déjà corrigé n'a pas besoin d'un jugement de plus
+                layer.judge_right(p, todo[at])
             todo[at].right = True
             typer.echo(f"✔ {label(p, todo[at])} : c'est bon")
         elif answer == "quit":

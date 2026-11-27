@@ -12,6 +12,8 @@ près, et porte les mêmes temps, à 70 ms près ; sinon il ne s'applique pas, e
 Une correction de barres (`Fix`) porte les barres que le musicien a tapées et les temps entre la
 première et la dernière : `fix_grid` les met à la place de ce que le détecteur a lu là, et de
 rien d'autre. Elle vaut quoi que le détecteur relise ensuite.
+
+Une correction d'accords (`chordfix.ChordFix`) est rangée et reprise ici, avec les barres.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from pathlib import Path
 
 import tomli_w
 
+from arr.chordfix import ChordFix
 from arr.project import Project, ProjectError
 
 FOLDER = "review"
@@ -277,11 +280,41 @@ def save_fix(p: Project, fix: Fix) -> Path:
     return _write(p, {**data, "fixes": [*data.get("fixes", []), entry]})
 
 
-def undo_fix(p: Project, start: float = 0.0, end: float = float("inf")) -> Fix | None:
-    """Reprend la dernière correction de barres qui touche à `start`–`end`, dans une nouvelle version ; None s'il n'y en a pas."""
-    data, fixes = _latest(p), bar_fixes(p)
-    last = next((i for i in reversed(range(len(fixes))) if fixes[i].bars[0] < end and fixes[i].bars[-1] > start), None)
-    if last is None:
+def chord_fixes(p: Project) -> list[ChordFix]:
+    """Les accords corrigés dans `arr review`, de la plus ancienne correction à la plus récente."""
+    try:
+        return [
+            ChordFix(
+                float(e["start"]),
+                float(e["end"]),
+                [(float(a), float(b), str(n)) for a, b, n in e["chords"]],
+                e["fixed"],
+            )
+            for e in _latest(p).get("chords", [])
+        ]
+    except (KeyError, TypeError, ValueError) as e:
+        raise ProjectError(f"relecture illisible : {_versions(p)[-1]} ({e})")
+
+
+def save_chord_fix(p: Project, fix: ChordFix) -> Path:
+    """Garde une correction d'accords, dans une nouvelle version."""
+    data, now = _latest(p), datetime.now().isoformat(timespec="seconds")
+    chords = [[round(a, 3), round(b, 3), name] for a, b, name in fix.chords]
+    entry = {"fixed": now, "start": round(fix.start, 3), "end": round(fix.end, 3), "chords": chords}
+    return _write(p, {**data, "chords": [*data.get("chords", []), entry]})
+
+
+def undo_fix(p: Project, start: float = 0.0, end: float = float("inf")) -> Fix | ChordFix | None:
+    """Reprend la dernière correction (barres ou accords) qui touche à `start`–`end`, dans une nouvelle version.
+
+    Rend la correction reprise, ou None s'il n'y en a pas. À la même seconde, les accords d'abord : ils viennent après les barres.
+    """
+    data = _latest(p)
+    found = [("fixes", i, f, f.bars[0], f.bars[-1]) for i, f in enumerate(bar_fixes(p))]
+    found += [("chords", i, f, f.start, f.end) for i, f in enumerate(chord_fixes(p))]
+    found = [x for x in found if x[3] < end and x[4] > start]
+    if not found:
         return None
-    _write(p, {**data, "fixes": [e for i, e in enumerate(data["fixes"]) if i != last]})
-    return fixes[last]
+    key, last, fix, _, _ = max(found, key=lambda x: (x[2].fixed, x[0] == "chords", x[1]))
+    _write(p, {**data, key: [e for i, e in enumerate(data[key]) if i != last]})
+    return fix

@@ -112,6 +112,11 @@ def song_bars(p: Project, more: tuple = ()) -> Optional[tuple[list[float], list[
     return review.fix_grid(read[0], grid.regular_bars(read[1], read[0]), [*song_fixes(p, read[0]), *more])
 
 
+def song_chord_fixes(p: Project) -> list:
+    """Les accords corrigés par le musicien dans `arr review`, de la plus ancienne correction à la plus récente."""
+    return review.chord_fixes(p)
+
+
 def song_doubts(p: Project, mine: bool = False) -> Optional[dict[float, str]]:
     """Les mesures douteuses de la grille d'`arr play` (`grid.doubtful_bars`) ; None si le projet ne garde pas ce que beat_this entendait.
 
@@ -123,7 +128,7 @@ def song_doubts(p: Project, mine: bool = False) -> Optional[dict[float, str]]:
     found = grid.doubtful_bars(*read, heard[:, 0])
     if not mine or not found:
         return found
-    fixes = song_fixes(p, detected_grid(p)[0])
+    fixes = [*song_fixes(p, detected_grid(p)[0]), *review.chord_fixes(p)]
     return review.unjudged(found, review.measures(*read), review.right_bars(p), fixes)
 
 
@@ -133,7 +138,7 @@ def song_passages(p: Project) -> Optional[list[review.Passage]]:
     if not read or found is None:
         return None
     end = max(float(p.song.get("duration") or 0.0), read[0][-1] if read[0] else 0.0)
-    fixes = song_fixes(p, detected_grid(p)[0])
+    fixes = [*song_fixes(p, detected_grid(p)[0]), *review.chord_fixes(p)]
     return review.passages(review.measures(*read), found, review.right_bars(p), end, fixes)
 
 
@@ -200,6 +205,20 @@ def confirm(question: str) -> bool:
         "y",
         "yes",
     )
+
+
+def open_editor(path: Path) -> bool:
+    """Ouvre `path` dans l'éditeur de l'utilisateur ; sans éditeur ni terminal, indique seulement le fichier."""
+    import os
+    import subprocess
+    import sys
+
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    if editor and sys.stdin.isatty():
+        subprocess.run([*editor.split(), str(path)], check=False)
+        return True
+    typer.echo(f"à modifier : {path}")
+    return False
 
 
 def slug(text: str) -> str:
