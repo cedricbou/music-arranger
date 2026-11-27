@@ -83,18 +83,17 @@ src/arr/
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
   commands/_playback.py     la lecture pilotée au clavier, commune à play et review : touches, arrêts, écran
   commands/play.py          play : mix, piste ou prise, sections, boucle ; pause, mesure voisine, doute
-  commands/review.py        review : les passages douteux joués en boucle un par un, jugés bons ou laissés
+  commands/review.py        review : les passages douteux joués un par un, jugés bons, barres corrigées (m)
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
-  commands/truth.py         truth : la grille et les accords notés contre les passages de référence
   commands/studio.py        capture, record, calibrate, levels
   commands/midi.py          midi ports/send/monitor : tester et piloter les pédales de scène
   commands/system.py        check, devices, doctor, models pull
   project.py                Project : song.toml, pistes versionnées, prises, sections, corbeille
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
-  truth.py                  passages de référence : barres repérées à l'oreille (truth/), note de la grille
-  review.py                 relecture : passages à relire, décisions du musicien versionnées (review/)
+  truth.py                  frappes datées, barres tapées de truth/, note d'une grille contre elles
+  review.py                 relecture : passages à relire, jugements et barres corrigées, versionnés (review/)
   grid.py                   la grille lue : temps doublés retirés, temps manqués comblés, barres régulières
   measure.py                mesures sans écoute : période, calage, niveaux, accords replacés sur les mesures
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section

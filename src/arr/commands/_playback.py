@@ -7,13 +7,25 @@ import re
 from contextlib import contextmanager
 from typing import Optional
 
-KEYS = {b" ": "pause", b"D": "back", b"C": "forward", b"d": "doubt", b"\n": "enter", b"\r": "enter", b"q": "quit"}
+KEYS = {
+    b" ": "pause",
+    b"D": "back",
+    b"C": "forward",
+    b"d": "doubt",
+    b"\n": "enter",
+    b"\r": "enter",
+    b"q": "quit",
+    b"m": "bars",
+    b"r": "redo",
+    b"\x1b": "escape",
+}
 STEP = 5.0  # secondes entre deux arrêts quand le morceau n'a pas de mesures connues
 
 
 def parse_keys(data: bytes) -> list[str]:
-    """Les touches reconnues dans ce que le terminal a envoyé : espace, flèches gauche et droite, d, Entrée, q."""
-    return [KEYS[k[-1:]] for k in re.findall(rb"[ dq\r\n]|\x1b[\[O][CD]", data)]
+    """Les touches reconnues dans ce que le terminal a envoyé : espace, flèches gauche et droite, Entrée, Échap, d, q, m, r."""
+    found = re.findall(rb"\x1b[\[O].|\x1b|[ dqmr\r\n]", data)  # une séquence de flèche entière, sinon Échap seul
+    return [KEYS[k[-1:]] for k in found if k[-1:] in KEYS]
 
 
 @contextmanager

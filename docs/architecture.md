@@ -22,14 +22,15 @@ choix, dans `docs/decisions/`.
 - **Grille** : `analysis.json` (temps et barres de beat_this, tels quels) et `analysis_frames.npz`
   (ses activations à 50 trames par seconde) ; doublons, trous et barres se refont à chaque lecture
   (`song_grid`, fiches 013, 015, 017).
-- **Passages de référence** : `truth/<passage>.vNNN.toml` (start, end, beats_per_bar, bars), une
-  version par passe de `arr play --mark`, la dernière fait foi ; à côté, `.vNNN.chords.txt` : les
-  accords de ses mesures, ceux d'`arr` puis les corrections du musicien, jamais récrit ;
-  `truth/runs.json` garde les notes de chaque `arr truth` (fiche 016).
 - **Relecture** : `review/vNNN.toml`, une version par décision du musicien dans `arr review`, chacune
   portant tout l'état ; la dernière fait foi. `right` : les passages jugés bons, chaque mesure par
-  ses temps. Appliquée à la lecture (`song_doubts(p, mine=True)`), jamais recopiée dans
-  `analysis.json` (fiche 019).
+  ses temps. `fixes` : les barres corrigées, chacune avec ses barres (`bars`) et tous les temps de
+  la première à la dernière (`beats`). Appliquée à la lecture (`song_grid`, `song_bars`,
+  `song_doubts(p, mine=True)`), jamais recopiée dans `analysis.json` (fiche 019).
+- **Barres tapées dans `truth/`** : `truth/<passage>.vNNN.toml` (start, end, beats_per_bar, bars),
+  la dernière version fait foi ; lues comme des corrections placées avant celles de `review/`,
+  jamais écrites par `arr`. À côté, `.vNNN.chords.txt` : des accords corrigés à l'oreille, que
+  seul `scripts/grid_score.py` lit (fiches 016, 019).
 
 ## Moteurs externes
 
