@@ -372,7 +372,7 @@ Accords · verse · mes. 11 à 15
 │ G   /   /   /   │
 ? compte incertain · 0:23 : temps 2 entendu faiblement (0,62)
 
-Entrée : c'est bon · m : les barres sont mal placées
+Entrée : c'est bon · m : les barres sont mal placées · a : un accord est faux
 ← → : autre passage · Espace : pause · q : quitter (reprise plus tard)
 vérifié : 0/2 passages
 ```
@@ -383,8 +383,7 @@ vérifié : 0/2 passages
 - **Un passage à relire** réunit les mesures douteuses voisines, avec une mesure avant et une
   après pour entrer dans le compte. Il joue en boucle, de barre à barre, sur l'original.
 - **Entrée** dit que le passage est bon et passe au suivant. ← et → mènent à un autre passage
-  sans répondre, Espace met en pause, q quitte. m corrige les barres (ci-dessous) ; un accord
-  faux se laisse sans réponse.
+  sans répondre, Espace met en pause, q quitte. m corrige les barres, a les accords (ci-dessous).
 - **Un passage jugé bon ou corrigé perd son « ? »** dans `arr play`. Un jugement tient après un
   nouvel `arr analyze` tant que les mesures sont les mêmes : même début, mêmes temps. Si le
   détecteur les lit autrement, le passage revient à relire. Une correction tient toujours.
@@ -453,12 +452,44 @@ Entrée : garder · r : refaire · Échap : abandonner · Espace : pause
   `arr chordpro`, la relecture le rappelle.
 - **Rien ne bouge hors de vos frappes.** Si le 1 est décalé dans tout le morceau, la mesure
   juste avant et celle juste après le passage corrigé sont plus courtes ou plus longues.
-- **`arr review --undo`** reprend la dernière correction du morceau ; avec `-s chorus`, la
-  dernière qui touche cette section. Les versions précédentes restent dans `review/`.
+- **`arr review --undo`** reprend la dernière correction du morceau, de barres ou d'accords ;
+  avec `-s chorus`, la dernière qui touche cette section. Les versions précédentes restent dans
+  `review/`.
 - **Un morceau qui porte des barres tapées dans `truth/`** les lit comme des corrections : là
   où le détecteur ne compte pas le nombre de temps par mesure écrit dans le fichier du passage,
   ce nombre de temps égaux est posé entre deux barres. Pour ne pas en tenir compte, déplacez le
   dossier `truth/` hors du projet.
+
+### Corriger un accord faux
+
+Quand les barres sont justes mais que le nom affiché n'est pas ce que vous entendez, appuyez
+sur a pendant que le passage joue : il s'ouvre dans votre éditeur (`$VISUAL` ou `$EDITOR`).
+
+```
+# intro2 · mes. 9 à 12 · une case par temps · « / » : l'accord continue · « N.C. » : pas d'accord
+# Enregistrez et fermez pour revenir à la relecture ; sans changement, rien n'est corrigé.
+
+  9 │ Am   /    /    /
+ 10 │ F    /    /    /
+ 11 │ C    /    G    /
+ 12 │ G    /    /    /
+```
+
+- **Une ligne par mesure, une case par temps**, remplie de ce qu'`arr` montre. Écrivez le nom
+  de l'accord sur le temps où il commence ; « / » tient l'accord d'avant, « N.C. » dit qu'il
+  n'y en a pas. Le nom reste écrit comme vous l'écrivez : `F#m7` s'affiche `F#m7`.
+- **À la fermeture**, le passage rejoue en boucle avec vos accords sous les anciens. Entrée
+  garde, r rouvre l'éditeur sur votre texte, Échap abandonne.
+- **Une ligne qu'`arr` ne sait pas lire** (un nom d'accord inconnu, cinq cases pour une mesure
+  à quatre temps, une mesure oubliée) est dite avec son numéro de ligne, et l'éditeur se rouvre
+  sur votre texte, la remarque à la fin. Le rendre sans y toucher abandonne.
+- **Barres et accords faux à la fois** : m d'abord. Le passage rejoue avec les barres
+  corrigées, et a s'ouvre sur elles.
+- **La correction se voit** dans `arr play`, `arr chordpro` et la proposition d'`arr sheet` (une
+  antisèche déjà modifiée à la main, `sheet.toml`, fait toujours foi). Elle tient après `arr
+  analyze` et `arr transcribe` ; `arr review --undo` la reprend.
+- **Vos accords sont gardés à leur instant** : corriger des barres ensuite ne les déplace pas.
+- Seul le passage ouvert change. Reporter une correction sur les autres refrains se fait à la main.
 
 ## Faire le ménage
 

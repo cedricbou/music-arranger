@@ -79,18 +79,20 @@ def chart(chords: list[tuple], beats: list[tuple]) -> list[tuple]:
     return [tuple(bar) for bar in bars]
 
 
-def song_chart(p: Project, more: tuple = ()) -> list[tuple]:
+def song_chart(p: Project, more: tuple = (), chords_too: tuple = ()) -> list[tuple]:
     """La grille d'accords du morceau, sur ses mesures de référence (`song_bars`) ; vide sans transcription.
 
     Les accords viennent de la transcription, qui compte parfois les mesures autrement (une mesure
     à deux temps non vue) : `measure.seat_chords` les replace sur les barres lues par `arr analyze`.
     Les barres corrigées par le musicien viennent après : un accord reste à l'instant où il sonne,
-    ce sont les barres qui bougent autour de lui. `more` : des corrections à essayer.
+    ce sont les barres qui bougent autour de lui. Les accords qu'il a corrigés sont posés sur
+    ceux de la transcription (`chordfix.lay_chords`) : antisèche et prompteur les lisent ici aussi.
+    `more` : des corrections de barres à essayer ; `chords_too` : des corrections d'accords à essayer.
     Sans `analysis.json`, la grille suit les temps de la transcription.
     """
-    from arr import grid, measure
+    from arr import chordfix, grid, measure
     from arr.app import ORIGINAL, SCORE
-    from arr.commands._common import detected_grid, song_bars
+    from arr.commands._common import detected_grid, song_bars, song_chord_fixes
     from arr.engines import transcription
 
     score = (p.root / SCORE).parent
@@ -102,6 +104,7 @@ def song_chart(p: Project, more: tuple = ()) -> list[tuple]:
         own_bars = [t for t, number in own if number == 1]
         read = grid.regular_bars(found[1], found[0])
         chords = measure.seat_chords(chords, own_bars, read, found[0], lambda: audio.load(original))
+    chords = chordfix.lay_chords(chords, [*song_chord_fixes(p), *chords_too])
     raw, downbeats = song_bars(p, more)
     beats, strong = [], iter(sorted(downbeats) + [float("inf")])
     bar = next(strong)

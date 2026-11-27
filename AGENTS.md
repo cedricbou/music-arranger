@@ -83,7 +83,8 @@ src/arr/
   commands/_screen.py       l'écran de play et de record : pistes, calage, section en cours, grille d'accords
   commands/_playback.py     la lecture pilotée au clavier, commune à play et review : touches, arrêts, écran
   commands/play.py          play : mix, piste ou prise, sections, boucle ; pause, mesure voisine, doute
-  commands/review.py        review : les passages douteux joués un par un, jugés bons, barres corrigées (m)
+  commands/review.py        review : les passages douteux joués un par un, jugés bons ou corrigés ; --undo
+  commands/_fixes.py        les corrections de review : taper les barres (m), accords dans l'éditeur (a)
   commands/align.py         nudge, align : le calage d'une piste par section
   commands/sheet.py         sheet, set new/add/show/edit/print : antisèches de scène et setlists
   commands/chordpro.py      chordpro : le fichier .cho du prompteur de scène, et son aperçu
@@ -94,6 +95,7 @@ src/arr/
   audio.py                  E/S et opérations numpy (mix, splice, fit, shift, stretch, normalize, clics)
   truth.py                  frappes datées, barres tapées de truth/, note d'une grille contre elles
   review.py                 relecture : passages à relire, jugements et barres corrigées, versionnés (review/)
+  chordfix.py               accords corrigés : le texte édité (une case par temps), sa lecture, leur pose
   grid.py                   la grille lue : temps doublés retirés, temps manqués comblés, barres régulières
   measure.py                mesures sans écoute : période, calage, niveaux, accords replacés sur les mesures
   lyrics.py                 LRCLIB, et rangement des paroles horodatées par section
@@ -140,9 +142,8 @@ Règles de structure (vérifiées par `tests/test_rules.py`, sauf « non vérifi
 La PreSonus iTwo de Cédric arrive en analogique sur les voies 7/8 d'une Soundcraft Signature 12 MTK :
 **capture sur ces entrées**, **lecture sur la sortie par défaut** (fiche 003 ; sinon `docs/manual/audio.md`).
 
-- Capture : `parec` sur une source PipeWire ; `studio.gate()` est une fonction pure.
-- Lecture et enregistrement : un flux duplex `sounddevice` sur l'API JACK de PipeWire, entrée
-  et sortie du même pilote. La latence vient de `arr calibrate`, jamais de PortAudio.
+- Capture : `parec` sur une source PipeWire (`studio.gate()` est pure). Lecture et enregistrement : un flux
+  duplex `sounddevice` sur l'API JACK de PipeWire, même pilote. Latence : `arr calibrate`, jamais PortAudio.
 - **Tester sans bruit** : `scripts/loopback.sh arr <commande>` crée une sortie PipeWire
   virtuelle, y pointe `ARR_AUDIO`, lance la commande et nettoie. Rien d'autre n'est permis.
 - **MIDI** : `midi.py` envoie par `aplaymidi` (`aseqsend` n'atteint pas la carte), écoute par `aseqdump`.

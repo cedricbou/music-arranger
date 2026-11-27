@@ -1,7 +1,7 @@
 # 019 — Ce que le musicien décide vit dans une couche à part, appliquée à la lecture
 
-Date : 26 novembre 2026, complétée le 27 pour les barres. État : en vigueur, pour les passages jugés bons
-et les barres corrigées. Complète les fiches 015 et 018 ; remplace la commande de la fiche 016.
+Date : 26 novembre 2026, complétée le 27 pour les barres et les accords. État : en vigueur, pour les
+passages jugés bons, les barres et les accords corrigés. Complète les fiches 015 et 018 ; remplace la commande de la fiche 016.
 
 ## Contexte
 
@@ -61,6 +61,24 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
   `chord_score` notent la lecture brute contre les corrections dans `scripts/grid_score.py`.
 - **`arr review --undo`** écrit une version sans la dernière correction : rien n'est effacé.
 
+## Complément du 27 novembre 2026 : les accords corrigés
+
+- **Le musicien récrit les accords d'un passage dans son éditeur** (touche a) : un fichier
+  temporaire, une ligne par mesure de la grille du moment, une case par temps, « / » pour tenir,
+  « N.C. » pour aucun. Rien ne reste dans le projet que la correction elle-même, dans `review/`.
+- **Une correction d'accords est gardée par instant** : (début, fin, nom) pour tout le passage.
+  Elle ne dépend donc pas des barres : corrigées avant, a s'ouvre sur elles ; corrigées après,
+  les accords restent où ils sonnent.
+- **Le nom reste celui que le musicien a écrit** (`F#m7`), sans passer par la notation de la
+  transcription : `sheet.chord_name` rend tel quel un nom sans « : ». Un nom qu'`arr` montrait
+  et que le musicien n'a pas touché garde son étiquette d'origine.
+- **Un seul endroit pose les corrections** : `song_chart`, après `measure.seat_chords`, par
+  `chordfix.lay_chords`. L'écran, le fichier du prompteur et la proposition d'antisèche lisent
+  tous `song_chart`. `sheet.toml`, une fois écrit, fait toujours foi (fiche 009).
+- **Corriger les accords d'un passage, c'est aussi dire que ses barres sont bonnes** : le
+  passage perd son « ? ». Après une correction gardée, le passage rejoue : barres, puis accords.
+- **`arr review --undo`** reprend la correction la plus récente, de barres ou d'accords.
+
 ## Ce qui a été écarté
 
 - **Un quart de mesure de tolérance sur le début d'une mesure**, comme prévu au cadrage : en
@@ -80,6 +98,10 @@ Il faut un endroit pour ces décisions, qui survive à `arr analyze` et à `arr 
   tout temps détecté et est refusée. Taper les mesures voisines ne suffit pas : les deux mesures
   n'en feraient qu'une. Cette barre-là ne se corrige pas encore.
 - Les accords sont replacés sur les barres du détecteur, pas sur celles du musicien : là où il
-  s'est trompé de plusieurs temps, un accord peut rester décalé jusqu'à la correction des accords.
+  s'est trompé de plusieurs temps, un accord peut rester décalé tant qu'il n'est pas corrigé (touche a).
+- Un nom d'accord est accepté sur sa forme (une note, des chiffres et qualités usuels, une basse) :
+  `Cmaj7#11` passe ; `Cmja7` et `Hm` sont refusés. Un nom bien formé mais faux à l'oreille ne se contrôle pas.
+- Une correction d'accords n'est pas reportée sur les passages semblables, et l'antisèche déjà
+  écrite ne la reçoit pas.
 - Les numéros de mesure d'`arr sections` suivent les barres détectées, ceux de l'écran les barres
   régulières : l'écart existait avant, les corrections s'appliquent aux deux.

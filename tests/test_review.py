@@ -260,8 +260,9 @@ def test_m_fixes_the_bars_by_tapping_and_the_fix_shows_everywhere(tmp_path, monk
     assert after.startswith("│ F   /   /   /   │ G   /   /   /   │ A   /   /   /   │")
     assert "✔ verse · mes. 4 à 6 : barres corrigées (review/v001.toml)" in out and "morceau vérifié" in out
     assert "Le fichier du prompteur est plus ancien que vos corrections : arr chordpro" in out
-    # le passage (6 s), quatre clics (2 s) puis le passage et une mesure de plus, une fois ; enfin la boucle
-    assert session["played"] == [(6.0, True), (10.0, False), (8.0, True)]
+    # le passage (6 s), quatre clics (2 s) puis le passage et une mesure de plus, une fois ; la boucle
+    # avec la nouvelle grille ; enfin le passage corrigé rejoue, pour corriger ses accords ou passer au suivant
+    assert session["played"] == [(6.0, True), (10.0, False), (8.0, True), (6.0, True)]
     # la correction se lit partout : grille, doutes, prompteur, décompte
     assert song_bars(p)[0] == EVERY and song_grid(p)[0] == EVERY
     assert song_doubts(p, mine=True) == {} and [x.state for x in song_passages(p)] == ["corrigé"]
@@ -281,7 +282,7 @@ def test_m_fixes_the_bars_by_tapping_and_the_fix_shows_everywhere(tmp_path, monk
 
     # --undo la reprend, dans une nouvelle version ; il n'y a alors plus rien à reprendre
     out = runner.invoke(app, ["review", "--undo"]).output
-    assert "correction reprise : verse · 0:06,0 à 0:14,0 (4 mesures)" in out
+    assert "correction des barres reprise : verse · 0:06,0 à 0:14,0" in out
     assert [f.name for f in sorted((p.root / "review").iterdir())] == ["v001.toml", "v002.toml"]
     assert review.bar_fixes(p) == [] and song_bars(p)[0] == moved
     assert "aucune correction" in str(runner.invoke(app, ["review", "--undo"]).exception)
@@ -379,7 +380,7 @@ def test_sections_in_a_row_play_from_their_very_start_and_the_taps_can_be_stoppe
     fake_taps(monkeypatch, [taps], [["bars"], ["enter"]], lead=2.0, start=0.0)
     out = runner.invoke(app, ["review", "-s", "intro,intro2"], input="v\n").output
     assert "barres corrigées" in out and [t for t in song_bars(p)[1] if t <= 10.0] == taps
-    assert "correction reprise" in runner.invoke(app, ["review", "--undo", "-s", "intro,intro2"]).output
+    assert "correction des barres reprise" in runner.invoke(app, ["review", "--undo", "-s", "intro,intro2"]).output
 
 
 def test_count_in_gives_four_clicks_before_each_turn_of_the_loop(tmp_path, monkeypatch):
@@ -420,3 +421,178 @@ def test_the_screen_says_count_in_during_the_clicks(tmp_path, monkeypatch):
     calls["positions"] = [8.0 + 1.0]  # second tour, pendant les clics
     out = runner.invoke(app, ["review", "--count-in"]).output
     assert "décompte · verse · mes. 4 à 6" in out and "0:00 / 0:06" in out
+
+
+# --- corriger les accords
+
+
+def editing(monkeypatch, *edits):
+    """Un éditeur d'essai : chaque ouverture applique la fonction suivante au texte ; rend les textes ouverts."""
+    from arr.commands import _fixes
+
+    todo, opened = iter(edits), []
+
+    def open_editor(path) -> bool:
+        opened.append(path.read_text())
+        path.write_text(next(todo)(opened[-1]))
+        return True
+
+    monkeypatch.setattr(_fixes, "open_editor", open_editor)
+    return opened
+
+
+def test_the_chord_text_is_one_line_per_bar_and_one_slot_per_beat():
+    from arr import chordfix
+
+    bars = [
+        (0.0, 2.0, 4, [(0, 4, "A:min", 0.0, 2.0)]),
+        (2.0, 3.5, 3, [(0, 2, "F:maj7", 2.0, 3.0), (2, 1, "N", 3.0, 3.5)]),
+    ]
+    beats = [[0.0, 0.5, 1.0, 1.5], [2.0, 2.5, 3.0]]
+    text = chordfix.chord_text("intro2 · mes. 9 à 10", 9, bars)
+    assert text.splitlines()[0].startswith("# intro2 · mes. 9 à 10 · une case par temps")
+    assert [" ".join(line.split()) for line in text.splitlines()[3:]] == ["9 │ Am / / /", "10 │ Fmaj7 / N.C."]
+    # relu tel quel : les mêmes accords, aux mêmes instants, sous leur étiquette d'origine
+    assert chordfix.read_chord_text(text, 9, bars, beats) == (
+        [(0.0, 2.0, "A:min"), (2.0, 3.0, "F:maj7"), (3.0, 3.5, "N")],
+        [],
+    )
+    # ce que j'écris reste écrit comme je l'écris ; « / » en tête de mesure tient l'accord d'avant ; « | » vaut « │ »
+    mine = "9 | Am / F#m7 /\n10 | / C/E Bb"
+    assert chordfix.read_chord_text(mine, 9, bars, beats)[0] == [
+        (0.0, 1.0, "A:min"),
+        (1.0, 2.5, "F#m7"),
+        (2.5, 3.0, "C/E"),
+        (3.0, 3.5, "Bb"),
+    ]
+    # refusé, avec le numéro de la ligne : nom inconnu, cases en trop, « / » sans accord, mesure inconnue ou oubliée
+    wrong = "# titre\n9 │ Hm / / /\n10 │ F / C G\n12 │ C / /\nbla"
+    assert chordfix.read_chord_text(wrong, 9, bars, beats)[1] == [
+        "ligne 2 : « Hm » n'est pas un nom d'accord",
+        "ligne 3 : mesure 10, 4 cases pour 3 temps",
+        "ligne 4 : attendu « numéro de mesure │ accords », de 9 à 10",
+        "ligne 5 : attendu « numéro de mesure │ accords », de 9 à 10",
+    ]
+    assert chordfix.read_chord_text("9 │ / / / /\n10 │ F / /", 9, bars, beats)[1] == [
+        "ligne 1 : « / » sans accord avant lui"
+    ]
+    assert "il manque des mesures" in chordfix.read_chord_text("9 │ Am / / /", 9, bars, beats)[1][0]
+    # posés sur la transcription : mes accords dans mon passage, les siens autour, coupés à ses bords
+    fix = chordfix.ChordFix(2.0, 4.0, [(2.0, 4.0, "Dm")])
+    assert chordfix.lay_chords([(0.0, 3.0, "A:min"), (3.0, 5.0, "C:maj")], [fix]) == [
+        (0.0, 2.0, "A:min"),
+        (2.0, 4.0, "Dm"),
+        (4.0, 5.0, "C:maj"),
+    ]
+
+
+def test_a_fixes_the_chords_in_my_editor_and_the_fix_shows_everywhere(tmp_path, monkeypatch):
+    from arr.commands._screen import song_chart
+
+    p = gappy_song(tmp_path, monkeypatch)
+    before = song_chart(p)
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    cho = (p.root / "export/song.cho").read_text()
+    # la mesure 5 (trois temps) : Gm, puis D7 sur son dernier temps ; les autres ne changent pas
+    opened = editing(monkeypatch, lambda text: text.replace("G    /    /", "Gm   /    D7"))
+    session = fake_taps(monkeypatch, [], [["chords"], ["enter"], ["quit"]], lead=0.0, start=0.0)
+    out = runner.invoke(app, ["review"]).output
+    assert "a : un accord est faux" in out
+    assert [" ".join(line.split()) for line in opened[0].splitlines()[3:]] == [
+        "4 │ F / / /",
+        "5 │ G / /",
+        "6 │ A / / /",
+    ]
+    old, new = out.split("Avant\n")[1].split("Après\n")
+    assert old.startswith("│ F   /   /   /   │ G   /   /   │ A   /   /   /   │")
+    assert new.startswith("│ F   /   /   /   │ Gm  /   D7  │ A   /   /   /   │")
+    assert "✔ verse · mes. 4 à 6 : accords corrigés (review/v001.toml)" in out
+    assert "Le fichier du prompteur est plus ancien que vos corrections : arr chordpro" in out
+    assert [played for played, _ in session["played"]] == [
+        6.0,
+        6.0,
+        6.0,
+    ]  # l'écoute, la nouvelle grille, puis le passage corrigé
+
+    # la correction se lit partout : grille, relecture, prompteur, antisèche
+    chart = song_chart(p)
+    fixed = {m[0]: m for m in chart}[8.0]
+    assert [(c[0], c[1], c[2], c[3]) for c in fixed[3]] == [(0, 2, "Gm", 8.0), (2, 1, "D7", 9.0)]
+    assert [m for m in chart if m[0] != 8.0] == [m for m in before if m[0] != 8.0]  # rien d'autre ne bouge
+    assert [x.state for x in song_passages(p)] == ["corrigé"] and song_doubts(p, mine=True) == {}
+    assert "│ Gm  /   D7 " in runner.invoke(app, ["play", "-s", "verse"]).output
+    assert runner.invoke(app, ["chordpro"]).exit_code == 0
+    after = (p.root / "export/song.cho").read_text()
+    changed = [(a, b) for a, b in zip(cho.splitlines(), after.splitlines(), strict=True) if a != b]
+    assert changed == [("| G . . |", "| Gm . D7 |")]  # le fichier du prompteur ne diffère que sur la mesure corrigée
+    assert "Gm D7" in runner.invoke(app, ["sheet"]).output
+
+    # elle tient après une nouvelle transcription, qui relit tout autrement
+    (p.root / "score/chord.lab").write_text("0.0\t32.0\tE:min\n")
+    assert [c[2] for c in {m[0]: m for m in song_chart(p)}[8.0][3]] == ["Gm", "D7"]
+    assert [c[2] for c in {m[0]: m for m in song_chart(p)}[10.0][3]] == ["A:maj"]  # écrit par moi dans le passage
+    assert [c[2] for c in {m[0]: m for m in song_chart(p)}[12.0][3]] == ["E:min"]
+
+    # --undo la reprend
+    out = runner.invoke(app, ["review", "--undo"]).output
+    assert "correction des accords reprise : verse · 0:06,0 à 0:12,0" in out
+    assert [c[2] for c in {m[0]: m for m in song_chart(p)}[8.0][3]] == ["E:min"]
+    assert "aucune correction" in str(runner.invoke(app, ["review", "--undo"]).exception)
+
+
+def test_a_line_arr_cannot_read_reopens_the_editor_on_my_text(tmp_path, monkeypatch):
+    p = gappy_song(tmp_path, monkeypatch)
+    opened = editing(
+        monkeypatch,
+        lambda text: text.replace(
+            "G    /    /", "Hm   /    /    /"
+        ),  # un nom inconnu, et quatre cases pour trois temps
+        lambda text: text.replace("Hm   /    /    /", "Hm   /    /"),
+        lambda text: text,  # rendu sans y toucher : abandon
+        lambda text: text,  # seconde fois : rien n'a changé
+    )
+    fake_taps(monkeypatch, [], [["chords"], ["chords"], ["quit"]], lead=0.0, start=0.0)
+    out = runner.invoke(app, ["review"]).output
+    assert "ligne 5 : mesure 5, 4 cases pour 3 temps" in out and "ligne 5 : « Hm » n'est pas un nom d'accord" in out
+    # l'éditeur se rouvre sur mon texte, la remarque à la fin : les numéros de ligne restent les miens
+    assert "Hm   /    /    /" in opened[1] and opened[1].rstrip().endswith(
+        "# ✗ ligne 5 : mesure 5, 4 cases pour 3 temps"
+    )
+    assert opened[2].count("# ✗") == 1 and "n'est pas un nom d'accord" in opened[2]
+    assert "texte rendu tel quel : accords laissés tels quels" in out
+    assert "aucun accord n'a changé" in out and not (p.root / "review").exists()
+    # sans éditeur, rien ne se passe
+    from arr.commands import _fixes
+
+    monkeypatch.setattr(_fixes, "open_editor", lambda path: False)
+    fake_taps(monkeypatch, [], [["chords"], ["quit"]], lead=0.0, start=0.0)
+    assert "pas d'éditeur : règle $VISUAL ou $EDITOR" in runner.invoke(app, ["review"]).output
+
+
+def test_bars_first_then_chords_on_the_corrected_bars(tmp_path, monkeypatch):
+    from arr.commands._common import song_bars
+    from arr.commands._screen import song_chart
+
+    p = gappy_song(tmp_path, monkeypatch)
+    # m : le temps manqué est rétabli ; le passage rejoue ; a s'ouvre sur les barres corrigées
+    opened = editing(monkeypatch, lambda text: text.replace("G    /    /    /", "G    /    /    D7"))
+    taps = [6.0, 8.0, 10.0, 12.0, 14.0]
+    fake_taps(monkeypatch, [taps], [["bars"], ["enter"], ["chords"], ["enter"], ["enter"]], lead=2.0, start=6.0)
+    out = runner.invoke(app, ["review"], input="t\n").output
+    assert "barres corrigées (review/v001.toml)" in out and "accords corrigés (review/v002.toml)" in out
+    assert "5 │ G / / /" in [" ".join(line.split()) for line in opened[0].splitlines()]
+    assert "morceau vérifié" in out and len(list((p.root / "review").iterdir())) == 2  # Entrée n'ajoute pas de jugement
+    fixed = {m[0]: m for m in song_chart(p)}[8.0]
+    assert [(c[0], c[2], c[3]) for c in fixed[3]] == [(0, "G:maj", 8.0), (3, "D7", 9.5)]
+    # --undo reprend la dernière : les accords, puis les barres
+    assert "des accords reprise" in runner.invoke(app, ["review", "--undo"]).output and len(song_bars(p)[0]) == 64
+    assert "des barres reprise" in runner.invoke(app, ["review", "--undo"]).output and len(song_bars(p)[0]) == 63
+
+
+def test_a_bar_fix_made_later_keeps_the_chords_i_fixed():
+    from arr import chordfix
+
+    # mes accords sont gardés par instant : des barres corrigées après coup les laissent où ils sonnent
+    fix = chordfix.ChordFix(8.0, 10.0, [(8.0, 9.0, "Gm"), (9.0, 10.0, "D7")])
+    chords = chordfix.lay_chords([(2.0 * i, 2.0 * i + 2, "C:maj") for i in range(8)], [fix])
+    assert (8.0, 9.0, "Gm") in chords and (9.0, 10.0, "D7") in chords and len(chords) == 9
