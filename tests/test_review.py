@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 
 import numpy as np
+import pytest
 
 from arr import audio, review
 from arr.cli import app
@@ -379,3 +380,43 @@ def test_sections_in_a_row_play_from_their_very_start_and_the_taps_can_be_stoppe
     out = runner.invoke(app, ["review", "-s", "intro,intro2"], input="v\n").output
     assert "barres corrigées" in out and [t for t in song_bars(p)[1] if t <= 10.0] == taps
     assert "correction reprise" in runner.invoke(app, ["review", "--undo", "-s", "intro,intro2"]).output
+
+
+def test_count_in_gives_four_clicks_before_each_turn_of_the_loop(tmp_path, monkeypatch):
+    from arr import studio
+
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    p = gappy_song(tmp_path, monkeypatch)
+    quiet = audio.load(p.root / "source/original.flac")
+    audio.save(p.root / "source/original.flac", np.zeros_like(quiet))  # seuls les clics s'entendent
+    # la position du flux : pendant les clics, dans le passage, puis au second tour (la boucle reprend aux clics)
+    calls["positions"] = [1.0, 3.0, 8.0 + 1.0, 8.0 + 3.0]
+    out_lines = []
+    real = studio.play
+    monkeypatch.setattr(
+        studio,
+        "play",
+        lambda data, loop=None, watch=None, follow=None: real(
+            data, loop, lambda s: out_lines.append(s) or watch(s), follow
+        ),
+    )
+    out = runner.invoke(app, ["review", "--count-in"]).output
+    played = calls["played"][0]
+    assert len(played) == 8 * audio.SR and calls["looped"][0] is played  # 2 s de clics et 6 s de passage, à chaque tour
+    loud = np.flatnonzero(np.abs(played[:, 0]) > 0.1) / audio.SR
+    starts = [float(loud[0])] + [float(b) for a, b in zip(loud, loud[1:], strict=False) if b - a > 0.1]
+    assert starts == pytest.approx([0.0, 0.5, 1.0, 1.5], abs=1e-3)  # le 1 du passage tombe un temps après le quatrième
+    assert "décompte" not in out.split("relecture")[-1]  # la dernière image : dans le passage, au second tour
+    assert out_lines == [1.0, 3.0, 9.0, 11.0]
+    # sans l'option, le passage joue sec
+    calls["played"].clear()
+    runner.invoke(app, ["review"])
+    assert len(calls["played"][0]) == 6 * audio.SR
+
+
+def test_the_screen_says_count_in_during_the_clicks(tmp_path, monkeypatch):
+    calls = fake_studio(monkeypatch, np.zeros((10, 2), np.float32))
+    gappy_song(tmp_path, monkeypatch)
+    calls["positions"] = [8.0 + 1.0]  # second tour, pendant les clics
+    out = runner.invoke(app, ["review", "--count-in"]).output
+    assert "décompte · verse · mes. 4 à 6" in out and "0:00 / 0:06" in out
